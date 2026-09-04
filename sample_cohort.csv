@@ -1,0 +1,21 @@
+Student ID,Gender,Ethnicity,Age group,Disability,Residency,First generation in HE
+S001,Female,Asian,16-20,N,United Kingdom,Yes
+S002,Male,Black,21-24,Y,United Kingdom,Yes
+S003,Female,White,30+,N,Overseas,No
+S004,Male,Asian,16-20,N,United Kingdom,Yes
+S005,Female,Asian,21-24,N,Overseas,No
+S006,Female,Black,16-20,Y,United Kingdom,Yes
+S007,Male,White,25-29,N,United Kingdom,No
+S008,Female,Asian,16-20,N,Overseas,Yes
+S009,Male,Mixed,21-24,N,United Kingdom,Yes
+S010,Female,Black,30+,Y,United Kingdom,No
+S011,Female,Asian,16-20,N,Overseas,Yes
+S012,Male,Asian,21-24,N,United Kingdom,Yes
+S013,Female,White,16-20,N,United Kingdom,No
+S014,Male,Black,25-29,N,United Kingdom,Yes
+S015,Female,Asian,16-20,Y,Overseas,Yes
+S016,Female,Black,21-24,N,United Kingdom,Yes
+S017,Male,Asian,30+,N,Overseas,No
+S018,Female,White,16-20,N,United Kingdom,Yes
+S019,Female,Asian,21-24,N,United Kingdom,Yes
+S020,Male,Black,16-20,Y,United Kingdom,Yes

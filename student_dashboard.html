@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Student cohort comparison</title>
+<script src="student_dashboard_data.js"></script>
+<style>
+  :root{
+    --ink:#1d2530; --ink-soft:#55606f; --line:#e2e6ec; --paper:#f7f8fa;
+    --card:#ffffff; --pop:#8a94a6; --users:#0f766e; --users-soft:#d7ede9;
+    --sig:#b45309; --sig-soft:#fdf1df; --focus:#2563eb;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1000px;margin:0 auto;padding:28px 20px 64px}
+  h1{font-family:Georgia,"Times New Roman",serif;font-weight:600;font-size:30px;
+    letter-spacing:-.01em;margin:0 0 4px}
+  .sub{color:var(--ink-soft);font-size:15px;margin:0 0 2px}
+  .meta-line{color:var(--ink-soft);font-size:12.5px;margin-top:6px}
+  .eyebrow{text-transform:uppercase;letter-spacing:.09em;font-size:11px;font-weight:700;
+    color:var(--ink-soft);margin:0 0 8px}
+
+  /* upload */
+  .drop{margin:22px 0 8px;border:2px dashed #c4ccd6;border-radius:14px;background:var(--card);
+    padding:30px 24px;text-align:center;cursor:pointer;transition:border-color .12s,background .12s}
+  .drop:hover,.drop.drag{border-color:var(--users);background:var(--users-soft)}
+  .drop h2{font-family:Georgia,serif;font-weight:600;font-size:19px;margin:0 0 6px}
+  .drop p{color:var(--ink-soft);font-size:13.5px;margin:4px 0}
+  .drop .btn{display:inline-block;margin-top:10px;background:var(--ink);color:#fff;
+    border-radius:8px;padding:9px 18px;font-size:14px;font-weight:600}
+  .drop input[type=file]{display:none}
+  .filestrip{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0 4px;font-size:13.5px}
+  .filestrip .pill{background:var(--users-soft);color:var(--users);border:1px solid var(--users);
+    border-radius:999px;padding:5px 12px;font-weight:600}
+  .filestrip button{border:1px solid var(--line);background:var(--card);color:var(--ink-soft);
+    border-radius:8px;padding:6px 12px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+  .err{background:var(--sig-soft);border:1px solid var(--sig);color:#7c3d06;border-radius:10px;
+    padding:12px 16px;margin:14px 0;font-size:13.5px}
+  .mapnote{font-size:12.5px;color:var(--ink-soft);margin:8px 0 0}
+  .mapnote code{background:#eef1f5;border-radius:4px;padding:1px 5px}
+
+  /* controls */
+  .controls{margin:22px 0 8px;display:flex;flex-direction:column;gap:14px}
+  .tabrow{display:flex;flex-wrap:wrap;gap:6px}
+  .tab{border:1px solid var(--line);background:var(--card);color:var(--ink-soft);
+    padding:8px 14px;border-radius:999px;font-size:13.5px;font-weight:600;cursor:pointer;
+    transition:background .12s,color .12s,border-color .12s}
+  .tab:hover{border-color:#c4ccd6}
+  .tab[aria-selected="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .filters{display:flex;flex-wrap:wrap;gap:16px;align-items:end}
+  .toggle{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .toggle button{border:0;background:var(--card);color:var(--ink-soft);font:inherit;font-size:13px;
+    font-weight:600;padding:8px 14px;cursor:pointer}
+  .toggle button[aria-pressed="true"]{background:var(--ink);color:#fff}
+
+  /* headline strip */
+  .headline{display:flex;flex-wrap:wrap;gap:14px;margin:18px 0 4px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;min-width:150px}
+  .stat .n{font-family:Georgia,serif;font-size:26px;font-weight:600}
+  .stat .k{font-size:12px;color:var(--ink-soft);margin-top:2px}
+
+  /* cards */
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:18px 20px;margin-top:20px}
+  .card h2{font-family:Georgia,serif;font-weight:600;font-size:19px;margin:0 0 2px}
+  .card .note{color:var(--ink-soft);font-size:13px;margin:6px 0 4px}
+  .legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:var(--ink-soft);margin:10px 0 4px}
+  .legend span{display:inline-flex;align-items:center;gap:7px}
+  .swatch{width:12px;height:12px;border-radius:50%}
+  .sw-pop{background:var(--pop)} .sw-users{background:var(--users)}
+  .sw-sig{width:16px;height:10px;border-radius:2px;background:var(--sig-soft);border:1px solid var(--sig)}
+
+  .chart-scroll{overflow-x:auto;margin-top:6px}
+  svg{width:100%;height:auto;display:block}
+
+  /* svg element classes */
+  .gridline{stroke:var(--line);stroke-width:1}
+  .value-label{fill:var(--ink-soft);font-size:11.5px}
+  .row-label{fill:var(--ink);font-size:13px}
+  .excluded-row-label{fill:var(--ink-soft);font-style:italic}
+  .connector{stroke:#c4ccd6;stroke-width:2.5}
+  .connector-sig{stroke:var(--sig);stroke-width:3}
+  .row-band-sig{fill:var(--sig-soft)}
+  .dot{transition:r .1s} .dot:hover{r:9}
+  .dot-p{fill:var(--pop)} .dot-u{fill:var(--users)}
+  .dot-hit-target{fill:transparent}
+  .excluded-badge{fill:none;stroke:#b6bfca;stroke-width:1.5;stroke-dasharray:3 2}
+
+  /* table */
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:14px}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+  th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft)}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  tr.small-sample-row td{color:#9aa4b0;font-style:italic}
+  tr.sig-row{background:var(--sig-soft)}
+  tr.sig-row td:first-child{border-left:3px solid var(--sig);padding-left:7px}
+  .sig-badge{display:inline-block;font-size:10px;font-weight:700;color:var(--sig);
+    background:var(--sig-soft);border:1px solid var(--sig);border-radius:4px;
+    padding:1px 5px;margin-left:6px;vertical-align:middle}
+  .hidden{display:none}
+
+  .tooltip{position:fixed;pointer-events:none;background:var(--ink);color:#fff;font-size:12.5px;
+    padding:7px 10px;border-radius:7px;max-width:280px;opacity:0;transition:opacity .1s;z-index:20}
+  .tooltip.show{opacity:1}
+  footer{color:var(--ink-soft);font-size:12px;margin-top:26px;border-top:1px solid var(--line);padding-top:14px}
+
+  :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <h1>Student cohort comparison</h1>
+  <p class="sub">Upload a CSV of students and see how that group compares with the overall student population.</p>
+  <p class="meta-line" id="metaLine"></p>
+
+  <!-- upload zone -->
+  <div id="uploadZone">
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Upload a CSV file">
+      <h2>Drop a CSV here, or choose a file</h2>
+      <p>The file stays on your device. Nothing is uploaded anywhere.</p>
+      <p>It should have one row per student, with columns such as Gender, Ethnicity, Age group, Disability, Residency.</p>
+      <span class="btn">Choose CSV file</span>
+      <input type="file" id="fileInput" accept=".csv,text/csv">
+    </div>
+    <p class="mapnote" id="templateNote"></p>
+  </div>
+
+  <div id="errBox"></div>
+
+  <!-- results (hidden until a file is loaded) -->
+  <div id="results" class="hidden">
+    <div class="filestrip" id="fileStrip"></div>
+
+    <div class="headline" id="headline"></div>
+
+    <div class="card">
+      <h2 id="chartTitle">Representation</h2>
+      <p class="note" id="chartNote"></p>
+      <div class="tabrow" id="dimTabs" role="tablist" style="margin:10px 0 4px"></div>
+      <div class="filters" style="margin-bottom:8px">
+        <div class="toggle" role="group" aria-label="View">
+          <button id="btnChart" aria-pressed="true">Chart</button>
+          <button id="btnTable" aria-pressed="false">Table</button>
+        </div>
+      </div>
+      <div class="legend">
+        <span><i class="swatch sw-users"></i>Your cohort</span>
+        <span><i class="swatch sw-pop"></i>Population</span>
+        <span><i class="swatch sw-sig"></i>Significantly different at 95% (*)</span>
+      </div>
+      <div class="chart-scroll" id="chartView"><svg id="dumbbell" aria-label="Representation chart"></svg></div>
+      <div id="tableView" class="hidden">
+        <table><thead><tr>
+          <th>Group</th><th class="num">Your cohort</th><th class="num">Population</th><th class="num">Ratio</th>
+        </tr></thead><tbody id="tableBody"></tbody></table>
+        <p class="note" style="margin-top:8px;font-size:12px">Rows highlighted in orange differ significantly from the population at the 95% level (two-proportion z-test).</p>
+      </div>
+    </div>
+
+    <div class="card" id="unmatchedCard">
+      <h2>Notes on matching</h2>
+      <p class="note" id="unmatchedNote"></p>
+    </div>
+  </div>
+
+  <footer id="footer"></footer>
+</div>
+<div class="tooltip" id="tooltip"></div>
+
+<script>
+(function(){
+  "use strict";
+  var D = window.DASHBOARD_DATA;
+  if(!D || !D.POPULATION){
+    document.getElementById('app').innerHTML =
+      '<h1>Data file not found</h1><p class="sub">This dashboard reads its population baseline from '+
+      '<code>student_dashboard_data.js</code>, which must sit in the same folder as this page. '+
+      'If the folder is in OneDrive or SharePoint, wait for it to finish syncing, then reopen this file.</p>';
+    return;
+  }
+
+  // ---- tooltip + svg helpers ----------------------------------------------
+  function showTooltip(evt, txt){var t=document.getElementById('tooltip');t.textContent=txt;
+    t.classList.add('show');var x=evt.clientX!=null?evt.clientX:0,y=evt.clientY!=null?evt.clientY:0;
+    t.style.left=(x+14)+'px';t.style.top=(y+14)+'px';}
+  function hideTooltip(){document.getElementById('tooltip').classList.remove('show');}
+  var NS='http://www.w3.org/2000/svg';
+  function svgEl(tag,a){var el=document.createElementNS(NS,tag);for(var k in a)el.setAttribute(k,a[k]);return el;}
+  function pinChartWidth(svg,w){svg.style.minWidth=w+'px';}
+
+  var MIN=D.META.minCell, POP=D.POPULATION, POPTOTAL=D.META.popTotal;
+
+  // ---- CSV parsing ---------------------------------------------------------
+  // Small RFC-4180-ish parser: handles quoted fields, embedded commas/newlines,
+  // doubled quotes, and CRLF. Returns array of rows (arrays of strings).
+  function parseCSV(text){
+    if(text.charCodeAt(0)===0xFEFF) text=text.slice(1); // strip BOM
+    var rows=[],row=[],field='',i=0,inQ=false,c;
+    while(i<text.length){
+      c=text[i];
+      if(inQ){
+        if(c==='"'){ if(text[i+1]==='"'){field+='"';i+=2;continue;} inQ=false;i++;continue; }
+        field+=c;i++;continue;
+      }
+      if(c==='"'){inQ=true;i++;continue;}
+      if(c===','){row.push(field);field='';i++;continue;}
+      if(c==='\r'){i++;continue;}
+      if(c==='\n'){row.push(field);rows.push(row);row=[];field='';i++;continue;}
+      field+=c;i++;
+    }
+    if(field.length>0||row.length>0){row.push(field);rows.push(row);}
+    // drop fully-empty trailing rows
+    return rows.filter(function(r){return r.some(function(x){return x!=null&&String(x).trim()!=='';});});
+  }
+
+  function normHeader(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}
+
+  // Match each dimension to a CSV column index using columnAliases.
+  function mapColumns(headers){
+    var norm=headers.map(normHeader);
+    var map={}, used={};
+    D.META.dimensions.forEach(function(dim){
+      var aliases=(D.META.columnAliases[dim]||[]).map(normHeader);
+      // exact alias match first, then contains
+      var idx=-1;
+      for(var a=0;a<aliases.length&&idx<0;a++){
+        idx=norm.indexOf(aliases[a]);
+      }
+      if(idx<0){
+        for(var a2=0;a2<aliases.length&&idx<0;a2++){
+          for(var h=0;h<norm.length;h++){ if(!used[h]&&norm[h].indexOf(aliases[a2])>-1){idx=h;break;} }
+        }
+      }
+      if(idx>-1&&!used[idx]){map[dim]=idx;used[idx]=true;}
+    });
+    return map;
+  }
+
+  // ---- statistics ----------------------------------------------------------
+  function zTestSig(uN,n1,pN,n2){
+    if(n1<=0||n2<=0) return {sig:false,reqDiff:null};
+    var p1=uN/n1, p2=pN/n2, pooled=(uN+pN)/(n1+n2);
+    var se=Math.sqrt(pooled*(1-pooled)*(1/n1+1/n2));
+    var sig= se>0 && Math.abs(p1-p2)/se>1.96;
+    // approx minimum |difference| in pct points needed to reach significance
+    var seP=Math.sqrt(p2*(1-p2)*(1/n1+1/n2));
+    var reqDiff= seP>0 ? Math.round(1.96*seP*1000)/10 : null;
+    return {sig:sig,reqDiff:reqDiff};
+  }
+
+  // Build analysis rows for one dimension by comparing cohort tallies to POP.
+  function analyseDimension(dim,colIdx,rows){
+    var popList=POP[dim]||[];
+    // cohort tally, keyed by normalised category label
+    var tally={}, present=0, blanks=0, cohortByNorm={};
+    rows.forEach(function(r){
+      var v=(r[colIdx]!=null?String(r[colIdx]):'').trim();
+      if(v===''){blanks++;return;}
+      present++;
+      var key=v.toLowerCase();
+      tally[key]=(tally[key]||0)+1;
+      cohortByNorm[key]=v; // remember original casing
+    });
+    if(present===0) return null;
+    var matchedKeys={};
+    var out=popList.map(function(p){
+      var key=String(p.category).toLowerCase();
+      var uN=tally[key]||0; matchedKeys[key]=true;
+      var uPct=Math.round(1000*uN/present)/10;
+      var t=zTestSig(uN,present,p.n,POPTOTAL);
+      return {category:p.category,uN:uN,uPct:uPct,pN:p.n,pPct:p.pct,
+        ratio: p.pct>0 ? Math.round(100*uPct/p.pct)/100 : null,
+        significant: uN>=MIN && t.sig, reqDiff:t.reqDiff,
+        smallSample: uN>0 && uN<MIN, zero: uN===0};
+    });
+    // cohort categories with no population match
+    var unmatched=[];
+    Object.keys(tally).forEach(function(key){
+      if(!matchedKeys[key]) unmatched.push({label:cohortByNorm[key],n:tally[key]});
+    });
+    return {rows:out, present:present, blanks:blanks, unmatched:unmatched};
+  }
+
+  // ---- dumbbell renderer (from wellbeing dashboard) ------------------------
+  function renderChart(rows,popLabel,userLabel){
+    var chartRows=rows.filter(function(r){return !r.smallSample && !r.zero;});
+    var excluded=rows.filter(function(r){return r.smallSample;});
+    var maxLabelLen=chartRows.reduce(function(m,r){return Math.max(m,(r.category||'').length);},0);
+    var leftPad=Math.max(190, Math.min(320, maxLabelLen*7+20));
+    var rowH=42,rightPad=190,topPad=20,markerR=7;
+    var width=880, plotW=width-leftPad-rightPad;
+    var svg=document.getElementById('dumbbell');svg.textContent='';
+    if(chartRows.length===0){
+      svg.setAttribute('viewBox','0 0 860 80');pinChartWidth(svg,860);
+      var msg=svgEl('text',{x:20,y:44,'class':'value-label'});
+      msg.textContent='No groups here have enough students to report (all below the '+MIN+'-student threshold).';
+      svg.appendChild(msg);return;
+    }
+    var extra=excluded.length>0?1:0;
+    var height=topPad*2+rowH*(chartRows.length+extra);
+    svg.setAttribute('viewBox','0 0 '+width+' '+height);pinChartWidth(svg,width);
+    var xs=function(p){return leftPad+(p/100)*plotW;};
+    chartRows.forEach(function(r,i){if(r.significant){var y=topPad+rowH*i;
+      svg.appendChild(svgEl('rect',{x:0,y:y,width:width,height:rowH,'class':'row-band-sig'}));}});
+    for(var g=0;g<=100;g+=20){var x=xs(g);
+      svg.appendChild(svgEl('line',{x1:x,y1:topPad-6,x2:x,y2:height-topPad+6,'class':'gridline'}));
+      var t=svgEl('text',{x:x,y:height-topPad+18,'class':'value-label','text-anchor':'middle'});t.textContent=g+'%';svg.appendChild(t);}
+    chartRows.forEach(function(r,i){
+      var y=topPad+rowH*i+rowH/2, xu=xs(r.uPct), xp=xs(r.pPct);
+      var lab=svgEl('text',{x:leftPad-14,y:y+4,'class':'row-label','text-anchor':'end'});lab.textContent=r.category;svg.appendChild(lab);
+      var sig=r.significant;
+      svg.appendChild(svgEl('line',{x1:xp,y1:y,x2:xu,y2:y,'class':sig?'connector connector-sig':'connector'}));
+      var dp=svgEl('circle',{cx:xp,cy:y,r:markerR,'class':'dot dot-p',tabindex:'0'});
+      var du=svgEl('circle',{cx:xu,cy:y,r:markerR,'class':'dot dot-u',tabindex:'0'});
+      var pInfo=popLabel+' – '+r.category+': '+r.pPct+'% ('+r.pN.toLocaleString()+' students)';
+      var uInfo=userLabel+' – '+r.category+': '+r.uPct+'% ('+r.uN.toLocaleString()+' students) · ratio ×'+r.ratio+
+        (r.significant?' · significant':'')+(r.reqDiff!=null?' · needs ±'+r.reqDiff+'% to differ':'');
+      [[dp,pInfo,xp],[du,uInfo,xu]].forEach(function(z){
+        z[0].addEventListener('pointermove',function(e){showTooltip(e,z[1]);});
+        z[0].addEventListener('pointerleave',hideTooltip);
+        z[0].addEventListener('focus',function(e){showTooltip(e,z[1]);});
+        z[0].addEventListener('blur',hideTooltip);
+        var hit=svgEl('circle',{cx:z[2],cy:y,r:13,'class':'dot-hit-target'});
+        hit.addEventListener('pointermove',function(e){showTooltip(e,z[1]);});
+        hit.addEventListener('pointerleave',hideTooltip);svg.appendChild(hit);
+      });
+      svg.appendChild(dp);svg.appendChild(du);
+      var vl=svgEl('text',{x:Math.max(xu,xp)+14,y:y+4,'class':'value-label'});
+      vl.textContent=r.uPct+'% vs '+r.pPct+'%'+(sig?' *':'');svg.appendChild(vl);
+    });
+    if(excluded.length>0){
+      var y=topPad+rowH*chartRows.length+rowH/2;
+      var lab=svgEl('text',{x:leftPad-14,y:y+4,'class':'row-label excluded-row-label','text-anchor':'end'});
+      lab.textContent='+'+excluded.length+' group'+(excluded.length>1?'s':'')+' too small to report';
+      svg.appendChild(lab);
+      var badge=svgEl('circle',{cx:leftPad,cy:y,r:markerR+2,'class':'excluded-badge',tabindex:'0'});
+      var names=excluded.map(function(r){return r.category;}).slice(0,4).join(', ');
+      var info=excluded.length+' group'+(excluded.length>1?'s':'')+' with under '+MIN+' students, hidden: '+names+(excluded.length>4?', …':'');
+      badge.addEventListener('pointermove',function(e){showTooltip(e,info);});
+      badge.addEventListener('pointerleave',hideTooltip);
+      badge.addEventListener('focus',function(e){showTooltip(e,info);});
+      badge.addEventListener('blur',hideTooltip);svg.appendChild(badge);
+    }
+  }
+
+  function renderTable(rows){
+    var b=document.getElementById('tableBody');b.textContent='';
+    rows.filter(function(r){return !r.zero;}).forEach(function(r){
+      var tr=document.createElement('tr');
+      if(r.smallSample){
+        tr.className='small-sample-row';
+        var cells=[r.category+' (under '+MIN+' students – hidden)','—','—','—'];
+        cells.forEach(function(c,i){var td=document.createElement('td');if(i>0)td.className='num';
+          td.textContent=c;tr.appendChild(td);});
+      } else {
+        if(r.significant) tr.className='sig-row';
+        var nameCell=document.createElement('td');
+        nameCell.textContent=r.category;
+        if(r.significant){
+          var badge=document.createElement('span');badge.className='sig-badge';badge.textContent='sig';
+          nameCell.appendChild(badge);
+        }
+        tr.appendChild(nameCell);
+        [[r.uPct+'% ('+r.uN.toLocaleString()+')'],[r.pPct+'% ('+r.pN.toLocaleString()+')'],[r.ratio!=null?('\xd7'+r.ratio):'—']].forEach(function(c){
+          var td=document.createElement('td');td.className='num';td.textContent=c[0];tr.appendChild(td);
+        });
+      }
+      b.appendChild(tr);
+    });
+  }
+
+  // ---- state ---------------------------------------------------------------
+  var ANALYSIS=null, DIMS=[], state={dim:null,view:'chart',fileName:''};
+
+  function buildGaps(){
+    // top significant rows across all dimensions, by absolute pct-point gap
+    var all=[];
+    DIMS.forEach(function(dim){
+      (ANALYSIS[dim].rows||[]).forEach(function(r){
+        if(r.significant) all.push(Object.assign({},r,{category:dim+': '+r.category}));
+      });
+    });
+    all.sort(function(a,b){return Math.abs(b.uPct-b.pPct)-Math.abs(a.uPct-a.pPct);});
+    return all.slice(0,8);
+  }
+
+  function analyseFile(headers,dataRows,fileName){
+    var map=mapColumns(headers);
+    var mappedDims=D.META.dimensions.filter(function(d){return map[d]!=null;});
+    if(mappedDims.length===0){
+      showError('None of the columns in this CSV matched a demographic dimension. '+
+        'Expected column names like Gender, Ethnicity, Age group, Disability, Residency. '+
+        'Found: '+headers.map(function(h){return '"'+h+'"';}).join(', ')+'. '+
+        'You can add your own header names to the columnAliases section of student_dashboard_data.js.');
+      return;
+    }
+    ANALYSIS={}; var okDims=[];
+    mappedDims.forEach(function(dim){
+      var a=analyseDimension(dim,map[dim],dataRows);
+      if(a){ANALYSIS[dim]=a;okDims.push(dim);}
+    });
+    DIMS=okDims;
+    // synthesise "Biggest gaps" if there is anything significant
+    var gaps=buildGaps();
+    if(gaps.length){ ANALYSIS['Biggest gaps']={rows:gaps,present:dataRows.length,blanks:0,unmatched:[]};
+      DIMS=['Biggest gaps'].concat(DIMS); }
+
+    state.dim=DIMS[0]; state.fileName=fileName;
+    document.getElementById('errBox').innerHTML='';
+    document.getElementById('uploadZone').classList.add('hidden');
+    document.getElementById('results').classList.remove('hidden');
+    buildDimTabs(); setView('chart'); render();
+  }
+
+  function buildDimTabs(){
+    var host=document.getElementById('dimTabs');host.textContent='';
+    DIMS.forEach(function(d){
+      var b=document.createElement('button');b.className='tab';b.textContent=d;
+      b.setAttribute('role','tab');b.dataset.dim=d;
+      b.addEventListener('click',function(){state.dim=d;render();});
+      host.appendChild(b);
+    });
+  }
+
+  function setView(v){state.view=v;
+    document.getElementById('btnChart').setAttribute('aria-pressed',v==='chart');
+    document.getElementById('btnTable').setAttribute('aria-pressed',v==='table');
+    document.getElementById('chartView').classList.toggle('hidden',v==='table');
+    document.getElementById('tableView').classList.toggle('hidden',v!=='table');
+  }
+  document.getElementById('btnChart').addEventListener('click',function(){setView('chart');});
+  document.getElementById('btnTable').addEventListener('click',function(){setView('table');});
+
+  function render(){
+    Array.prototype.forEach.call(document.getElementById('dimTabs').children,function(b){
+      b.setAttribute('aria-selected',b.dataset.dim===state.dim);});
+
+    var a=ANALYSIS[state.dim];
+    var cohortN=Math.max.apply(null,DIMS.filter(function(d){return d!=='Biggest gaps';})
+      .map(function(d){return ANALYSIS[d].present;}).concat([0]));
+
+    // file strip
+    document.getElementById('fileStrip').innerHTML=
+      '<span class="pill">'+esc(state.fileName)+'</span>'+
+      '<span style="color:var(--ink-soft)">'+cohortN.toLocaleString()+' students in your cohort · '+
+      POPTOTAL.toLocaleString()+' in the population</span>';
+
+    // headline
+    var sigCount=0;
+    DIMS.filter(function(d){return d!=='Biggest gaps';}).forEach(function(d){
+      (ANALYSIS[d].rows||[]).forEach(function(r){if(r.significant)sigCount++;});
+    });
+    var hs=[['n',cohortN.toLocaleString(),'students in your cohort'],
+            ['n',(POPTOTAL?Math.round(1000*cohortN/POPTOTAL)/10+'%':'—'),'of the whole population'],
+            ['n',sigCount,'groups significantly over/under-represented']];
+    document.getElementById('headline').innerHTML=hs.map(function(s){
+      return '<div class="stat"><div class="n">'+s[1]+'</div><div class="k">'+s[2]+'</div></div>';}).join('');
+
+    // titles + notes
+    var isGaps=state.dim==='Biggest gaps';
+    if(isGaps){
+      document.getElementById('chartTitle').textContent='Biggest gaps';
+      document.getElementById('chartNote').textContent=
+        'The groups where your cohort differs most from the population, across every breakdown, that are also statistically significant.';
+    } else {
+      document.getElementById('chartTitle').textContent='Representation by '+state.dim;
+      document.getElementById('chartNote').textContent=
+        'Share of your cohort vs share of the student population. A ratio above 1 means over-represented; below 1, under-represented.'+
+        (a.blanks?(' '+a.blanks.toLocaleString()+' student'+(a.blanks>1?'s':'')+' had no value for '+state.dim+' and are excluded from this breakdown.'):'');
+    }
+
+    var rows=a.rows||[];
+    var sorted=rows.slice().sort(function(x,y){
+      if(!!x.smallSample!==!!y.smallSample) return x.smallSample?1:-1;
+      return (y.uPct||0)-(x.uPct||0);
+    });
+    renderChart(sorted,'Student population','Your cohort');
+    renderTable(sorted);
+
+    // matching notes
+    var notes=[];
+    DIMS.filter(function(d){return d!=='Biggest gaps';}).forEach(function(d){
+      var un=ANALYSIS[d].unmatched;
+      if(un&&un.length){
+        notes.push('<strong>'+esc(d)+':</strong> '+un.length+' value'+(un.length>1?'s':'')+
+          ' in your CSV did not match a population category and could not be compared: '+
+          un.slice(0,6).map(function(u){return esc(u.label)+' ('+u.n+')';}).join(', ')+(un.length>6?', …':'')+'.');
+      }
+    });
+    var card=document.getElementById('unmatchedCard');
+    if(notes.length){
+      card.classList.remove('hidden');
+      document.getElementById('unmatchedNote').innerHTML=
+        notes.join('<br>')+'<br><br>To fix these, make sure the labels in your CSV match the population labels exactly '+
+        '(same spelling and capitalisation), or edit the population baseline in <code>student_dashboard_data.js</code>.';
+    } else { card.classList.add('hidden'); }
+  }
+
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+
+  // ---- file handling -------------------------------------------------------
+  function showError(msg){
+    document.getElementById('errBox').innerHTML='<div class="err">'+esc(msg)+'</div>';
+  }
+  function handleFile(file){
+    if(!file) return;
+    if(!/\.csv$/i.test(file.name)&&file.type!=='text/csv'){
+      showError('Please choose a .csv file. Got "'+file.name+'".');return;
+    }
+    var reader=new FileReader();
+    reader.onload=function(){
+      try{
+        var rows=parseCSV(String(reader.result));
+        if(rows.length<2){showError('That CSV has no data rows under its header.');return;}
+        var headers=rows[0].map(function(h){return String(h).trim();});
+        analyseFile(headers,rows.slice(1),file.name);
+      }catch(e){ showError('Could not read that CSV: '+e.message); }
+    };
+    reader.onerror=function(){showError('Could not read the file.');};
+    reader.readAsText(file);
+  }
+
+  var drop=document.getElementById('drop'), input=document.getElementById('fileInput');
+  drop.addEventListener('click',function(){input.click();});
+  drop.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();input.click();}});
+  input.addEventListener('change',function(){handleFile(input.files[0]);});
+  ['dragenter','dragover'].forEach(function(ev){drop.addEventListener(ev,function(e){
+    e.preventDefault();drop.classList.add('drag');});});
+  ['dragleave','drop'].forEach(function(ev){drop.addEventListener(ev,function(e){
+    e.preventDefault();drop.classList.remove('drag');});});
+  drop.addEventListener('drop',function(e){
+    var f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];handleFile(f);});
+
+  // ---- init ----------------------------------------------------------------
+  document.getElementById('metaLine').textContent=
+    'Compares your uploaded group of students against the '+POPTOTAL.toLocaleString()+
+    '-student population baseline of '+(D.META.generated||'')+'. Groups under '+MIN+' students are suppressed.';
+  document.getElementById('templateNote').innerHTML=
+    'Recognised columns: '+D.META.dimensions.map(function(d){return '<code>'+esc(d)+'</code>';}).join(', ')+
+    '. Column names are matched loosely (case and spacing are ignored).';
+  document.getElementById('footer').textContent=D.META.disclosure||'';
+})();
+</script>
+</body>
+</html>
