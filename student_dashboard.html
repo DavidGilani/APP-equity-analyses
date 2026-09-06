@@ -35,15 +35,32 @@
   .filestrip{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0 4px;font-size:13.5px}
   .filestrip .pill{background:var(--users-soft);color:var(--users);border:1px solid var(--users);
     border-radius:999px;padding:5px 12px;font-weight:600}
-  .filestrip button{border:1px solid var(--line);background:var(--card);color:var(--ink-soft);
-    border-radius:8px;padding:6px 12px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+  .btn-line{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:16px 0 4px}
+  .btn-solid{border:0;background:var(--ink);color:#fff;border-radius:8px;padding:10px 20px;
+    font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+  .btn-ghost{border:1px solid var(--line);background:var(--card);color:var(--ink-soft);
+    border-radius:8px;padding:9px 16px;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer}
   .err{background:var(--sig-soft);border:1px solid var(--sig);color:#7c3d06;border-radius:10px;
     padding:12px 16px;margin:14px 0;font-size:13.5px}
   .mapnote{font-size:12.5px;color:var(--ink-soft);margin:8px 0 0}
-  .mapnote code{background:#eef1f5;border-radius:4px;padding:1px 5px}
+  .mapnote code,.map-samples code{background:#eef1f5;border-radius:4px;padding:1px 5px}
+
+  /* mapping table */
+  .map-table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13.5px}
+  .map-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--ink-soft);padding:6px 10px;border-bottom:1px solid var(--line)}
+  .map-table td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  .map-col{font-weight:600}
+  .map-samples{color:var(--ink-soft);font-size:12px}
+  .map-meta{color:#9aa4b0;font-size:11.5px;margin-top:2px}
+  .map-table select{font:inherit;font-size:13px;padding:7px 26px 7px 10px;border:1px solid var(--line);
+    border-radius:8px;background:var(--card);color:var(--ink);min-width:250px;appearance:none;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='8'><path d='M1 1l5 5 5-5' fill='none' stroke='%2355606f' stroke-width='1.5'/></svg>");
+    background-repeat:no-repeat;background-position:right 10px center}
+  tr.role-dim{background:var(--users-soft)}
+  tr.role-flag,tr.role-cat{background:var(--sig-soft)}
 
   /* controls */
-  .controls{margin:22px 0 8px;display:flex;flex-direction:column;gap:14px}
   .tabrow{display:flex;flex-wrap:wrap;gap:6px}
   .tab{border:1px solid var(--line);background:var(--card);color:var(--ink-soft);
     padding:8px 14px;border-radius:999px;font-size:13.5px;font-weight:600;cursor:pointer;
@@ -90,10 +107,10 @@
   .excluded-badge{fill:none;stroke:#b6bfca;stroke-width:1.5;stroke-dasharray:3 2}
 
   /* table */
-  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:14px}
-  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
-  th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft)}
-  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  table.data{width:100%;border-collapse:collapse;margin-top:8px;font-size:14px}
+  table.data th,table.data td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
+  table.data th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft)}
+  table.data td.num{text-align:right;font-variant-numeric:tabular-nums}
   tr.small-sample-row td{color:#9aa4b0;font-style:italic}
   tr.sig-row{background:var(--sig-soft)}
   tr.sig-row td:first-child{border-left:3px solid var(--sig);padding-left:7px}
@@ -114,7 +131,7 @@
 <body>
 <div class="wrap" id="app">
   <h1>Student cohort comparison</h1>
-  <p class="sub">Upload a CSV of students and see how that group compares with the overall student population.</p>
+  <p class="sub">Upload a CSV of students, tell the dashboard what each column means, and see how the group compares with the overall student population, overall and by sub-group.</p>
   <p class="meta-line" id="metaLine"></p>
 
   <!-- upload zone -->
@@ -122,7 +139,7 @@
     <div class="drop" id="drop" tabindex="0" role="button" aria-label="Upload a CSV file">
       <h2>Drop a CSV here, or choose a file</h2>
       <p>The file stays on your device. Nothing is uploaded anywhere.</p>
-      <p>It should have one row per student, with columns such as Gender, Ethnicity, Age group, Disability, Residency.</p>
+      <p>One row per student. Include demographic columns (Gender, Ethnicity, Age group…) and, optionally, columns that mark which service, sub-service, or year each student belongs to.</p>
       <span class="btn">Choose CSV file</span>
       <input type="file" id="fileInput" accept=".csv,text/csv">
     </div>
@@ -131,9 +148,32 @@
 
   <div id="errBox"></div>
 
-  <!-- results (hidden until a file is loaded) -->
+  <!-- mapping zone -->
+  <div id="mapZone" class="hidden">
+    <div class="card">
+      <h2>What does each column mean?</h2>
+      <p class="note" id="mapIntro"></p>
+      <div style="overflow-x:auto">
+        <table class="map-table"><thead><tr>
+          <th>Column</th><th>Example values</th><th>Treat this column as…</th>
+        </tr></thead><tbody id="mapBody"></tbody></table>
+      </div>
+      <div class="btn-line">
+        <button class="btn-solid" id="btnBuild">Build dashboard</button>
+        <button class="btn-ghost" id="btnStartOver">Start over</button>
+      </div>
+      <p class="mapnote" id="mapHint"></p>
+    </div>
+  </div>
+
+  <!-- results -->
   <div id="results" class="hidden">
     <div class="filestrip" id="fileStrip"></div>
+
+    <div id="markerWrap" style="margin:6px 0 2px">
+      <p class="eyebrow" style="margin-bottom:6px">Service / sub-group</p>
+      <div class="tabrow" id="markerTabs" role="tablist"></div>
+    </div>
 
     <div class="headline" id="headline"></div>
 
@@ -146,16 +186,17 @@
           <button id="btnChart" aria-pressed="true">Chart</button>
           <button id="btnTable" aria-pressed="false">Table</button>
         </div>
+        <button class="btn-ghost" id="btnRemap">Re-map columns</button>
       </div>
       <div class="legend">
-        <span><i class="swatch sw-users"></i>Your cohort</span>
+        <span><i class="swatch sw-users"></i><span id="legUsers">This group</span></span>
         <span><i class="swatch sw-pop"></i>Population</span>
         <span><i class="swatch sw-sig"></i>Significantly different at 95% (*)</span>
       </div>
       <div class="chart-scroll" id="chartView"><svg id="dumbbell" aria-label="Representation chart"></svg></div>
       <div id="tableView" class="hidden">
-        <table><thead><tr>
-          <th>Group</th><th class="num">Your cohort</th><th class="num">Population</th><th class="num">Ratio</th>
+        <table class="data"><thead><tr>
+          <th>Group</th><th class="num">This group</th><th class="num">Population</th><th class="num">Ratio</th>
         </tr></thead><tbody id="tableBody"></tbody></table>
         <p class="note" style="margin-top:8px;font-size:12px">Rows highlighted in orange differ significantly from the population at the 95% level (two-proportion z-test).</p>
       </div>
@@ -183,7 +224,12 @@
     return;
   }
 
-  // ---- tooltip + svg helpers ----------------------------------------------
+  var MIN=D.META.minCell, POP=D.POPULATION, POPTOTAL=D.META.popTotal;
+  var DIMENSIONS=D.META.dimensions;
+
+  // ---- helpers -------------------------------------------------------------
+  function esc(s){return String(s).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
   function showTooltip(evt, txt){var t=document.getElementById('tooltip');t.textContent=txt;
     t.classList.add('show');var x=evt.clientX!=null?evt.clientX:0,y=evt.clientY!=null?evt.clientY:0;
     t.style.left=(x+14)+'px';t.style.top=(y+14)+'px';}
@@ -191,14 +237,14 @@
   var NS='http://www.w3.org/2000/svg';
   function svgEl(tag,a){var el=document.createElementNS(NS,tag);for(var k in a)el.setAttribute(k,a[k]);return el;}
   function pinChartWidth(svg,w){svg.style.minWidth=w+'px';}
+  function normHeader(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}
 
-  var MIN=D.META.minCell, POP=D.POPULATION, POPTOTAL=D.META.popTotal;
+  var FLAGGY_NEG={'':1,'0':1,'no':1,'n':1,'false':1,'none':1,'na':1,'n/a':1,'not applicable':1,'-':1};
+  function truthy(v){var s=String(v==null?'':v).trim().toLowerCase();return !FLAGGY_NEG.hasOwnProperty(s);}
 
   // ---- CSV parsing ---------------------------------------------------------
-  // Small RFC-4180-ish parser: handles quoted fields, embedded commas/newlines,
-  // doubled quotes, and CRLF. Returns array of rows (arrays of strings).
   function parseCSV(text){
-    if(text.charCodeAt(0)===0xFEFF) text=text.slice(1); // strip BOM
+    if(text.charCodeAt(0)===0xFEFF) text=text.slice(1);
     var rows=[],row=[],field='',i=0,inQ=false,c;
     while(i<text.length){
       c=text[i];
@@ -213,31 +259,7 @@
       field+=c;i++;
     }
     if(field.length>0||row.length>0){row.push(field);rows.push(row);}
-    // drop fully-empty trailing rows
     return rows.filter(function(r){return r.some(function(x){return x!=null&&String(x).trim()!=='';});});
-  }
-
-  function normHeader(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}
-
-  // Match each dimension to a CSV column index using columnAliases.
-  function mapColumns(headers){
-    var norm=headers.map(normHeader);
-    var map={}, used={};
-    D.META.dimensions.forEach(function(dim){
-      var aliases=(D.META.columnAliases[dim]||[]).map(normHeader);
-      // exact alias match first, then contains
-      var idx=-1;
-      for(var a=0;a<aliases.length&&idx<0;a++){
-        idx=norm.indexOf(aliases[a]);
-      }
-      if(idx<0){
-        for(var a2=0;a2<aliases.length&&idx<0;a2++){
-          for(var h=0;h<norm.length;h++){ if(!used[h]&&norm[h].indexOf(aliases[a2])>-1){idx=h;break;} }
-        }
-      }
-      if(idx>-1&&!used[idx]){map[dim]=idx;used[idx]=true;}
-    });
-    return map;
   }
 
   // ---- statistics ----------------------------------------------------------
@@ -246,16 +268,13 @@
     var p1=uN/n1, p2=pN/n2, pooled=(uN+pN)/(n1+n2);
     var se=Math.sqrt(pooled*(1-pooled)*(1/n1+1/n2));
     var sig= se>0 && Math.abs(p1-p2)/se>1.96;
-    // approx minimum |difference| in pct points needed to reach significance
     var seP=Math.sqrt(p2*(1-p2)*(1/n1+1/n2));
     var reqDiff= seP>0 ? Math.round(1.96*seP*1000)/10 : null;
     return {sig:sig,reqDiff:reqDiff};
   }
 
-  // Build analysis rows for one dimension by comparing cohort tallies to POP.
   function analyseDimension(dim,colIdx,rows){
     var popList=POP[dim]||[];
-    // cohort tally, keyed by normalised category label
     var tally={}, present=0, blanks=0, cohortByNorm={};
     rows.forEach(function(r){
       var v=(r[colIdx]!=null?String(r[colIdx]):'').trim();
@@ -263,7 +282,7 @@
       present++;
       var key=v.toLowerCase();
       tally[key]=(tally[key]||0)+1;
-      cohortByNorm[key]=v; // remember original casing
+      cohortByNorm[key]=v;
     });
     if(present===0) return null;
     var matchedKeys={};
@@ -277,7 +296,6 @@
         significant: uN>=MIN && t.sig, reqDiff:t.reqDiff,
         smallSample: uN>0 && uN<MIN, zero: uN===0};
     });
-    // cohort categories with no population match
     var unmatched=[];
     Object.keys(tally).forEach(function(key){
       if(!matchedKeys[key]) unmatched.push({label:cohortByNorm[key],n:tally[key]});
@@ -285,12 +303,12 @@
     return {rows:out, present:present, blanks:blanks, unmatched:unmatched};
   }
 
-  // ---- dumbbell renderer (from wellbeing dashboard) ------------------------
+  // ---- dumbbell + table renderers -----------------------------------------
   function renderChart(rows,popLabel,userLabel){
     var chartRows=rows.filter(function(r){return !r.smallSample && !r.zero;});
     var excluded=rows.filter(function(r){return r.smallSample;});
     var maxLabelLen=chartRows.reduce(function(m,r){return Math.max(m,(r.category||'').length);},0);
-    var leftPad=Math.max(190, Math.min(320, maxLabelLen*7+20));
+    var leftPad=Math.max(190, Math.min(340, maxLabelLen*7+20));
     var rowH=42,rightPad=190,topPad=20,markerR=7;
     var width=880, plotW=width-leftPad-rightPad;
     var svg=document.getElementById('dumbbell');svg.textContent='';
@@ -373,14 +391,105 @@
     });
   }
 
-  // ---- state ---------------------------------------------------------------
-  var ANALYSIS=null, DIMS=[], state={dim:null,view:'chart',fileName:''};
+  // ==========================================================================
+  //  Column mapping
+  // ==========================================================================
+  var CSV={headers:[],rows:[],fileName:'',colInfo:[]};
 
-  function buildGaps(){
-    // top significant rows across all dimensions, by absolute pct-point gap
+  function columnInfo(idx){
+    var vals={}, nonEmpty=0, order=[];
+    CSV.rows.forEach(function(r){
+      var v=(r[idx]!=null?String(r[idx]):'').trim();
+      if(v===''){return;}
+      nonEmpty++;
+      if(!vals.hasOwnProperty(v.toLowerCase())){vals[v.toLowerCase()]=v;order.push(v.toLowerCase());}
+    });
+    return {nonEmpty:nonEmpty, distinct:order.length,
+      samples:order.slice(0,4).map(function(k){return vals[k];}),
+      values:order.map(function(k){return vals[k];})};
+  }
+
+  function guessDimension(header){
+    var nh=normHeader(header);
+    for(var d=0;d<DIMENSIONS.length;d++){
+      var aliases=(D.META.columnAliases[DIMENSIONS[d]]||[]).map(normHeader);
+      if(aliases.indexOf(nh)>-1) return DIMENSIONS[d];
+    }
+    for(var d2=0;d2<DIMENSIONS.length;d2++){
+      var al=(D.META.columnAliases[DIMENSIONS[d2]]||[]).map(normHeader);
+      for(var a=0;a<al.length;a++){ if(nh.indexOf(al[a])>-1) return DIMENSIONS[d2]; }
+    }
+    return null;
+  }
+
+  function guessRole(header,info){
+    var dim=guessDimension(header);
+    if(dim) return 'dim:'+dim;
+    var total=CSV.rows.length, fill=total?info.nonEmpty/total:0;
+    // flag-like: few distinct values, all short yes/no/1/x style, or sparse presence
+    var vLower=info.values.map(function(v){return v.toLowerCase();});
+    var flagVocab={'y':1,'n':1,'yes':1,'no':1,'true':1,'false':1,'1':1,'0':1,'x':1,'✓':1};
+    var allFlagVocab=info.values.length>0 && vLower.every(function(v){return flagVocab.hasOwnProperty(v);});
+    var numericish=info.values.length>0 && info.values.every(function(v){return /^-?\d+(\.\d+)?$/.test(v);});
+    if(allFlagVocab) return 'flag';
+    if(fill<0.9 && (info.distinct<=3 || numericish)) return 'flag';
+    if(info.distinct>=2 && info.distinct<=15 && fill>=0.5) return 'category';
+    return 'ignore';
+  }
+
+  function buildMapUI(){
+    var body=document.getElementById('mapBody');body.textContent='';
+    CSV.colInfo=CSV.headers.map(function(h,i){return columnInfo(i);});
+    CSV.headers.forEach(function(h,i){
+      var info=CSV.colInfo[i];
+      var tr=document.createElement('tr');tr.dataset.idx=i;
+      var td1=document.createElement('td');
+      td1.innerHTML='<div class="map-col">'+esc(h||('Column '+(i+1)))+'</div>'+
+        '<div class="map-meta">'+info.nonEmpty.toLocaleString()+' filled · '+info.distinct.toLocaleString()+' distinct</div>';
+      var td2=document.createElement('td');td2.className='map-samples';
+      td2.innerHTML=info.samples.length?info.samples.map(function(s){return '<code>'+esc(s)+'</code>';}).join(' ')+(info.distinct>info.samples.length?' …':''):'<span style="color:#9aa4b0">(empty)</span>';
+      var td3=document.createElement('td');
+      var sel=document.createElement('select');sel.dataset.idx=i;
+      function opt(v,label){var o=document.createElement('option');o.value=v;o.textContent=label;return o;}
+      sel.appendChild(opt('ignore','Ignore / ID'));
+      sel.appendChild(opt('flag','Sub-group: students with any value here'));
+      sel.appendChild(opt('category','Sub-group: split by each value'));
+      var og=document.createElement('optgroup');og.label='Compare to population as…';
+      DIMENSIONS.forEach(function(dim){og.appendChild(opt('dim:'+dim,dim));});
+      sel.appendChild(og);
+      sel.value=guessRole(h,info);
+      sel.addEventListener('change',function(){paintRow(tr,sel.value);});
+      td3.appendChild(sel);
+      tr.appendChild(td1);tr.appendChild(td2);tr.appendChild(td3);
+      body.appendChild(tr);
+      paintRow(tr,sel.value);
+    });
+  }
+  function paintRow(tr,val){
+    tr.className='';
+    if(val.indexOf('dim:')===0) tr.className='role-dim';
+    else if(val==='flag') tr.className='role-flag';
+    else if(val==='category') tr.className='role-cat';
+  }
+
+  function readRoles(){
+    var roles={};
+    Array.prototype.forEach.call(document.querySelectorAll('#mapBody select'),function(sel){
+      roles[parseInt(sel.dataset.idx,10)]=sel.value;
+    });
+    return roles;
+  }
+
+  // ==========================================================================
+  //  Analysis (markers = All + flag columns + category values)
+  // ==========================================================================
+  var ANALYSIS=null, MARKERS=[], DIMS=[], state={marker:null,dim:null,view:'chart'};
+
+  function biggestGaps(dimsObj){
     var all=[];
     DIMS.forEach(function(dim){
-      (ANALYSIS[dim].rows||[]).forEach(function(r){
+      var a=dimsObj[dim]; if(!a) return;
+      (a.rows||[]).forEach(function(r){
         if(r.significant) all.push(Object.assign({},r,{category:dim+': '+r.category}));
       });
     });
@@ -388,37 +497,92 @@
     return all.slice(0,8);
   }
 
-  function analyseFile(headers,dataRows,fileName){
-    var map=mapColumns(headers);
-    var mappedDims=D.META.dimensions.filter(function(d){return map[d]!=null;});
-    if(mappedDims.length===0){
-      showError('None of the columns in this CSV matched a demographic dimension. '+
-        'Expected column names like Gender, Ethnicity, Age group, Disability, Residency. '+
-        'Found: '+headers.map(function(h){return '"'+h+'"';}).join(', ')+'. '+
-        'You can add your own header names to the columnAliases section of student_dashboard_data.js.');
-      return;
-    }
-    ANALYSIS={}; var okDims=[];
-    mappedDims.forEach(function(dim){
-      var a=analyseDimension(dim,map[dim],dataRows);
-      if(a){ANALYSIS[dim]=a;okDims.push(dim);}
+  function buildAnalysis(roles){
+    var demoMap={}, flagCols=[], catCols=[], dupDims=[];
+    CSV.headers.forEach(function(h,i){
+      var role=roles[i]||'ignore';
+      if(role.indexOf('dim:')===0){
+        var dim=role.slice(4);
+        if(demoMap.hasOwnProperty(dim)) dupDims.push(dim); else demoMap[dim]=i;
+      } else if(role==='flag') flagCols.push(i);
+      else if(role==='category') catCols.push(i);
     });
-    DIMS=okDims;
-    // synthesise "Biggest gaps" if there is anything significant
-    var gaps=buildGaps();
-    if(gaps.length){ ANALYSIS['Biggest gaps']={rows:gaps,present:dataRows.length,blanks:0,unmatched:[]};
-      DIMS=['Biggest gaps'].concat(DIMS); }
 
-    state.dim=DIMS[0]; state.fileName=fileName;
+    var demoDims=Object.keys(demoMap);
+    if(demoDims.length===0){
+      showError('Map at least one column to a demographic ("Compare to population as…") so there is something to compare. '+
+        'You can still add sub-group columns as well.');
+      return false;
+    }
+
+    // markers
+    MARKERS=[{key:'ALL',label:'All uploaded students',type:'all',rows:CSV.rows}];
+    flagCols.forEach(function(i){
+      var members=CSV.rows.filter(function(r){return truthy(r[i]);});
+      if(members.length) MARKERS.push({key:'flag:'+i,label:CSV.headers[i]||('Column '+(i+1)),type:'flag',rows:members});
+    });
+    catCols.forEach(function(i){
+      var groups={}, order=[];
+      CSV.rows.forEach(function(r){
+        var v=(r[i]!=null?String(r[i]):'').trim(); if(v==='') return;
+        var k=v.toLowerCase(); if(!groups[k]){groups[k]={label:v,rows:[]};order.push(k);}
+        groups[k].rows.push(r);
+      });
+      order.sort(function(a,b){return groups[b].rows.length-groups[a].rows.length;});
+      order.forEach(function(k){
+        MARKERS.push({key:'cat:'+i+':'+k,label:(CSV.headers[i]||'Column')+': '+groups[k].label,
+          type:'category',rows:groups[k].rows});
+      });
+    });
+
+    // dims present = those the ALL marker can break down
+    ANALYSIS={};
+    var allDims={};
+    demoDims.forEach(function(dim){
+      if(analyseDimension(dim,demoMap[dim],CSV.rows)) allDims[dim]=true;
+    });
+    DIMS=demoDims.filter(function(d){return allDims[d];});
+
+    MARKERS.forEach(function(m){
+      var dimsObj={};
+      DIMS.forEach(function(dim){
+        var a=analyseDimension(dim,demoMap[dim],m.rows);
+        if(a) dimsObj[dim]=a;
+      });
+      ANALYSIS[m.key]={label:m.label,type:m.type,total:m.rows.length,dims:dimsObj,gaps:biggestGaps(dimsObj)};
+    });
+
+    state.marker='ALL';
+    state.dim=(ANALYSIS.ALL.gaps.length?'Biggest gaps':DIMS[0]);
     document.getElementById('errBox').innerHTML='';
+    document.getElementById('mapZone').classList.add('hidden');
     document.getElementById('uploadZone').classList.add('hidden');
     document.getElementById('results').classList.remove('hidden');
-    buildDimTabs(); setView('chart'); render();
+    buildMarkerTabs(); buildDimTabs(); setView('chart'); render();
+    return true;
   }
 
+  function dimList(){
+    var base=DIMS.slice();
+    // include Biggest gaps first if any marker has gaps
+    var anyGaps=MARKERS.some(function(m){return (ANALYSIS[m.key].gaps||[]).length;});
+    return anyGaps?['Biggest gaps'].concat(base):base;
+  }
+
+  function buildMarkerTabs(){
+    var host=document.getElementById('markerTabs');host.textContent='';
+    document.getElementById('markerWrap').classList.toggle('hidden',MARKERS.length<=1);
+    MARKERS.forEach(function(m){
+      var b=document.createElement('button');b.className='tab';
+      b.textContent=m.label+' ('+ANALYSIS[m.key].total.toLocaleString()+')';
+      b.setAttribute('role','tab');b.dataset.key=m.key;
+      b.addEventListener('click',function(){state.marker=m.key;render();});
+      host.appendChild(b);
+    });
+  }
   function buildDimTabs(){
     var host=document.getElementById('dimTabs');host.textContent='';
-    DIMS.forEach(function(d){
+    dimList().forEach(function(d){
       var b=document.createElement('button');b.className='tab';b.textContent=d;
       b.setAttribute('role','tab');b.dataset.dim=d;
       b.addEventListener('click',function(){state.dim=d;render();});
@@ -432,59 +596,78 @@
     document.getElementById('chartView').classList.toggle('hidden',v==='table');
     document.getElementById('tableView').classList.toggle('hidden',v!=='table');
   }
-  document.getElementById('btnChart').addEventListener('click',function(){setView('chart');});
-  document.getElementById('btnTable').addEventListener('click',function(){setView('table');});
+
+  function currentRows(){
+    var A=ANALYSIS[state.marker];
+    if(state.dim==='Biggest gaps') return A.gaps||[];
+    return (A.dims[state.dim]||{}).rows||null;
+  }
 
   function render(){
+    var A=ANALYSIS[state.marker];
+    // keep dim valid
+    var dims=dimList();
+    if(dims.indexOf(state.dim)===-1) state.dim=dims[0];
+
+    Array.prototype.forEach.call(document.getElementById('markerTabs').children,function(b){
+      b.setAttribute('aria-selected',b.dataset.key===state.marker);});
     Array.prototype.forEach.call(document.getElementById('dimTabs').children,function(b){
       b.setAttribute('aria-selected',b.dataset.dim===state.dim);});
 
-    var a=ANALYSIS[state.dim];
-    var cohortN=Math.max.apply(null,DIMS.filter(function(d){return d!=='Biggest gaps';})
-      .map(function(d){return ANALYSIS[d].present;}).concat([0]));
+    var groupLabel=A.label;
+    document.getElementById('legUsers').textContent=(state.marker==='ALL')?'Your cohort':groupLabel;
 
     // file strip
     document.getElementById('fileStrip').innerHTML=
-      '<span class="pill">'+esc(state.fileName)+'</span>'+
-      '<span style="color:var(--ink-soft)">'+cohortN.toLocaleString()+' students in your cohort · '+
+      '<span class="pill">'+esc(CSV.fileName)+'</span>'+
+      '<span style="color:var(--ink-soft)">'+CSV.rows.length.toLocaleString()+' students in file · '+
       POPTOTAL.toLocaleString()+' in the population</span>';
 
     // headline
     var sigCount=0;
-    DIMS.filter(function(d){return d!=='Biggest gaps';}).forEach(function(d){
-      (ANALYSIS[d].rows||[]).forEach(function(r){if(r.significant)sigCount++;});
-    });
-    var hs=[['n',cohortN.toLocaleString(),'students in your cohort'],
-            ['n',(POPTOTAL?Math.round(1000*cohortN/POPTOTAL)/10+'%':'—'),'of the whole population'],
+    DIMS.forEach(function(d){(A.dims[d]?A.dims[d].rows:[]).forEach(function(r){if(r.significant)sigCount++;});});
+    var hs=[['n',A.total.toLocaleString(),(state.marker==='ALL'?'students in your cohort':'students in "'+groupLabel+'"')],
+            ['n',(POPTOTAL?Math.round(1000*A.total/POPTOTAL)/10+'%':'—'),'of the whole population'],
             ['n',sigCount,'groups significantly over/under-represented']];
     document.getElementById('headline').innerHTML=hs.map(function(s){
       return '<div class="stat"><div class="n">'+s[1]+'</div><div class="k">'+s[2]+'</div></div>';}).join('');
 
+    var userLabel=(state.marker==='ALL')?'Your cohort':groupLabel;
     // titles + notes
-    var isGaps=state.dim==='Biggest gaps';
-    if(isGaps){
-      document.getElementById('chartTitle').textContent='Biggest gaps';
+    if(state.dim==='Biggest gaps'){
+      document.getElementById('chartTitle').textContent=groupLabel+' – biggest gaps';
       document.getElementById('chartNote').textContent=
-        'The groups where your cohort differs most from the population, across every breakdown, that are also statistically significant.';
+        'The groups where '+(state.marker==='ALL'?'your cohort':'this sub-group')+
+        ' differs most from the population, across every breakdown, that are also statistically significant.';
     } else {
-      document.getElementById('chartTitle').textContent='Representation by '+state.dim;
+      var a=A.dims[state.dim];
+      document.getElementById('chartTitle').textContent=groupLabel+' – representation by '+state.dim;
       document.getElementById('chartNote').textContent=
-        'Share of your cohort vs share of the student population. A ratio above 1 means over-represented; below 1, under-represented.'+
-        (a.blanks?(' '+a.blanks.toLocaleString()+' student'+(a.blanks>1?'s':'')+' had no value for '+state.dim+' and are excluded from this breakdown.'):'');
+        'Share of '+userLabel.toLowerCase()+' vs share of the student population. A ratio above 1 means over-represented; below 1, under-represented.'+
+        (a&&a.blanks?(' '+a.blanks.toLocaleString()+' had no value for '+state.dim+' and are excluded from this breakdown.'):'');
     }
 
-    var rows=a.rows||[];
-    var sorted=rows.slice().sort(function(x,y){
-      if(!!x.smallSample!==!!y.smallSample) return x.smallSample?1:-1;
-      return (y.uPct||0)-(x.uPct||0);
-    });
-    renderChart(sorted,'Student population','Your cohort');
-    renderTable(sorted);
+    var rows=currentRows();
+    if(!rows){
+      var svg=document.getElementById('dumbbell');svg.textContent='';
+      svg.setAttribute('viewBox','0 0 860 70');pinChartWidth(svg,860);
+      var msg=svgEl('text',{x:20,y:40,'class':'value-label'});
+      msg.textContent='Not enough students in this selection to break down by '+state.dim+'.';
+      svg.appendChild(msg);
+      document.getElementById('tableBody').textContent='';
+    } else {
+      var sorted=rows.slice().sort(function(x,y){
+        if(!!x.smallSample!==!!y.smallSample) return x.smallSample?1:-1;
+        return (y.uPct||0)-(x.uPct||0);
+      });
+      renderChart(sorted,'Student population',userLabel);
+      renderTable(sorted);
+    }
 
-    // matching notes
+    // matching notes (from ALL marker, since unmatched labels are file-wide)
     var notes=[];
-    DIMS.filter(function(d){return d!=='Biggest gaps';}).forEach(function(d){
-      var un=ANALYSIS[d].unmatched;
+    DIMS.forEach(function(d){
+      var un=ANALYSIS.ALL.dims[d]?ANALYSIS.ALL.dims[d].unmatched:[];
       if(un&&un.length){
         notes.push('<strong>'+esc(d)+':</strong> '+un.length+' value'+(un.length>1?'s':'')+
           ' in your CSV did not match a population category and could not be compared: '+
@@ -495,17 +678,29 @@
     if(notes.length){
       card.classList.remove('hidden');
       document.getElementById('unmatchedNote').innerHTML=
-        notes.join('<br>')+'<br><br>To fix these, make sure the labels in your CSV match the population labels exactly '+
-        '(same spelling and capitalisation), or edit the population baseline in <code>student_dashboard_data.js</code>.';
+        notes.join('<br>')+'<br><br>To fix these, make the labels in your CSV match the population labels exactly '+
+        '(same spelling and capitalisation), or edit the baseline in <code>student_dashboard_data.js</code>.';
     } else { card.classList.add('hidden'); }
   }
 
-  function esc(s){return String(s).replace(/[&<>"]/g,function(c){
-    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+  document.getElementById('btnChart').addEventListener('click',function(){setView('chart');});
+  document.getElementById('btnTable').addEventListener('click',function(){setView('table');});
+  document.getElementById('btnRemap').addEventListener('click',function(){
+    document.getElementById('results').classList.add('hidden');
+    document.getElementById('mapZone').classList.remove('hidden');
+  });
+  document.getElementById('btnBuild').addEventListener('click',function(){buildAnalysis(readRoles());});
+  document.getElementById('btnStartOver').addEventListener('click',resetToUpload);
 
   // ---- file handling -------------------------------------------------------
-  function showError(msg){
-    document.getElementById('errBox').innerHTML='<div class="err">'+esc(msg)+'</div>';
+  function showError(msg){document.getElementById('errBox').innerHTML='<div class="err">'+esc(msg)+'</div>';}
+  function resetToUpload(){
+    CSV={headers:[],rows:[],fileName:'',colInfo:[]};
+    document.getElementById('fileInput').value='';
+    document.getElementById('errBox').innerHTML='';
+    document.getElementById('mapZone').classList.add('hidden');
+    document.getElementById('results').classList.add('hidden');
+    document.getElementById('uploadZone').classList.remove('hidden');
   }
   function handleFile(file){
     if(!file) return;
@@ -517,8 +712,17 @@
       try{
         var rows=parseCSV(String(reader.result));
         if(rows.length<2){showError('That CSV has no data rows under its header.');return;}
-        var headers=rows[0].map(function(h){return String(h).trim();});
-        analyseFile(headers,rows.slice(1),file.name);
+        CSV.headers=rows[0].map(function(h){return String(h).trim();});
+        CSV.rows=rows.slice(1);
+        CSV.fileName=file.name;
+        document.getElementById('errBox').innerHTML='';
+        document.getElementById('uploadZone').classList.add('hidden');
+        document.getElementById('mapZone').classList.remove('hidden');
+        document.getElementById('mapIntro').textContent=
+          'Found '+CSV.headers.length+' columns and '+CSV.rows.length.toLocaleString()+
+          ' students in '+file.name+'. Check each row below, then build the dashboard. Highlighted rows are ones the dashboard will use.';
+        buildMapUI();
+        window.scrollTo(0,0);
       }catch(e){ showError('Could not read that CSV: '+e.message); }
     };
     reader.onerror=function(){showError('Could not read the file.');};
@@ -538,11 +742,14 @@
 
   // ---- init ----------------------------------------------------------------
   document.getElementById('metaLine').textContent=
-    'Compares your uploaded group of students against the '+POPTOTAL.toLocaleString()+
+    'Compares your uploaded students against the '+POPTOTAL.toLocaleString()+
     '-student population baseline of '+(D.META.generated||'')+'. Groups under '+MIN+' students are suppressed.';
   document.getElementById('templateNote').innerHTML=
-    'Recognised columns: '+D.META.dimensions.map(function(d){return '<code>'+esc(d)+'</code>';}).join(', ')+
-    '. Column names are matched loosely (case and spacing are ignored).';
+    'Demographics recognised automatically: '+DIMENSIONS.map(function(d){return '<code>'+esc(d)+'</code>';}).join(', ')+
+    '. You confirm or change every column after uploading.';
+  document.getElementById('mapHint').innerHTML=
+    'Tip: a <strong>flag</strong> column (like a service name) counts any student with a value in it as a member. '+
+    'A <strong>split-by-value</strong> column (like Year, or a service-type column) makes one sub-group per distinct value.';
   document.getElementById('footer').textContent=D.META.disclosure||'';
 })();
 </script>
