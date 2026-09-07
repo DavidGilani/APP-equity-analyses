@@ -16,7 +16,9 @@ group compares with the whole student population, using a dumbbell-chart style.
 - `student_dashboard_data.js` — the baked-in **population baseline** (the
   2025/26 whole-population distributions, 14,256 students). Percentages and
   counts only, no personal records. Keep it in the same folder as the HTML.
-- `sample_cohort.csv` — a small synthetic file for testing the upload.
+
+No student data is kept in this repository. The uploaded cohort CSV is read
+entirely in the browser and never leaves the viewer's device.
 
 ### What it does
 
