@@ -5,43 +5,62 @@ support Access and Participation Plan (APP) equity work.
 
 ## Student cohort comparison dashboard
 
-A single-page tool that lets someone upload a CSV of students and see how that
-group compares with the whole student population, using a dumbbell-chart style.
+A single-page tool that compares a group of students against the whole student
+population, overall and by sub-group, using a dumbbell-chart style.
 
 ### Files
 
 - `student_dashboard.html` — the page. All CSS and JS are inline. It reads the
-  uploaded CSV in the browser and does the maths locally; nothing is uploaded
+  uploaded CSV(s) in the browser and does the maths locally; nothing is uploaded
   anywhere.
-- `student_dashboard_data.js` — the baked-in **population baseline** (the
-  2025/26 whole-population distributions, 14,256 students). Percentages and
-  counts only, no personal records. Keep it in the same folder as the HTML.
+- `student_dashboard_data.js` — the built-in **fallback baseline** (the 2025/26
+  whole-population distributions, 14,256 students). Percentages and counts only,
+  no personal records. Used only when no population file is uploaded.
 
-No student data is kept in this repository. The uploaded cohort CSV is read
-entirely in the browser and never leaves the viewer's device.
+No student data is kept in this repository. Uploaded CSVs are read entirely in
+the browser and never leave the viewer's device.
 
-### What it does
+### Two ways to use it
 
-1. The user drops in a CSV with one row per student.
-2. It matches the columns to demographic dimensions (Gender, Ethnicity, Age
-   group, Disability, Residency, Religion, and so on). Matching ignores case
-   and spacing, and each dimension has a list of accepted column names in
-   `student_dashboard_data.js` under `columnAliases`, which you can extend.
-3. For each dimension it tallies the cohort, works out each group's share, and
-   compares it with the population share. A two-proportion z-test at the 95%
-   level flags groups that are significantly over- or under-represented.
-4. Groups with fewer than 10 students in the cohort are suppressed and not
-   tested.
+**1. Two files, joined by student ID (recommended).**
+Upload a **population file** (one row per student: an ID column plus demographic
+columns for everyone) and a **cohort/service file** (the students of interest:
+an ID column, plus optional service or sub-group columns). The dashboard joins
+them on ID, pulls demographics from the population file, and compares. Because
+both sides come from the same file, category labels always match, there is no
+label-mismatch problem. Students in the cohort file not found in the population
+file are reported and excluded from the breakdowns.
 
-Category labels in the CSV need to match the population labels (for example
-`United Kingdom`, not `UK`) to line up. Anything that does not match is listed
-under "Notes on matching" so it is visible rather than silently dropped.
+**2. One cohort file against the built-in baseline (quick mode).**
+Skip the population file and upload only a cohort file that already carries
+demographic columns. It is compared against the baked-in baseline. Here the
+cohort's labels must match the baseline labels (for example `United Kingdom`,
+not `UK`); mismatches are listed under "Notes on the data".
 
-### Refreshing the population baseline
+### Column mapping and sub-groups
+
+After upload, every column is shown with sample values and a role you confirm or
+change:
+
+- **Student ID** — used to join the two files.
+- **Demographic** — a dimension to compare on (in the population file, or in the
+  cohort file for quick mode).
+- **Sub-group: any value here** — a *flag* column (e.g. a service name). Any
+  student with a value counts as a member.
+- **Sub-group: split by each value** — a *category* column (e.g. year). Each
+  distinct value becomes its own sub-group.
+- **Ignore.**
+
+The result gets a service/sub-group tab row (All, plus one tab per flag column
+and per category value). Each shows representation vs the population across every
+demographic, with a two-proportion z-test at the 95% level and a "Biggest gaps"
+view. Groups under 10 students are suppressed and not tested.
+
+### Refreshing the built-in baseline
 
 Edit `student_dashboard_data.js`. Each dimension under `POPULATION` is a list of
-`{category, pct, n}`. Update the numbers, or add/remove dimensions, and the page
-picks them up on next load.
+`{category, pct, n}`. This only affects quick mode; the two-file mode uses the
+uploaded population file instead.
 
 ### Embedding on a SharePoint page
 

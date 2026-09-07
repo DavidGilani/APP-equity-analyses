@@ -9,7 +9,7 @@
   :root{
     --ink:#1d2530; --ink-soft:#55606f; --line:#e2e6ec; --paper:#f7f8fa;
     --card:#ffffff; --pop:#8a94a6; --users:#0f766e; --users-soft:#d7ede9;
-    --sig:#b45309; --sig-soft:#fdf1df; --focus:#2563eb;
+    --sig:#b45309; --sig-soft:#fdf1df; --focus:#2563eb; --id:#eef1f5;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--paper);color:var(--ink);
@@ -24,26 +24,34 @@
     color:var(--ink-soft);margin:0 0 8px}
 
   /* upload */
-  .drop{margin:22px 0 8px;border:2px dashed #c4ccd6;border-radius:14px;background:var(--card);
-    padding:30px 24px;text-align:center;cursor:pointer;transition:border-color .12s,background .12s}
+  .droprow{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:22px 0 8px}
+  @media (max-width:640px){.droprow{grid-template-columns:1fr}}
+  .drop{border:2px dashed #c4ccd6;border-radius:14px;background:var(--card);
+    padding:22px 18px;text-align:center;cursor:pointer;transition:border-color .12s,background .12s}
   .drop:hover,.drop.drag{border-color:var(--users);background:var(--users-soft)}
-  .drop h2{font-family:Georgia,serif;font-weight:600;font-size:19px;margin:0 0 6px}
-  .drop p{color:var(--ink-soft);font-size:13.5px;margin:4px 0}
+  .drop.loaded{border-style:solid;border-color:var(--users)}
+  .drop h2{font-family:Georgia,serif;font-weight:600;font-size:17px;margin:0 0 6px}
+  .drop p{color:var(--ink-soft);font-size:12.5px;margin:4px 0}
   .drop .btn{display:inline-block;margin-top:10px;background:var(--ink);color:#fff;
-    border-radius:8px;padding:9px 18px;font-size:14px;font-weight:600}
+    border-radius:8px;padding:8px 16px;font-size:13.5px;font-weight:600}
+  .drop .tag{display:inline-block;font-size:10.5px;font-weight:700;text-transform:uppercase;
+    letter-spacing:.06em;color:var(--ink-soft);background:var(--id);border-radius:999px;padding:3px 10px;margin-bottom:8px}
+  .drop .tag.req{color:#fff;background:var(--ink)}
   .drop input[type=file]{display:none}
+  .drop .loadedname{color:var(--users);font-weight:600;font-size:13px;margin-top:8px}
   .filestrip{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0 4px;font-size:13.5px}
   .filestrip .pill{background:var(--users-soft);color:var(--users);border:1px solid var(--users);
     border-radius:999px;padding:5px 12px;font-weight:600}
   .btn-line{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:16px 0 4px}
   .btn-solid{border:0;background:var(--ink);color:#fff;border-radius:8px;padding:10px 20px;
     font:inherit;font-size:14px;font-weight:600;cursor:pointer}
+  .btn-solid[disabled]{opacity:.45;cursor:not-allowed}
   .btn-ghost{border:1px solid var(--line);background:var(--card);color:var(--ink-soft);
     border-radius:8px;padding:9px 16px;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer}
   .err{background:var(--sig-soft);border:1px solid var(--sig);color:#7c3d06;border-radius:10px;
     padding:12px 16px;margin:14px 0;font-size:13.5px}
   .mapnote{font-size:12.5px;color:var(--ink-soft);margin:8px 0 0}
-  .mapnote code,.map-samples code{background:#eef1f5;border-radius:4px;padding:1px 5px}
+  .mapnote code,.map-samples code{background:var(--id);border-radius:4px;padding:1px 5px}
 
   /* mapping table */
   .map-table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13.5px}
@@ -59,6 +67,7 @@
     background-repeat:no-repeat;background-position:right 10px center}
   tr.role-dim{background:var(--users-soft)}
   tr.role-flag,tr.role-cat{background:var(--sig-soft)}
+  tr.role-id{background:var(--id)}
 
   /* controls */
   .tabrow{display:flex;flex-wrap:wrap;gap:6px}
@@ -93,7 +102,6 @@
   .chart-scroll{overflow-x:auto;margin-top:6px}
   svg{width:100%;height:auto;display:block}
 
-  /* svg element classes */
   .gridline{stroke:var(--line);stroke-width:1}
   .value-label{fill:var(--ink-soft);font-size:11.5px}
   .row-label{fill:var(--ink);font-size:13px}
@@ -106,7 +114,6 @@
   .dot-hit-target{fill:transparent}
   .excluded-badge{fill:none;stroke:#b6bfca;stroke-width:1.5;stroke-dasharray:3 2}
 
-  /* table */
   table.data{width:100%;border-collapse:collapse;margin-top:8px;font-size:14px}
   table.data th,table.data td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line)}
   table.data th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft)}
@@ -131,32 +138,58 @@
 <body>
 <div class="wrap" id="app">
   <h1>Student cohort comparison</h1>
-  <p class="sub">Upload a CSV of students, tell the dashboard what each column means, and see how the group compares with the overall student population, overall and by sub-group.</p>
+  <p class="sub">Compare a group of students against the overall student population, overall and by sub-group.</p>
   <p class="meta-line" id="metaLine"></p>
 
   <!-- upload zone -->
   <div id="uploadZone">
-    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Upload a CSV file">
-      <h2>Drop a CSV here, or choose a file</h2>
-      <p>The file stays on your device. Nothing is uploaded anywhere.</p>
-      <p>One row per student. Include demographic columns (Gender, Ethnicity, Age group…) and, optionally, columns that mark which service, sub-service, or year each student belongs to.</p>
-      <span class="btn">Choose CSV file</span>
-      <input type="file" id="fileInput" accept=".csv,text/csv">
+    <div class="droprow">
+      <div class="drop" id="dropPop" tabindex="0" role="button" aria-label="Upload the population CSV">
+        <span class="tag">Optional</span>
+        <h2>Population file (everyone)</h2>
+        <p>One row per student: a student ID column plus demographic columns.</p>
+        <p>Provides the demographics, looked up by ID, so labels always match.</p>
+        <span class="btn">Choose population CSV</span>
+        <input type="file" id="filePop" accept=".csv,text/csv">
+        <div class="loadedname" id="popLoaded"></div>
+      </div>
+      <div class="drop" id="dropCohort" tabindex="0" role="button" aria-label="Upload the cohort or service CSV">
+        <span class="tag req">Required</span>
+        <h2>Cohort / service file</h2>
+        <p>The students you want to compare: a student ID column, plus optional service or sub-group columns.</p>
+        <p>If you skip the population file, include demographic columns here instead.</p>
+        <span class="btn">Choose cohort CSV</span>
+        <input type="file" id="fileCohort" accept=".csv,text/csv">
+        <div class="loadedname" id="cohortLoaded"></div>
+      </div>
     </div>
     <p class="mapnote" id="templateNote"></p>
+    <div class="btn-line">
+      <button class="btn-solid" id="btnToMap" disabled>Continue to column mapping</button>
+    </div>
   </div>
 
   <div id="errBox"></div>
 
   <!-- mapping zone -->
   <div id="mapZone" class="hidden">
-    <div class="card">
-      <h2>What does each column mean?</h2>
-      <p class="note" id="mapIntro"></p>
+    <div class="card" id="popMapCard">
+      <h2>Population file: which column is which?</h2>
+      <p class="note" id="popMapIntro"></p>
       <div style="overflow-x:auto">
         <table class="map-table"><thead><tr>
           <th>Column</th><th>Example values</th><th>Treat this column as…</th>
-        </tr></thead><tbody id="mapBody"></tbody></table>
+        </tr></thead><tbody id="popMapBody"></tbody></table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Cohort file: which column is which?</h2>
+      <p class="note" id="cohortMapIntro"></p>
+      <div style="overflow-x:auto">
+        <table class="map-table"><thead><tr>
+          <th>Column</th><th>Example values</th><th>Treat this column as…</th>
+        </tr></thead><tbody id="cohortMapBody"></tbody></table>
       </div>
       <div class="btn-line">
         <button class="btn-solid" id="btnBuild">Build dashboard</button>
@@ -202,9 +235,9 @@
       </div>
     </div>
 
-    <div class="card" id="unmatchedCard">
-      <h2>Notes on matching</h2>
-      <p class="note" id="unmatchedNote"></p>
+    <div class="card" id="notesCard">
+      <h2>Notes on the data</h2>
+      <p class="note" id="notesBody"></p>
     </div>
   </div>
 
@@ -218,13 +251,12 @@
   var D = window.DASHBOARD_DATA;
   if(!D || !D.POPULATION){
     document.getElementById('app').innerHTML =
-      '<h1>Data file not found</h1><p class="sub">This dashboard reads its population baseline from '+
-      '<code>student_dashboard_data.js</code>, which must sit in the same folder as this page. '+
-      'If the folder is in OneDrive or SharePoint, wait for it to finish syncing, then reopen this file.</p>';
+      '<h1>Data file not found</h1><p class="sub">This dashboard reads its built-in baseline from '+
+      '<code>student_dashboard_data.js</code>, which must sit in the same folder as this page.</p>';
     return;
   }
 
-  var MIN=D.META.minCell, POP=D.POPULATION, POPTOTAL=D.META.popTotal;
+  var MIN=D.META.minCell, BASELINE_POP=D.POPULATION, BASELINE_TOTAL=D.META.popTotal;
   var DIMENSIONS=D.META.dimensions;
 
   // ---- helpers -------------------------------------------------------------
@@ -238,9 +270,10 @@
   function svgEl(tag,a){var el=document.createElementNS(NS,tag);for(var k in a)el.setAttribute(k,a[k]);return el;}
   function pinChartWidth(svg,w){svg.style.minWidth=w+'px';}
   function normHeader(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}
+  function normId(v){return String(v==null?'':v).trim().toLowerCase();}
 
   var FLAGGY_NEG={'':1,'0':1,'no':1,'n':1,'false':1,'none':1,'na':1,'n/a':1,'not applicable':1,'-':1};
-  function truthy(v){var s=String(v==null?'':v).trim().toLowerCase();return !FLAGGY_NEG.hasOwnProperty(s);}
+  function truthy(v){return !FLAGGY_NEG.hasOwnProperty(String(v==null?'':v).trim().toLowerCase());}
 
   // ---- CSV parsing ---------------------------------------------------------
   function parseCSV(text){
@@ -248,10 +281,7 @@
     var rows=[],row=[],field='',i=0,inQ=false,c;
     while(i<text.length){
       c=text[i];
-      if(inQ){
-        if(c==='"'){ if(text[i+1]==='"'){field+='"';i+=2;continue;} inQ=false;i++;continue; }
-        field+=c;i++;continue;
-      }
+      if(inQ){ if(c==='"'){ if(text[i+1]==='"'){field+='"';i+=2;continue;} inQ=false;i++;continue;} field+=c;i++;continue; }
       if(c==='"'){inQ=true;i++;continue;}
       if(c===','){row.push(field);field='';i++;continue;}
       if(c==='\r'){i++;continue;}
@@ -272,35 +302,22 @@
     var reqDiff= seP>0 ? Math.round(1.96*seP*1000)/10 : null;
     return {sig:sig,reqDiff:reqDiff};
   }
-
-  function analyseDimension(dim,colIdx,rows){
-    var popList=POP[dim]||[];
-    var tally={}, present=0, blanks=0, cohortByNorm={};
-    rows.forEach(function(r){
-      var v=(r[colIdx]!=null?String(r[colIdx]):'').trim();
-      if(v===''){blanks++;return;}
-      present++;
-      var key=v.toLowerCase();
-      tally[key]=(tally[key]||0)+1;
-      cohortByNorm[key]=v;
-    });
-    if(present===0) return null;
-    var matchedKeys={};
+  // Build comparison rows from a cohort tally, a population category list, and denominators.
+  function compareToPop(tally,present,popList,popPresent){
+    var matched={};
     var out=popList.map(function(p){
       var key=String(p.category).toLowerCase();
-      var uN=tally[key]||0; matchedKeys[key]=true;
+      var uN=tally[key]||0; matched[key]=true;
       var uPct=Math.round(1000*uN/present)/10;
-      var t=zTestSig(uN,present,p.n,POPTOTAL);
+      var t=zTestSig(uN,present,p.n,popPresent);
       return {category:p.category,uN:uN,uPct:uPct,pN:p.n,pPct:p.pct,
         ratio: p.pct>0 ? Math.round(100*uPct/p.pct)/100 : null,
         significant: uN>=MIN && t.sig, reqDiff:t.reqDiff,
         smallSample: uN>0 && uN<MIN, zero: uN===0};
     });
     var unmatched=[];
-    Object.keys(tally).forEach(function(key){
-      if(!matchedKeys[key]) unmatched.push({label:cohortByNorm[key],n:tally[key]});
-    });
-    return {rows:out, present:present, blanks:blanks, unmatched:unmatched};
+    Object.keys(tally).forEach(function(k){ if(!matched[k]) unmatched.push(k); });
+    return {rows:out, unmatched:unmatched};
   }
 
   // ---- dumbbell + table renderers -----------------------------------------
@@ -364,56 +381,50 @@
       badge.addEventListener('blur',hideTooltip);svg.appendChild(badge);
     }
   }
-
   function renderTable(rows){
     var b=document.getElementById('tableBody');b.textContent='';
     rows.filter(function(r){return !r.zero;}).forEach(function(r){
       var tr=document.createElement('tr');
       if(r.smallSample){
         tr.className='small-sample-row';
-        var cells=[r.category+' (under '+MIN+' students – hidden)','—','—','—'];
-        cells.forEach(function(c,i){var td=document.createElement('td');if(i>0)td.className='num';
-          td.textContent=c;tr.appendChild(td);});
+        [r.category+' (under '+MIN+' students – hidden)','—','—','—'].forEach(function(c,i){
+          var td=document.createElement('td');if(i>0)td.className='num';td.textContent=c;tr.appendChild(td);});
       } else {
         if(r.significant) tr.className='sig-row';
-        var nameCell=document.createElement('td');
-        nameCell.textContent=r.category;
-        if(r.significant){
-          var badge=document.createElement('span');badge.className='sig-badge';badge.textContent='sig';
-          nameCell.appendChild(badge);
-        }
+        var nameCell=document.createElement('td');nameCell.textContent=r.category;
+        if(r.significant){var bd=document.createElement('span');bd.className='sig-badge';bd.textContent='sig';nameCell.appendChild(bd);}
         tr.appendChild(nameCell);
-        [[r.uPct+'% ('+r.uN.toLocaleString()+')'],[r.pPct+'% ('+r.pN.toLocaleString()+')'],[r.ratio!=null?('\xd7'+r.ratio):'—']].forEach(function(c){
-          var td=document.createElement('td');td.className='num';td.textContent=c[0];tr.appendChild(td);
-        });
+        [r.uPct+'% ('+r.uN.toLocaleString()+')',r.pPct+'% ('+r.pN.toLocaleString()+')',r.ratio!=null?('\xd7'+r.ratio):'—'].forEach(function(c){
+          var td=document.createElement('td');td.className='num';td.textContent=c;tr.appendChild(td);});
       }
       b.appendChild(tr);
     });
   }
 
   // ==========================================================================
-  //  Column mapping
+  //  File state + column info
   // ==========================================================================
-  var CSV={headers:[],rows:[],fileName:'',colInfo:[]};
+  var POPCSV=null, COHORTCSV=null;   // each {headers, rows, fileName, colInfo}
 
-  function columnInfo(idx){
-    var vals={}, nonEmpty=0, order=[];
-    CSV.rows.forEach(function(r){
-      var v=(r[idx]!=null?String(r[idx]):'').trim();
-      if(v===''){return;}
-      nonEmpty++;
-      if(!vals.hasOwnProperty(v.toLowerCase())){vals[v.toLowerCase()]=v;order.push(v.toLowerCase());}
+  function makeCsv(headers,rows,fileName){
+    var csv={headers:headers,rows:rows,fileName:fileName,colInfo:[]};
+    csv.colInfo=headers.map(function(h,idx){
+      var seen={}, nonEmpty=0, order=[];
+      rows.forEach(function(r){
+        var v=(r[idx]!=null?String(r[idx]):'').trim(); if(v==='') return;
+        nonEmpty++; var k=v.toLowerCase(); if(!seen.hasOwnProperty(k)){seen[k]=v;order.push(k);}
+      });
+      return {nonEmpty:nonEmpty,distinct:order.length,
+        samples:order.slice(0,4).map(function(k){return seen[k];}),
+        values:order.map(function(k){return seen[k];})};
     });
-    return {nonEmpty:nonEmpty, distinct:order.length,
-      samples:order.slice(0,4).map(function(k){return vals[k];}),
-      values:order.map(function(k){return vals[k];})};
+    return csv;
   }
 
   function guessDimension(header){
     var nh=normHeader(header);
     for(var d=0;d<DIMENSIONS.length;d++){
-      var aliases=(D.META.columnAliases[DIMENSIONS[d]]||[]).map(normHeader);
-      if(aliases.indexOf(nh)>-1) return DIMENSIONS[d];
+      if((D.META.columnAliases[DIMENSIONS[d]]||[]).map(normHeader).indexOf(nh)>-1) return DIMENSIONS[d];
     }
     for(var d2=0;d2<DIMENSIONS.length;d2++){
       var al=(D.META.columnAliases[DIMENSIONS[d2]]||[]).map(normHeader);
@@ -421,154 +432,254 @@
     }
     return null;
   }
-
-  function guessRole(header,info){
-    var dim=guessDimension(header);
-    if(dim) return 'dim:'+dim;
-    var total=CSV.rows.length, fill=total?info.nonEmpty/total:0;
-    // flag-like: few distinct values, all short yes/no/1/x style, or sparse presence
+  function looksLikeId(header,info,total){
+    var nh=normHeader(header);
+    if(/\bid\b/.test(nh)||nh.indexOf('number')>-1||nh.indexOf('urn')>-1||nh.indexOf('student ref')>-1) return true;
+    return total>0 && info.nonEmpty>0 && (info.distinct/info.nonEmpty)>0.95 && info.distinct>=total*0.8;
+  }
+  function guessFlagOrCat(info,total){
+    var fill=total?info.nonEmpty/total:0;
     var vLower=info.values.map(function(v){return v.toLowerCase();});
     var flagVocab={'y':1,'n':1,'yes':1,'no':1,'true':1,'false':1,'1':1,'0':1,'x':1,'✓':1};
-    var allFlagVocab=info.values.length>0 && vLower.every(function(v){return flagVocab.hasOwnProperty(v);});
+    var allFlag=info.values.length>0 && vLower.every(function(v){return flagVocab.hasOwnProperty(v);});
     var numericish=info.values.length>0 && info.values.every(function(v){return /^-?\d+(\.\d+)?$/.test(v);});
-    if(allFlagVocab) return 'flag';
-    if(fill<0.9 && (info.distinct<=3 || numericish)) return 'flag';
+    if(allFlag) return 'flag';
+    if(fill<0.9 && (info.distinct<=3||numericish)) return 'flag';
     if(info.distinct>=2 && info.distinct<=15 && fill>=0.5) return 'category';
     return 'ignore';
   }
 
-  function buildMapUI(){
-    var body=document.getElementById('mapBody');body.textContent='';
-    CSV.colInfo=CSV.headers.map(function(h,i){return columnInfo(i);});
-    CSV.headers.forEach(function(h,i){
-      var info=CSV.colInfo[i];
-      var tr=document.createElement('tr');tr.dataset.idx=i;
+  // ---- mapping table builders ---------------------------------------------
+  function opt(v,label){var o=document.createElement('option');o.value=v;o.textContent=label;return o;}
+  function paintRow(tr,val){
+    tr.className = val==='id' ? 'role-id'
+      : val.indexOf('dim')===0 ? 'role-dim'
+      : val==='flag' ? 'role-flag'
+      : val==='category' ? 'role-cat' : '';
+  }
+  function buildMapTable(tbodyId,csv,optionsFn,guessFn){
+    var body=document.getElementById(tbodyId);body.textContent='';
+    csv.headers.forEach(function(h,i){
+      var info=csv.colInfo[i], tr=document.createElement('tr');tr.dataset.idx=i;
       var td1=document.createElement('td');
       td1.innerHTML='<div class="map-col">'+esc(h||('Column '+(i+1)))+'</div>'+
         '<div class="map-meta">'+info.nonEmpty.toLocaleString()+' filled · '+info.distinct.toLocaleString()+' distinct</div>';
       var td2=document.createElement('td');td2.className='map-samples';
       td2.innerHTML=info.samples.length?info.samples.map(function(s){return '<code>'+esc(s)+'</code>';}).join(' ')+(info.distinct>info.samples.length?' …':''):'<span style="color:#9aa4b0">(empty)</span>';
-      var td3=document.createElement('td');
-      var sel=document.createElement('select');sel.dataset.idx=i;
-      function opt(v,label){var o=document.createElement('option');o.value=v;o.textContent=label;return o;}
-      sel.appendChild(opt('ignore','Ignore / ID'));
-      sel.appendChild(opt('flag','Sub-group: students with any value here'));
-      sel.appendChild(opt('category','Sub-group: split by each value'));
-      var og=document.createElement('optgroup');og.label='Compare to population as…';
-      DIMENSIONS.forEach(function(dim){og.appendChild(opt('dim:'+dim,dim));});
-      sel.appendChild(og);
-      sel.value=guessRole(h,info);
+      var td3=document.createElement('td'), sel=document.createElement('select');sel.dataset.idx=i;
+      optionsFn(sel);
+      sel.value=guessFn(h,info); if(!sel.value) sel.value='ignore';
       sel.addEventListener('change',function(){paintRow(tr,sel.value);});
       td3.appendChild(sel);
       tr.appendChild(td1);tr.appendChild(td2);tr.appendChild(td3);
-      body.appendChild(tr);
-      paintRow(tr,sel.value);
+      body.appendChild(tr);paintRow(tr,sel.value);
     });
   }
-  function paintRow(tr,val){
-    tr.className='';
-    if(val.indexOf('dim:')===0) tr.className='role-dim';
-    else if(val==='flag') tr.className='role-flag';
-    else if(val==='category') tr.className='role-cat';
+  function popOptions(sel){
+    sel.appendChild(opt('ignore','Ignore'));
+    sel.appendChild(opt('id','Student ID (for the join)'));
+    sel.appendChild(opt('dim','Demographic (compare to population)'));
   }
-
-  function readRoles(){
+  function cohortOptions(sel){
+    sel.appendChild(opt('ignore','Ignore'));
+    sel.appendChild(opt('id','Student ID (for the join)'));
+    sel.appendChild(opt('flag','Sub-group: students with any value here'));
+    sel.appendChild(opt('category','Sub-group: split by each value'));
+    var og=document.createElement('optgroup');og.label='Demographic, if no population file…';
+    DIMENSIONS.forEach(function(dim){og.appendChild(opt('dim:'+dim,dim));});
+    sel.appendChild(og);
+  }
+  function readRoles(tbodyId){
     var roles={};
-    Array.prototype.forEach.call(document.querySelectorAll('#mapBody select'),function(sel){
-      roles[parseInt(sel.dataset.idx,10)]=sel.value;
-    });
+    Array.prototype.forEach.call(document.querySelectorAll('#'+tbodyId+' select'),function(sel){
+      roles[parseInt(sel.dataset.idx,10)]=sel.value;});
     return roles;
   }
+  function firstRole(roles,val){for(var k in roles){if(roles[k]===val) return parseInt(k,10);}return -1;}
+
+  function showMapping(){
+    document.getElementById('errBox').innerHTML='';
+    document.getElementById('uploadZone').classList.add('hidden');
+    document.getElementById('mapZone').classList.remove('hidden');
+    var hasPop=!!POPCSV;
+    document.getElementById('popMapCard').classList.toggle('hidden',!hasPop);
+    if(hasPop){
+      document.getElementById('popMapIntro').textContent=
+        POPCSV.rows.length.toLocaleString()+' students in '+POPCSV.fileName+'. Mark the student ID column and the demographic columns to compare on.';
+      buildMapTable('popMapBody',POPCSV,popOptions,function(h,info){
+        if(looksLikeId(h,info,POPCSV.rows.length)) return 'id';
+        return (info.distinct>=1&&info.distinct<=60&&info.nonEmpty>0)?'dim':'ignore';
+      });
+    }
+    document.getElementById('cohortMapIntro').textContent=
+      COHORTCSV.rows.length.toLocaleString()+' students in '+COHORTCSV.fileName+'. '+
+      (hasPop?'Mark the student ID column (to join to the population file) and any service or sub-group columns.'
+             :'No population file, so mark the demographic columns here, plus any service or sub-group columns.');
+    buildMapTable('cohortMapBody',COHORTCSV,cohortOptions,function(h,info){
+      if(looksLikeId(h,info,COHORTCSV.rows.length)) return 'id';
+      if(!hasPop){ var dim=guessDimension(h); if(dim) return 'dim:'+dim; }
+      return guessFlagOrCat(info,COHORTCSV.rows.length);
+    });
+    document.getElementById('mapHint').innerHTML=
+      'A <strong>flag</strong> column (a service name) counts any student with a value in it as a member. '+
+      'A <strong>split-by-value</strong> column (like Year) makes one sub-group per distinct value.';
+    window.scrollTo(0,0);
+  }
 
   // ==========================================================================
-  //  Analysis (markers = All + flag columns + category values)
+  //  Build population distributions
   // ==========================================================================
-  var ANALYSIS=null, MARKERS=[], DIMS=[], state={marker:null,dim:null,view:'chart'};
+  var POP={dist:{},present:{},total:0,dims:[],source:''};
+  var LOOKUP=null, COHORT_ID_COL=-1;
+
+  function buildPopFromCSV(popRoles){
+    var idCol=firstRole(popRoles,'id');
+    var demoCols={};
+    Object.keys(popRoles).forEach(function(k){ if(popRoles[k]==='dim') demoCols[POPCSV.headers[parseInt(k,10)]||('Column '+(parseInt(k,10)+1))]=parseInt(k,10); });
+    POP={dist:{},present:{},total:0,dims:Object.keys(demoCols),source:'file'};
+    POP.dims.forEach(function(dim){
+      var col=demoCols[dim], tally={}, order=[], present=0, seen={};
+      POPCSV.rows.forEach(function(r){
+        var v=(r[col]!=null?String(r[col]):'').trim(); if(v==='') return;
+        present++; var k=v.toLowerCase(); if(!seen.hasOwnProperty(k)){seen[k]=v;order.push(k);} tally[k]=(tally[k]||0)+1;
+      });
+      order.sort(function(a,b){return tally[b]-tally[a];});
+      POP.dist[dim]=order.map(function(k){return {category:seen[k],n:tally[k],pct:Math.round(1000*tally[k]/present)/10};});
+      POP.present[dim]=present;
+    });
+    LOOKUP={};var uniq={};
+    POPCSV.rows.forEach(function(r){var id=normId(r[idCol]); if(id){LOOKUP[id]=r;uniq[id]=1;}});
+    POP.total=Object.keys(uniq).length;
+    POP.demoCols=demoCols; POP.idCol=idCol;
+    return true;
+  }
+  function useBaselinePop(){
+    POP={dist:{},present:{},total:BASELINE_TOTAL,dims:[],source:'baseline'};
+    DIMENSIONS.forEach(function(dim){
+      var list=(BASELINE_POP[dim]||[]).map(function(p){return {category:p.category,n:p.n,pct:p.pct};});
+      if(list.length){POP.dist[dim]=list;POP.present[dim]=BASELINE_TOTAL;POP.dims.push(dim);}
+    });
+    LOOKUP=null;
+  }
+
+  // ==========================================================================
+  //  Analysis (markers = All + flag columns + category values from cohort)
+  // ==========================================================================
+  var ANALYSIS=null, MARKERS=[], DIMS=[], MODE='baseline', UNMATCHED_NOTES=[], NOTFOUND=0;
+  var state={marker:null,dim:null,view:'chart'};
+
+  function tallyFor(rows,dim){
+    // returns {tally, present, blanks}; demographics from LOOKUP (join) or cohort col (baseline)
+    var tally={}, present=0, blanks=0;
+    if(MODE==='join'){
+      var col=POP.demoCols[dim];
+      rows.forEach(function(r){
+        var pr=LOOKUP[normId(r[COHORT_ID_COL])]; if(!pr) return; // counted in NOTFOUND separately
+        var v=(pr[col]!=null?String(pr[col]):'').trim();
+        if(v===''){blanks++;return;} present++; tally[v.toLowerCase()]=(tally[v.toLowerCase()]||0)+1;
+      });
+    } else {
+      var c2=BASELINE_COHORT_COLS[dim];
+      rows.forEach(function(r){
+        var v=(r[c2]!=null?String(r[c2]):'').trim();
+        if(v===''){blanks++;return;} present++; tally[v.toLowerCase()]=(tally[v.toLowerCase()]||0)+1;
+      });
+    }
+    return {tally:tally,present:present,blanks:blanks};
+  }
+  var BASELINE_COHORT_COLS={};
+
+  function analyseMarkerDim(rows,dim){
+    var t=tallyFor(rows,dim);
+    if(t.present===0) return {rows:null,present:0,blanks:t.blanks,unmatched:[]};
+    var cmp=compareToPop(t.tally,t.present,POP.dist[dim]||[],POP.present[dim]||1);
+    return {rows:cmp.rows,present:t.present,blanks:t.blanks,unmatched:cmp.unmatched};
+  }
 
   function biggestGaps(dimsObj){
     var all=[];
-    DIMS.forEach(function(dim){
-      var a=dimsObj[dim]; if(!a) return;
-      (a.rows||[]).forEach(function(r){
-        if(r.significant) all.push(Object.assign({},r,{category:dim+': '+r.category}));
-      });
-    });
+    DIMS.forEach(function(dim){var a=dimsObj[dim];if(!a||!a.rows)return;
+      a.rows.forEach(function(r){if(r.significant) all.push(Object.assign({},r,{category:dim+': '+r.category}));});});
     all.sort(function(a,b){return Math.abs(b.uPct-b.pPct)-Math.abs(a.uPct-a.pPct);});
     return all.slice(0,8);
   }
 
-  function buildAnalysis(roles){
-    var demoMap={}, flagCols=[], catCols=[], dupDims=[];
-    CSV.headers.forEach(function(h,i){
-      var role=roles[i]||'ignore';
-      if(role.indexOf('dim:')===0){
-        var dim=role.slice(4);
-        if(demoMap.hasOwnProperty(dim)) dupDims.push(dim); else demoMap[dim]=i;
-      } else if(role==='flag') flagCols.push(i);
-      else if(role==='category') catCols.push(i);
-    });
+  function buildAnalysis(){
+    var cohortRoles=readRoles('cohortMapBody');
+    var popRoles=POPCSV?readRoles('popMapBody'):{};
 
-    var demoDims=Object.keys(demoMap);
-    if(demoDims.length===0){
-      showError('Map at least one column to a demographic ("Compare to population as…") so there is something to compare. '+
-        'You can still add sub-group columns as well.');
-      return false;
+    if(POPCSV){
+      var pid=firstRole(popRoles,'id');
+      var hasPopDim=Object.keys(popRoles).some(function(k){return popRoles[k]==='dim';});
+      if(pid<0){showError('In the population file, mark which column is the Student ID.');return;}
+      if(!hasPopDim){showError('In the population file, mark at least one Demographic column to compare on.');return;}
+      var cid=firstRole(cohortRoles,'id');
+      if(cid<0){showError('In the cohort file, mark which column is the Student ID so it can be joined to the population file.');return;}
+      MODE='join'; buildPopFromCSV(popRoles); COHORT_ID_COL=cid;
+    } else {
+      BASELINE_COHORT_COLS={};
+      Object.keys(cohortRoles).forEach(function(k){
+        if(cohortRoles[k].indexOf('dim:')===0){var dim=cohortRoles[k].slice(4);if(!BASELINE_COHORT_COLS[dim])BASELINE_COHORT_COLS[dim]=parseInt(k,10);}});
+      if(Object.keys(BASELINE_COHORT_COLS).length===0){
+        showError('With no population file, map at least one column in the cohort file to a demographic ("Demographic, if no population file…").');return;}
+      MODE='baseline'; useBaselinePop();
     }
 
-    // markers
-    MARKERS=[{key:'ALL',label:'All uploaded students',type:'all',rows:CSV.rows}];
+    // markers from cohort file
+    var flagCols=[],catCols=[];
+    Object.keys(cohortRoles).forEach(function(k){
+      if(cohortRoles[k]==='flag') flagCols.push(parseInt(k,10));
+      else if(cohortRoles[k]==='category') catCols.push(parseInt(k,10));
+    });
+    MARKERS=[{key:'ALL',label:'All in cohort file',type:'all',rows:COHORTCSV.rows}];
     flagCols.forEach(function(i){
-      var members=CSV.rows.filter(function(r){return truthy(r[i]);});
-      if(members.length) MARKERS.push({key:'flag:'+i,label:CSV.headers[i]||('Column '+(i+1)),type:'flag',rows:members});
+      var members=COHORTCSV.rows.filter(function(r){return truthy(r[i]);});
+      if(members.length) MARKERS.push({key:'flag:'+i,label:COHORTCSV.headers[i]||('Column '+(i+1)),type:'flag',rows:members});
     });
     catCols.forEach(function(i){
-      var groups={}, order=[];
-      CSV.rows.forEach(function(r){
-        var v=(r[i]!=null?String(r[i]):'').trim(); if(v==='') return;
-        var k=v.toLowerCase(); if(!groups[k]){groups[k]={label:v,rows:[]};order.push(k);}
-        groups[k].rows.push(r);
-      });
+      var groups={},order=[];
+      COHORTCSV.rows.forEach(function(r){var v=(r[i]!=null?String(r[i]):'').trim();if(v==='')return;
+        var k=v.toLowerCase();if(!groups[k]){groups[k]={label:v,rows:[]};order.push(k);}groups[k].rows.push(r);});
       order.sort(function(a,b){return groups[b].rows.length-groups[a].rows.length;});
-      order.forEach(function(k){
-        MARKERS.push({key:'cat:'+i+':'+k,label:(CSV.headers[i]||'Column')+': '+groups[k].label,
-          type:'category',rows:groups[k].rows});
-      });
+      order.forEach(function(k){MARKERS.push({key:'cat:'+i+':'+k,label:(COHORTCSV.headers[i]||'Column')+': '+groups[k].label,type:'category',rows:groups[k].rows});});
     });
 
-    // dims present = those the ALL marker can break down
+    // dims = population dims that the ALL cohort can break down
+    DIMS=POP.dims.filter(function(dim){return analyseMarkerDim(COHORTCSV.rows,dim).present>0;});
+
     ANALYSIS={};
-    var allDims={};
-    demoDims.forEach(function(dim){
-      if(analyseDimension(dim,demoMap[dim],CSV.rows)) allDims[dim]=true;
-    });
-    DIMS=demoDims.filter(function(d){return allDims[d];});
-
     MARKERS.forEach(function(m){
       var dimsObj={};
-      DIMS.forEach(function(dim){
-        var a=analyseDimension(dim,demoMap[dim],m.rows);
-        if(a) dimsObj[dim]=a;
-      });
-      ANALYSIS[m.key]={label:m.label,type:m.type,total:m.rows.length,dims:dimsObj,gaps:biggestGaps(dimsObj)};
+      DIMS.forEach(function(dim){dimsObj[dim]=analyseMarkerDim(m.rows,dim);});
+      var nf=0;
+      if(MODE==='join') nf=m.rows.filter(function(r){return !LOOKUP[normId(r[COHORT_ID_COL])];}).length;
+      ANALYSIS[m.key]={label:m.label,type:m.type,total:m.rows.length,dims:dimsObj,gaps:biggestGaps(dimsObj),notFound:nf};
     });
+
+    // collect notes
+    UNMATCHED_NOTES=[];
+    if(MODE==='baseline'){
+      DIMS.forEach(function(dim){
+        var un=ANALYSIS.ALL.dims[dim]?ANALYSIS.ALL.dims[dim].unmatched:[];
+        if(un&&un.length) UNMATCHED_NOTES.push(esc(dim)+': '+un.length+' value'+(un.length>1?'s':'')+' in your file did not match a baseline category ('+un.slice(0,6).map(esc).join(', ')+(un.length>6?', …':'')+').');
+      });
+    }
+    NOTFOUND=ANALYSIS.ALL.notFound||0;
 
     state.marker='ALL';
     state.dim=(ANALYSIS.ALL.gaps.length?'Biggest gaps':DIMS[0]);
     document.getElementById('errBox').innerHTML='';
     document.getElementById('mapZone').classList.add('hidden');
-    document.getElementById('uploadZone').classList.add('hidden');
     document.getElementById('results').classList.remove('hidden');
-    buildMarkerTabs(); buildDimTabs(); setView('chart'); render();
-    return true;
+    setFooter();
+    buildMarkerTabs();buildDimTabs();setView('chart');render();
+    window.scrollTo(0,0);
   }
 
   function dimList(){
-    var base=DIMS.slice();
-    // include Biggest gaps first if any marker has gaps
     var anyGaps=MARKERS.some(function(m){return (ANALYSIS[m.key].gaps||[]).length;});
-    return anyGaps?['Biggest gaps'].concat(base):base;
+    return anyGaps?['Biggest gaps'].concat(DIMS):DIMS.slice();
   }
-
   function buildMarkerTabs(){
     var host=document.getElementById('markerTabs');host.textContent='';
     document.getElementById('markerWrap').classList.toggle('hidden',MARKERS.length<=1);
@@ -589,14 +700,12 @@
       host.appendChild(b);
     });
   }
-
   function setView(v){state.view=v;
     document.getElementById('btnChart').setAttribute('aria-pressed',v==='chart');
     document.getElementById('btnTable').setAttribute('aria-pressed',v==='table');
     document.getElementById('chartView').classList.toggle('hidden',v==='table');
     document.getElementById('tableView').classList.toggle('hidden',v!=='table');
   }
-
   function currentRows(){
     var A=ANALYSIS[state.marker];
     if(state.dim==='Biggest gaps') return A.gaps||[];
@@ -605,40 +714,31 @@
 
   function render(){
     var A=ANALYSIS[state.marker];
-    // keep dim valid
-    var dims=dimList();
-    if(dims.indexOf(state.dim)===-1) state.dim=dims[0];
-
-    Array.prototype.forEach.call(document.getElementById('markerTabs').children,function(b){
-      b.setAttribute('aria-selected',b.dataset.key===state.marker);});
-    Array.prototype.forEach.call(document.getElementById('dimTabs').children,function(b){
-      b.setAttribute('aria-selected',b.dataset.dim===state.dim);});
+    var dims=dimList(); if(dims.indexOf(state.dim)===-1) state.dim=dims[0];
+    Array.prototype.forEach.call(document.getElementById('markerTabs').children,function(b){b.setAttribute('aria-selected',b.dataset.key===state.marker);});
+    Array.prototype.forEach.call(document.getElementById('dimTabs').children,function(b){b.setAttribute('aria-selected',b.dataset.dim===state.dim);});
 
     var groupLabel=A.label;
-    document.getElementById('legUsers').textContent=(state.marker==='ALL')?'Your cohort':groupLabel;
+    var userLabel=(state.marker==='ALL')?'Your cohort':groupLabel;
+    document.getElementById('legUsers').textContent=userLabel;
 
-    // file strip
+    var popName=(POP.source==='file'&&POPCSV)?POPCSV.fileName:'built-in baseline';
     document.getElementById('fileStrip').innerHTML=
-      '<span class="pill">'+esc(CSV.fileName)+'</span>'+
-      '<span style="color:var(--ink-soft)">'+CSV.rows.length.toLocaleString()+' students in file · '+
-      POPTOTAL.toLocaleString()+' in the population</span>';
+      '<span class="pill">'+esc(COHORTCSV.fileName)+'</span>'+
+      '<span style="color:var(--ink-soft)">'+COHORTCSV.rows.length.toLocaleString()+' in cohort · compared with '+
+      POP.total.toLocaleString()+' in population ('+esc(popName)+')</span>';
 
-    // headline
     var sigCount=0;
-    DIMS.forEach(function(d){(A.dims[d]?A.dims[d].rows:[]).forEach(function(r){if(r.significant)sigCount++;});});
+    DIMS.forEach(function(d){(A.dims[d]&&A.dims[d].rows?A.dims[d].rows:[]).forEach(function(r){if(r.significant)sigCount++;});});
     var hs=[['n',A.total.toLocaleString(),(state.marker==='ALL'?'students in your cohort':'students in "'+groupLabel+'"')],
-            ['n',(POPTOTAL?Math.round(1000*A.total/POPTOTAL)/10+'%':'—'),'of the whole population'],
+            ['n',(POP.total?Math.round(1000*A.total/POP.total)/10+'%':'—'),'of the population'],
             ['n',sigCount,'groups significantly over/under-represented']];
     document.getElementById('headline').innerHTML=hs.map(function(s){
       return '<div class="stat"><div class="n">'+s[1]+'</div><div class="k">'+s[2]+'</div></div>';}).join('');
 
-    var userLabel=(state.marker==='ALL')?'Your cohort':groupLabel;
-    // titles + notes
     if(state.dim==='Biggest gaps'){
       document.getElementById('chartTitle').textContent=groupLabel+' – biggest gaps';
-      document.getElementById('chartNote').textContent=
-        'The groups where '+(state.marker==='ALL'?'your cohort':'this sub-group')+
-        ' differs most from the population, across every breakdown, that are also statistically significant.';
+      document.getElementById('chartNote').textContent='The groups where '+(state.marker==='ALL'?'your cohort':'this sub-group')+' differs most from the population, across every breakdown, that are also statistically significant.';
     } else {
       var a=A.dims[state.dim];
       document.getElementById('chartTitle').textContent=groupLabel+' – representation by '+state.dim;
@@ -653,103 +753,94 @@
       svg.setAttribute('viewBox','0 0 860 70');pinChartWidth(svg,860);
       var msg=svgEl('text',{x:20,y:40,'class':'value-label'});
       msg.textContent='Not enough students in this selection to break down by '+state.dim+'.';
-      svg.appendChild(msg);
-      document.getElementById('tableBody').textContent='';
+      svg.appendChild(msg);document.getElementById('tableBody').textContent='';
     } else {
       var sorted=rows.slice().sort(function(x,y){
         if(!!x.smallSample!==!!y.smallSample) return x.smallSample?1:-1;
-        return (y.uPct||0)-(x.uPct||0);
-      });
-      renderChart(sorted,'Student population',userLabel);
-      renderTable(sorted);
+        return (y.uPct||0)-(x.uPct||0);});
+      renderChart(sorted,'Student population',userLabel);renderTable(sorted);
     }
 
-    // matching notes (from ALL marker, since unmatched labels are file-wide)
+    // notes
     var notes=[];
-    DIMS.forEach(function(d){
-      var un=ANALYSIS.ALL.dims[d]?ANALYSIS.ALL.dims[d].unmatched:[];
-      if(un&&un.length){
-        notes.push('<strong>'+esc(d)+':</strong> '+un.length+' value'+(un.length>1?'s':'')+
-          ' in your CSV did not match a population category and could not be compared: '+
-          un.slice(0,6).map(function(u){return esc(u.label)+' ('+u.n+')';}).join(', ')+(un.length>6?', …':'')+'.');
-      }
-    });
-    var card=document.getElementById('unmatchedCard');
-    if(notes.length){
-      card.classList.remove('hidden');
-      document.getElementById('unmatchedNote').innerHTML=
-        notes.join('<br>')+'<br><br>To fix these, make the labels in your CSV match the population labels exactly '+
-        '(same spelling and capitalisation), or edit the baseline in <code>student_dashboard_data.js</code>.';
-    } else { card.classList.add('hidden'); }
+    if(MODE==='join'&&NOTFOUND>0)
+      notes.push(NOTFOUND.toLocaleString()+' student'+(NOTFOUND>1?'s':'')+' in the cohort file '+(NOTFOUND>1?'were':'was')+' not found in the population file by ID, so '+(NOTFOUND>1?'they have':'it has')+' no demographics and '+(NOTFOUND>1?'are':'is')+' excluded from the breakdowns (still counted in the cohort total).');
+    UNMATCHED_NOTES.forEach(function(n){notes.push(n);});
+    var card=document.getElementById('notesCard');
+    if(notes.length){card.classList.remove('hidden');
+      document.getElementById('notesBody').innerHTML=notes.join('<br>')+
+        (MODE==='join'?'<br><br>Demographics come from the population file, so cohort and population labels always match.':
+                       '<br><br>To fix baseline mismatches, make labels match exactly, or upload a population file instead so labels align automatically.');
+    } else card.classList.add('hidden');
   }
 
+  function setFooter(){
+    var base=D.META.disclosure||'';
+    if(MODE==='join') base='Demographics and the population denominator come from your uploaded population file ('+esc(POP.total.toLocaleString())+' students). Groups under '+MIN+' students are suppressed and not tested. Significance is a two-proportion z-test at the 95% level. Files are read in your browser and never uploaded.';
+    document.getElementById('footer').textContent=base;
+  }
+
+  // ---- events --------------------------------------------------------------
   document.getElementById('btnChart').addEventListener('click',function(){setView('chart');});
   document.getElementById('btnTable').addEventListener('click',function(){setView('table');});
   document.getElementById('btnRemap').addEventListener('click',function(){
     document.getElementById('results').classList.add('hidden');
-    document.getElementById('mapZone').classList.remove('hidden');
-  });
-  document.getElementById('btnBuild').addEventListener('click',function(){buildAnalysis(readRoles());});
-  document.getElementById('btnStartOver').addEventListener('click',resetToUpload);
+    document.getElementById('mapZone').classList.remove('hidden');window.scrollTo(0,0);});
+  document.getElementById('btnBuild').addEventListener('click',buildAnalysis);
+  document.getElementById('btnToMap').addEventListener('click',function(){ if(COHORTCSV) showMapping(); });
+  document.getElementById('btnStartOver').addEventListener('click',resetAll);
 
-  // ---- file handling -------------------------------------------------------
-  function showError(msg){document.getElementById('errBox').innerHTML='<div class="err">'+esc(msg)+'</div>';}
-  function resetToUpload(){
-    CSV={headers:[],rows:[],fileName:'',colInfo:[]};
-    document.getElementById('fileInput').value='';
+  function showError(msg){document.getElementById('errBox').innerHTML='<div class="err">'+esc(msg)+'</div>';window.scrollTo(0,0);}
+  function refreshContinue(){document.getElementById('btnToMap').disabled=!COHORTCSV;}
+  function resetAll(){
+    POPCSV=COHORTCSV=null;LOOKUP=null;
+    document.getElementById('filePop').value='';document.getElementById('fileCohort').value='';
+    document.getElementById('popLoaded').textContent='';document.getElementById('cohortLoaded').textContent='';
+    document.getElementById('dropPop').classList.remove('loaded');document.getElementById('dropCohort').classList.remove('loaded');
     document.getElementById('errBox').innerHTML='';
-    document.getElementById('mapZone').classList.add('hidden');
-    document.getElementById('results').classList.add('hidden');
-    document.getElementById('uploadZone').classList.remove('hidden');
+    document.getElementById('mapZone').classList.add('hidden');document.getElementById('results').classList.add('hidden');
+    document.getElementById('uploadZone').classList.remove('hidden');refreshContinue();
   }
-  function handleFile(file){
-    if(!file) return;
-    if(!/\.csv$/i.test(file.name)&&file.type!=='text/csv'){
-      showError('Please choose a .csv file. Got "'+file.name+'".');return;
-    }
+
+  function readFile(file,cb){
     var reader=new FileReader();
     reader.onload=function(){
-      try{
-        var rows=parseCSV(String(reader.result));
+      try{var rows=parseCSV(String(reader.result));
         if(rows.length<2){showError('That CSV has no data rows under its header.');return;}
-        CSV.headers=rows[0].map(function(h){return String(h).trim();});
-        CSV.rows=rows.slice(1);
-        CSV.fileName=file.name;
-        document.getElementById('errBox').innerHTML='';
-        document.getElementById('uploadZone').classList.add('hidden');
-        document.getElementById('mapZone').classList.remove('hidden');
-        document.getElementById('mapIntro').textContent=
-          'Found '+CSV.headers.length+' columns and '+CSV.rows.length.toLocaleString()+
-          ' students in '+file.name+'. Check each row below, then build the dashboard. Highlighted rows are ones the dashboard will use.';
-        buildMapUI();
-        window.scrollTo(0,0);
-      }catch(e){ showError('Could not read that CSV: '+e.message); }
+        cb(makeCsv(rows[0].map(function(h){return String(h).trim();}),rows.slice(1),file.name));
+      }catch(e){showError('Could not read that CSV: '+e.message);}
     };
     reader.onerror=function(){showError('Could not read the file.');};
     reader.readAsText(file);
   }
+  function isCsv(file){return /\.csv$/i.test(file.name)||file.type==='text/csv';}
 
-  var drop=document.getElementById('drop'), input=document.getElementById('fileInput');
-  drop.addEventListener('click',function(){input.click();});
-  drop.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();input.click();}});
-  input.addEventListener('change',function(){handleFile(input.files[0]);});
-  ['dragenter','dragover'].forEach(function(ev){drop.addEventListener(ev,function(e){
-    e.preventDefault();drop.classList.add('drag');});});
-  ['dragleave','drop'].forEach(function(ev){drop.addEventListener(ev,function(e){
-    e.preventDefault();drop.classList.remove('drag');});});
-  drop.addEventListener('drop',function(e){
-    var f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0];handleFile(f);});
+  function wireDrop(dropId,inputId,which){
+    var drop=document.getElementById(dropId),input=document.getElementById(inputId);
+    function take(file){ if(!file)return; if(!isCsv(file)){showError('Please choose a .csv file. Got "'+file.name+'".');return;}
+      readFile(file,function(csv){
+        if(which==='pop'){POPCSV=csv;document.getElementById('popLoaded').textContent='✓ '+csv.fileName+' ('+csv.rows.length.toLocaleString()+' rows)';document.getElementById('dropPop').classList.add('loaded');}
+        else{COHORTCSV=csv;document.getElementById('cohortLoaded').textContent='✓ '+csv.fileName+' ('+csv.rows.length.toLocaleString()+' rows)';document.getElementById('dropCohort').classList.add('loaded');}
+        document.getElementById('errBox').innerHTML='';refreshContinue();
+      });
+    }
+    drop.addEventListener('click',function(){input.click();});
+    drop.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();input.click();}});
+    input.addEventListener('change',function(){take(input.files[0]);});
+    ['dragenter','dragover'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.add('drag');});});
+    ['dragleave','drop'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.remove('drag');});});
+    drop.addEventListener('drop',function(e){take(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]);});
+  }
+  wireDrop('dropPop','filePop','pop');
+  wireDrop('dropCohort','fileCohort','cohort');
 
   // ---- init ----------------------------------------------------------------
   document.getElementById('metaLine').textContent=
-    'Compares your uploaded students against the '+POPTOTAL.toLocaleString()+
-    '-student population baseline of '+(D.META.generated||'')+'. Groups under '+MIN+' students are suppressed.';
+    'Upload a population file (everyone) and a cohort/service file, or use the built-in '+
+    BASELINE_TOTAL.toLocaleString()+'-student baseline if you skip the population file. Groups under '+MIN+' students are suppressed.';
   document.getElementById('templateNote').innerHTML=
-    'Demographics recognised automatically: '+DIMENSIONS.map(function(d){return '<code>'+esc(d)+'</code>';}).join(', ')+
-    '. You confirm or change every column after uploading.';
-  document.getElementById('mapHint').innerHTML=
-    'Tip: a <strong>flag</strong> column (like a service name) counts any student with a value in it as a member. '+
-    'A <strong>split-by-value</strong> column (like Year, or a service-type column) makes one sub-group per distinct value.';
+    'Best results: upload both files and join them on Student ID, so the cohort and population share the exact same demographic labels. '+
+    'Demographics auto-detected for the baseline fallback: '+DIMENSIONS.map(function(d){return '<code>'+esc(d)+'</code>';}).join(', ')+'.';
   document.getElementById('footer').textContent=D.META.disclosure||'';
 })();
 </script>
