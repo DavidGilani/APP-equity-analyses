@@ -220,6 +220,7 @@
           <button id="btnTable" aria-pressed="false">Table</button>
         </div>
         <button class="btn-ghost" id="btnRemap">Re-map columns</button>
+        <button class="btn-ghost" id="btnStartOverResults">Start over</button>
       </div>
       <div class="legend">
         <span><i class="swatch sw-users"></i><span id="legUsers">This group</span></span>
@@ -478,7 +479,7 @@
   function popOptions(sel){
     sel.appendChild(opt('ignore','Ignore'));
     sel.appendChild(opt('id','Student ID (for the join)'));
-    sel.appendChild(opt('dim','Demographic (compare to population)'));
+    sel.appendChild(opt('dim','Demographic'));
   }
   function cohortOptions(sel){
     sel.appendChild(opt('ignore','Ignore'));
@@ -789,6 +790,7 @@
   document.getElementById('btnBuild').addEventListener('click',buildAnalysis);
   document.getElementById('btnToMap').addEventListener('click',function(){ if(COHORTCSV) showMapping(); });
   document.getElementById('btnStartOver').addEventListener('click',resetAll);
+  document.getElementById('btnStartOverResults').addEventListener('click',resetAll);
 
   function showError(msg){document.getElementById('errBox').innerHTML='<div class="err">'+esc(msg)+'</div>';window.scrollTo(0,0);}
   function refreshContinue(){document.getElementById('btnToMap').disabled=!COHORTCSV;}
