@@ -39,6 +39,7 @@
   .drop .tag.req{color:#fff;background:var(--ink)}
   .drop input[type=file]{display:none}
   .drop .loadedname{color:var(--users);font-weight:600;font-size:13px;margin-top:8px}
+  .results-top{display:flex;justify-content:flex-end;margin:2px 0 8px}
   .filestrip{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0 4px;font-size:13.5px}
   .filestrip .pill{background:var(--users-soft);color:var(--users);border:1px solid var(--users);
     border-radius:999px;padding:5px 12px;font-weight:600}
@@ -201,6 +202,9 @@
 
   <!-- results -->
   <div id="results" class="hidden">
+    <div class="results-top">
+      <button class="btn-solid" id="btnNewComparison">Start a new comparison</button>
+    </div>
     <div class="filestrip" id="fileStrip"></div>
 
     <div id="markerWrap" style="margin:6px 0 2px">
@@ -220,7 +224,6 @@
           <button id="btnTable" aria-pressed="false">Table</button>
         </div>
         <button class="btn-ghost" id="btnRemap">Re-map columns</button>
-        <button class="btn-ghost" id="btnStartOverResults">Start over</button>
       </div>
       <div class="legend">
         <span><i class="swatch sw-users"></i><span id="legUsers">This group</span></span>
@@ -484,7 +487,7 @@
   function cohortOptions(sel){
     sel.appendChild(opt('ignore','Ignore'));
     sel.appendChild(opt('id','Student ID (for the join)'));
-    sel.appendChild(opt('flag','Sub-group: students with any value here'));
+    sel.appendChild(opt('flag','Sub-group: students with "Y" value here'));
     sel.appendChild(opt('category','Sub-group: split by each value'));
     var og=document.createElement('optgroup');og.label='Demographic, if no population file…';
     DIMENSIONS.forEach(function(dim){og.appendChild(opt('dim:'+dim,dim));});
@@ -790,7 +793,7 @@
   document.getElementById('btnBuild').addEventListener('click',buildAnalysis);
   document.getElementById('btnToMap').addEventListener('click',function(){ if(COHORTCSV) showMapping(); });
   document.getElementById('btnStartOver').addEventListener('click',resetAll);
-  document.getElementById('btnStartOverResults').addEventListener('click',resetAll);
+  document.getElementById('btnNewComparison').addEventListener('click',resetAll);
 
   function showError(msg){document.getElementById('errBox').innerHTML='<div class="err">'+esc(msg)+'</div>';window.scrollTo(0,0);}
   function refreshContinue(){document.getElementById('btnToMap').disabled=!COHORTCSV;}
