@@ -437,29 +437,29 @@ write_csv(by_year_or,   file.path(out_dir, "models_by_year_odds_ratios.csv"))
 #   formula if the coefficients are not of interest.
 
 # ---- 8. Extended regression: what drives continuation? ------------------------
-# Adds the remaining entry-point characteristics in the file, then asks three
-# questions:
-#   8a. Which variables matter most once everything is controlled for?
-#       (likelihood ratio test for dropping each variable, and pseudo R2)
-#   8b. What do the effects look like in percentage points, not odds?
-#       (average marginal effects, if the marginaleffects package is installed)
-#   8c. Do the drivers change from year to year?
-#       (the same drop-one test run separately for each entry year)
+# Entrants 2020/21 to 2023/24 only (the OfS four-year aggregate window).
+# Two models:
+#   Model A  student characteristics only
+#   Model B  Model A plus university structure: department, foundation year,
+#            course length, sandwich year, distance learning
+# Comparing the two shows how much of each characteristic's effect runs
+# through where and what students study, rather than who they are.
+#
+# For each model: variable importance (drop-one likelihood ratio test), odds
+# ratios, average marginal effects in percentage points if the
+# marginaleffects package is installed, and fit statistics. Model B is also
+# refitted within each entry year to see whether the drivers change.
 #
 # Variables NOT used, and why:
 #   abcs_continuation_quintile   OfS builds it from these same characteristics
 #                                as a predicted continuation risk, so it would
-#                                double count. It appears only in a comparison
-#                                model on its own.
+#                                double count. It is kept as a benchmark model.
 #   degree_class, progression_*  outcomes that happen after continuation
 #   interim_study_mode, geography_of_employment_quintile   post-entry
-#   sexual_orientation           mostly unknown; switch on with use_sexual_orientation
-#
-# Choices you may want to change:
-use_department          <- FALSE   # TRUE swaps faculty for department
-imd_reference           <- "E5"    # "E3" gives a larger, more stable reference group
-use_sexual_orientation  <- FALSE
-min_cell                <- 30      # levels smaller than this are folded into "Other"
+#   sexual_orientation           mostly unknown
+
+analysis_years <- 2020:2023
+min_cell       <- 30      # department levels smaller than this fold into "Other"
 
 fold_small <- function(x, min_n = min_cell, other = "Other (small groups)") {
   x <- as.character(x)
@@ -469,8 +469,18 @@ fold_small <- function(x, min_n = min_cell, other = "Other (small groups)") {
 }
 
 reg_data8 <- reg_data %>%
+  filter(base_academic_year %in% analysis_years) %>%
   mutate(
-    entry_qual_detail = factor(entry_qual_label) %>% fct_relevel("A-levels (BCC or higher) or IB"),
+    year = droplevels(year),
+
+    entry_qual_detail = factor(entry_qual_label) %>%
+      fct_relevel("A-levels (BCC or higher) or IB"),
+
+    # IMD: quintiles 1 and 2 (most deprived 40% of areas) against 3 to 5
+    imd2 = case_when(
+      student_domicile == "E" & home_imd_quintile_by_nation %in% c("E1", "E2") ~ "IMD Q1-2 (most deprived)",
+      student_domicile == "E" & home_imd_quintile_by_nation %in% c("E3", "E4", "E5") ~ "IMD Q3-5",
+      TRUE ~ "Unknown or not England") %>% factor() %>% fct_relevel("IMD Q3-5"),
 
     disability_type = case_when(
       is_reported_disabled == "N"        ~ "No disability reported",
@@ -501,56 +511,44 @@ reg_data8 <- reg_data %>%
       engagement_starting_age_group == "U21" ~ "Young, unknown",
       TRUE ~ "Mature, not applicable") %>% factor() %>% fct_relevel("Q5"),
 
-    subject_area  = fold_small(cah2_group_name) %>% factor(),
     department    = fold_small(department) %>% factor(),
-
     course_length = factor(as.character(expected_course_length_grouped)),
     sandwich      = if_else(as.character(is_sandwich_year) == "1", "Sandwich", "Not sandwich") %>%
       factor() %>% fct_relevel("Not sandwich"),
     distance      = if_else(as.character(is_distance_learner) == "1", "Distance", "Campus") %>%
       factor() %>% fct_relevel("Campus"),
 
-    sexual_orient = case_when(
-      as.character(sexual_orientation) == "12" ~ "Heterosexual",
-      as.character(sexual_orientation) %in% c("10", "11") ~ "LGB",
-      TRUE ~ "Unknown or other") %>% factor() %>% fct_relevel("Heterosexual"),
-
     abcs = case_when(
       as.character(abcs_continuation_quintile) %in% as.character(1:5) ~
         paste0("ABCS Q", abcs_continuation_quintile),
-      TRUE ~ "Unknown") %>% factor() %>% fct_relevel("ABCS Q5"),
-
-    imd_quintile = fct_relevel(imd_quintile, imd_reference)
+      TRUE ~ "Unknown") %>% factor() %>% fct_relevel("ABCS Q5")
   )
 
-# Cell sizes for every new variable. Anything under min_cell will be noisy.
-for (v in c("entry_qual_detail", "disability_type", "fsm", "nssec", "polar4",
-            "subject_area", "department", "course_length", "sandwich", "distance")) {
+cat("\nStudents in 2020/21 to 2023/24 regression sample:", nrow(reg_data8), "\n")
+for (v in c("entry_qual_group", "imd2", "disability_type", "fsm", "nssec", "polar4",
+            "department", "course_length", "sandwich", "distance", "year")) {
   cat("\n--", v, "--\n"); print(table(reg_data8[[v]], useNA = "ifany"))
 }
 
-# ---- 8a. Full model and drop-one importance ------------------------------------
-course_term <- if (use_department) "department" else "faculty"
-rhs <- c("entry_qual_group", "sex", "age_group", "ethnicity", "imd_quintile",
-         "disability_type", "fsm", "nssec", "polar4", "foundation_year",
-         "course_length", "sandwich", "distance", course_term, "year")
-if (use_sexual_orientation) rhs <- c(rhs, "sexual_orient")
+# ---- 8a. Fit the two models ------------------------------------------------------
+student_vars   <- c("entry_qual_group", "sex", "age_group", "ethnicity", "imd2",
+                    "disability_type", "fsm", "nssec", "polar4")
+structure_vars <- c("department", "foundation_year", "course_length", "sandwich", "distance")
 
-# Drop any variable with only one level in the data, otherwise glm errors
-one_level <- rhs[sapply(rhs, function(v) nlevels(droplevels(reg_data8[[v]])) < 2)]
-if (length(one_level)) {
-  message("Dropping single-level variables: ", paste(one_level, collapse = ", "))
-  rhs <- setdiff(rhs, one_level)
+# Drop any variable with a single level in this sample, otherwise glm errors
+usable <- function(vars, d) {
+  keep <- vars[sapply(vars, function(v) nlevels(droplevels(d[[v]])) >= 2)]
+  dropped <- setdiff(vars, keep)
+  if (length(dropped)) message("Dropped single-level variables: ", paste(dropped, collapse = ", "))
+  keep
 }
+rhs_A <- c(usable(student_vars, reg_data8), "year")
+rhs_B <- c(usable(c(student_vars, structure_vars), reg_data8), "year")
 
-f_full <- reformulate(rhs, response = "continued")
-m_full <- glm(f_full, data = reg_data8, family = binomial)
-
-# Same model with the 11-category entry qualifications
-m_full_detail <- update(m_full, . ~ . - entry_qual_group + entry_qual_detail)
-
-# Comparison: the OfS ABCS quintile on its own
-m_abcs <- glm(continued ~ abcs + year, data = reg_data8, family = binomial)
+model_A <- glm(reformulate(rhs_A, "continued"), data = reg_data8, family = binomial)
+model_B <- glm(reformulate(rhs_B, "continued"), data = reg_data8, family = binomial)
+model_B_detail <- update(model_B, . ~ . - entry_qual_group + entry_qual_detail)
+model_abcs <- glm(continued ~ abcs + year, data = reg_data8, family = binomial)
 
 pseudo_r2 <- function(m) round(1 - m$deviance / m$null.deviance, 4)   # McFadden
 auc <- function(m) {                                                  # rank-based AUC
@@ -559,100 +557,105 @@ auc <- function(m) {                                                  # rank-bas
   round((sum(r[y == 1]) - n1 * (n1 + 1) / 2) / (n1 * n0), 4)
 }
 fit_table <- tibble(
-  model = c("m2 (section 6)", "m_full", "m_full_detail", "m_abcs"),
-  n     = c(nobs(m2), nobs(m_full), nobs(m_full_detail), nobs(m_abcs)),
-  AIC   = round(c(AIC(m2), AIC(m_full), AIC(m_full_detail), AIC(m_abcs)), 1),
-  mcfadden_r2 = c(pseudo_r2(m2), pseudo_r2(m_full), pseudo_r2(m_full_detail), pseudo_r2(m_abcs)),
-  auc   = c(auc(m2), auc(m_full), auc(m_full_detail), auc(m_abcs)))
+  model = c("A: student characteristics", "B: A + university structure",
+            "B with 11-category entry quals", "ABCS benchmark"),
+  n     = c(nobs(model_A), nobs(model_B), nobs(model_B_detail), nobs(model_abcs)),
+  AIC   = round(c(AIC(model_A), AIC(model_B), AIC(model_B_detail), AIC(model_abcs)), 1),
+  mcfadden_r2 = c(pseudo_r2(model_A), pseudo_r2(model_B), pseudo_r2(model_B_detail), pseudo_r2(model_abcs)),
+  auc   = c(auc(model_A), auc(model_B), auc(model_B_detail), auc(model_abcs)))
 cat("\nModel fit comparison\n"); print(fit_table)
+cat("\nDoes adding university structure improve fit?\n")
+print(anova(model_A, model_B, test = "Chisq"))
 
-# Drop-one likelihood ratio tests: the variables with the largest deviance
-# change are the ones doing most of the explanatory work.
-importance <- drop1(m_full, test = "LRT") %>%
-  as.data.frame() %>%
-  tibble::rownames_to_column("variable") %>%
-  filter(variable != "<none>") %>%
-  transmute(variable, df = Df, deviance_change = round(LRT, 1),
-            p_value = signif(`Pr(>Chi)`, 3)) %>%
-  arrange(desc(deviance_change)) %>%
-  as_tibble()
-cat("\nVariable importance (drop-one LRT), full model\n"); print(importance, n = Inf)
+# ---- 8b. Variable importance and odds ratios --------------------------------------
+importance <- function(m, label) {
+  drop1(m, test = "LRT") %>%
+    as.data.frame() %>%
+    tibble::rownames_to_column("variable") %>%
+    filter(variable != "<none>") %>%
+    transmute(model = label, variable, df = Df, deviance_change = round(LRT, 1),
+              p_value = signif(`Pr(>Chi)`, 3)) %>%
+    arrange(desc(deviance_change)) %>%
+    as_tibble()
+}
+importance_A <- importance(model_A, "A")
+importance_B <- importance(model_B, "B")
+cat("\nVariable importance, model A\n"); print(importance_A, n = Inf)
+cat("\nVariable importance, model B\n"); print(importance_B, n = Inf)
 
-full_or <- tidy_or(m_full)
-cat("\nOdds ratios, full model\n"); print(full_or, n = Inf)
+# Odds ratios side by side: how much does each effect change once structure
+# is controlled for?
+or_A <- tidy_or(model_A) %>% rename(or_A = odds_ratio, low_A = conf.low, high_A = conf.high, p_A = p.value)
+or_B <- tidy_or(model_B) %>% rename(or_B = odds_ratio, low_B = conf.low, high_B = conf.high, p_B = p.value)
+or_side_by_side <- full_join(or_A, or_B, by = "term")
+cat("\nOdds ratios, model A and model B\n"); print(or_side_by_side, n = Inf, width = Inf)
 
-# ---- 8b. Average marginal effects in percentage points --------------------------
+# ---- 8c. Average marginal effects in percentage points ----------------------------
 # For each variable: the average change in the probability of continuing when
 # a student is moved from the reference level to each other level, holding
-# their other characteristics as they are. Easier to read than odds ratios.
+# their other characteristics as they are.
 if (requireNamespace("marginaleffects", quietly = TRUE)) {
-  ame <- marginaleffects::avg_comparisons(m_full) %>%
-    as_tibble() %>%
-    transmute(variable = term, contrast,
-              effect_pp = round(100 * estimate, 1),
-              conf.low  = round(100 * conf.low, 1),
-              conf.high = round(100 * conf.high, 1),
-              p_value   = signif(p.value, 3))
-  cat("\nAverage marginal effects (percentage points)\n"); print(ame, n = Inf)
-  write_csv(ame, file.path(out_dir, "model_full_marginal_effects_pp.csv"))
+  ame <- function(m, label) {
+    marginaleffects::avg_comparisons(m) %>%
+      as_tibble() %>%
+      transmute(model = label, variable = term, contrast,
+                effect_pp = round(100 * estimate, 1),
+                conf.low  = round(100 * conf.low, 1),
+                conf.high = round(100 * conf.high, 1),
+                p_value   = signif(p.value, 3))
+  }
+  ame_both <- bind_rows(ame(model_A, "A"), ame(model_B, "B"))
+  cat("\nAverage marginal effects (percentage points)\n"); print(ame_both, n = Inf)
+  write_csv(ame_both, file.path(out_dir, "model_AB_marginal_effects_pp.csv"))
 } else {
   message("Install the 'marginaleffects' package to get effects in percentage points: ",
           "install.packages('marginaleffects')")
 }
 
-# ---- 8c. Do the drivers change over time? ---------------------------------------
-# The drop-one test run within each entry year. A variable whose deviance
-# change grows over the years is becoming a stronger driver.
-rhs_year <- setdiff(rhs, "year")
-importance_by_year <- reg_data8 %>%
+# ---- 8d. Do the drivers change over time? -------------------------------------------
+# Model B refitted within each entry year.
+rhs_B_year <- setdiff(rhs_B, "year")
+by_year <- reg_data8 %>%
   group_split(year) %>%
-  map_dfr(function(d) {
-    yr <- as.character(first(d$year))
-    keep <- rhs_year[sapply(rhs_year, function(v) nlevels(droplevels(d[[v]])) >= 2)]
-    m <- glm(reformulate(keep, "continued"), data = d, family = binomial)
-    drop1(m, test = "LRT") %>%
-      as.data.frame() %>%
-      tibble::rownames_to_column("variable") %>%
-      filter(variable != "<none>") %>%
-      transmute(year = yr, variable, deviance_change = round(LRT, 1),
-                p_value = signif(`Pr(>Chi)`, 3),
-                n = nrow(d), continuation_pct = round(100 * mean(d$continued), 1)) %>%
-      as_tibble()
+  map(function(d) {
+    keep <- usable(rhs_B_year, d)
+    list(year = as.character(first(d$year)), n = nrow(d),
+         model = glm(reformulate(keep, "continued"), data = d, family = binomial))
   })
 
+importance_by_year <- map_dfr(by_year, function(x)
+  importance(x$model, x$year) %>% rename(year = model) %>% mutate(n = x$n))
 importance_by_year_wide <- importance_by_year %>%
   select(year, variable, deviance_change) %>%
   pivot_wider(names_from = year, values_from = deviance_change) %>%
   arrange(desc(rowSums(across(-variable), na.rm = TRUE)))
-cat("\nVariable importance by entry year (deviance change)\n")
+cat("\nVariable importance by entry year, model B (deviance change)\n")
 print(importance_by_year_wide, n = Inf, width = Inf)
 
-# Entry qualification odds ratios by year from the extended model
-entry_qual_by_year <- reg_data8 %>%
-  group_split(year) %>%
-  map_dfr(function(d) {
-    keep <- rhs_year[sapply(rhs_year, function(v) nlevels(droplevels(d[[v]])) >= 2)]
-    m <- glm(reformulate(keep, "continued"), data = d, family = binomial)
-    tidy_or(m) %>% filter(grepl("^entry_qual_group", term)) %>%
-      mutate(year = as.character(first(d$year)), .before = 1)
-  })
-cat("\nEntry qualification odds ratios by year, full controls\n")
+entry_qual_by_year <- map_dfr(by_year, function(x)
+  tidy_or(x$model) %>% filter(grepl("^entry_qual_group", term)) %>%
+    mutate(year = x$year, .before = 1))
+cat("\nEntry qualification odds ratios by year, model B controls\n")
 print(entry_qual_by_year, n = Inf)
 
-write_csv(fit_table,               file.path(out_dir, "model_fit_comparison.csv"))
-write_csv(importance,              file.path(out_dir, "model_full_variable_importance.csv"))
-write_csv(full_or,                 file.path(out_dir, "model_full_odds_ratios.csv"))
-write_csv(tidy_or(m_full_detail),  file.path(out_dir, "model_full_11cat_entry_qual_odds_ratios.csv"))
-write_csv(importance_by_year,      file.path(out_dir, "model_variable_importance_by_year.csv"))
-write_csv(importance_by_year_wide, file.path(out_dir, "model_variable_importance_by_year_wide.csv"))
-write_csv(entry_qual_by_year,      file.path(out_dir, "model_entry_qual_odds_ratios_by_year.csv"))
+# ---- 8e. Write out -------------------------------------------------------------------
+write_csv(fit_table,               file.path(out_dir, "model_AB_fit_comparison.csv"))
+write_csv(bind_rows(importance_A, importance_B),
+                                   file.path(out_dir, "model_AB_variable_importance.csv"))
+write_csv(or_side_by_side,         file.path(out_dir, "model_AB_odds_ratios.csv"))
+write_csv(tidy_or(model_B_detail), file.path(out_dir, "model_B_11cat_entry_qual_odds_ratios.csv"))
+write_csv(importance_by_year,      file.path(out_dir, "model_B_variable_importance_by_year.csv"))
+write_csv(importance_by_year_wide, file.path(out_dir, "model_B_variable_importance_by_year_wide.csv"))
+write_csv(entry_qual_by_year,      file.path(out_dir, "model_B_entry_qual_odds_ratios_by_year.csv"))
 
-# ---- 8d. Notes -----------------------------------------------------------------
+# ---- 8f. Notes -----------------------------------------------------------------------
+# - Read model A as "who continues" and model B as "who continues, given what
+#   and where they study". If an effect shrinks from A to B, part of it runs
+#   through course choice. If it holds, it is there regardless of course.
 # - Age and entry qualifications overlap: mature students mostly enter through
-#   access courses. The model separates them, but expect the confidence
-#   intervals for both to widen compared with section 6.
+#   access courses. Expect wider confidence intervals for both than in section 6.
 # - FSM, POLAR4 and NS-SEC each carry a "not applicable" or "unknown" level for
 #   students outside the population they are defined on. Those levels keep the
 #   sample whole; do not interpret them as a substantive group.
-# - The ABCS model is a benchmark only. If m_full beats it on AUC, the
+# - The ABCS model is a benchmark only. If model B beats it on AUC, the
 #   individual characteristics explain more than the OfS composite measure.
