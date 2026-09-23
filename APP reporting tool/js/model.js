@@ -131,9 +131,46 @@
     return { ...base, flag: 'ok', text: 'In line with plan' };
   }
 
+  // ---------- deliverables, notes and template updates ----------
+
+  const DELIVERABLE_STATUSES = ['Not started', 'In progress', 'Done', 'Blocked'];
+  const NOTE_TYPES = ['Update', 'Risk', 'Decision', 'Scope change', 'Question'];
+  const TEMPLATE_SECTIONS = ['Top-level details', 'Timeframes', 'Theory of change', 'Evaluation'];
+
+  function newId(prefix) {
+    const r = root.crypto && root.crypto.randomUUID ? root.crypto.randomUUID().slice(0, 8) : Math.random().toString(36).slice(2, 10);
+    return `${prefix}-${r}`;
+  }
+
+  // Overdue or nearly due deliverables and actions.
+  function deliverableCheck(iv, todayIso, warnDays = 14) {
+    const open = (iv.deliverables || []).filter((d) => d.status !== 'Done' && d.due);
+    const overdue = open.filter((d) => d.due < todayIso);
+    const soon = open.filter((d) => d.due >= todayIso && d.due <= addDays(todayIso, warnDays));
+    const blocked = (iv.deliverables || []).filter((d) => d.status === 'Blocked');
+    if (overdue.length) return { flag: 'behind', text: `${overdue.length} overdue`, overdue, soon, blocked };
+    if (blocked.length) return { flag: 'behind', text: `${blocked.length} blocked`, overdue, soon, blocked };
+    if (soon.length) return { flag: 'soon', text: `${soon.length} due within ${warnDays} days`, overdue, soon, blocked };
+    return { flag: open.length ? 'ok' : 'unknown', text: '', overdue, soon, blocked };
+  }
+
+  const FLAG_ORDER = ['behind', 'soon', 'unknown', 'ok', 'bau'];
+
+  // The stage check, made worse by any overdue, blocked or nearly due deliverables.
+  // Deliverables that are all on time don't change the stage check's answer.
+  function overallFlag(iv, todayIso) {
+    const s = slipCheck(iv, todayIso).flag;
+    const d = deliverableCheck(iv, todayIso).flag;
+    if (d !== 'behind' && d !== 'soon') return s;
+    if (s === 'bau') return d;
+    return [s, d].sort((a, b) => FLAG_ORDER.indexOf(a) - FLAG_ORDER.indexOf(b))[0];
+  }
+
   APP.model = {
     STRANDS, TARGETS, STATUSES, COMMITTEE_CATEGORIES, PHASE_NAMES,
+    DELIVERABLE_STATUSES, NOTE_TYPES, TEMPLATE_SECTIONS,
     committeeCategory, statusFromTracker, stageFromGantt, rankFromTemplateStage,
     plannedPeriods, plannedRankOn, slipCheck, addDays,
+    newId, deliverableCheck, overallFlag,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

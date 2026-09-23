@@ -24,7 +24,10 @@ Chrome remembers the folder, so later visits need one click at most.
 
 - **Import tracker:** reads the `APP Timeline` sheet (names, descriptions, status, the nine target columns, and the Gantt stages with their dates) into `tracker.json`. Importing again updates everything except status, because the tool's copy owns live status. The previous copy goes into `_Tracker data/backups/` first.
 - **Template audit:** finds `APPx.y - Name.docx` files in the strand folders, including subfolders, and reads each template's dropdowns and dates. It lists missing, incomplete, unreadable and duplicate templates, plus any file that doesn't match a tracker row. The details it finds are copied into the tracker.
-- **Strands:** an all-strand table with the committee's four status categories, and a view of each strand showing where each intervention should be by now and whether it is behind plan or due to change stage within 14 days. The check compares planned dates (from the template, or the Gantt if there is no template) with the stage recorded in the template.
+- **Meeting update:** paste a structured update from a meeting (typed by hand, or written by Copilot from a Teams transcript), check the preview, and save it. Notes, actions, deliverables, template changes and status changes go to the right intervention. See `meeting-update-format.md` for the format and the Copilot prompt.
+- **Template changes:** a checklist of every change raised in meetings that needs making in a project template, grouped by intervention, with the template's file location. Tick each one off once the template is updated.
+- **On each intervention card:** change the live status (the change is logged as a note), update the status of deliverables and actions, tick off template changes, and add a note, action, deliverable or template change directly during a meeting.
+- **Strands:** an all-strand table with the committee's four status categories, and a view of each strand showing where each intervention should be by now and whether it is behind plan or due to change stage within 14 days. The check compares planned dates (from the template, or the Gantt if there is no template) with the stage recorded in the template. Deliverables and actions that are overdue, blocked or due within 14 days also raise the flag.
 
 ### Setting up the web address on Vercel
 
@@ -40,6 +43,7 @@ The repository stays private. The address shows the tool's code to anyone who ha
 - `scoping-brief.md`: purpose, constraints, data model, pipeline and demo scope.
 - `source-document-structure.md`: the layout of the tracker and the Word templates the tool reads and writes, plus the vocabulary mismatches between them.
 - `index.html` and `js/`: the tool. `js/lib/jszip.min.js` is JSZip 3.10.2 (MIT licence), used to open Word and Excel files in the browser.
+- `meeting-update-format.md`: the meeting update format and the Copilot prompt that produces it.
 - `folder-access-check.html`: a one-off check that Chrome can read and write the synced folder. Download it, double-click it, choose the synced folder, and check that every step says Pass.
 
 ## Decisions so far
