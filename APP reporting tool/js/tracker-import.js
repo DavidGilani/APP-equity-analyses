@@ -136,6 +136,7 @@
       }
       interventions.push({
         id,
+        row: r,
         strand: Number(im[1]),
         name: im[3].trim(),
         description: clean(sheet.get(r, descCol)),
@@ -145,7 +146,12 @@
       });
     }
     if (!interventions.length) throw new Error('No intervention rows found (expected rows like "6.3 Name").');
-    return { strands, interventions, warnings };
+    // Layout details the spreadsheet writer needs.
+    const quarterStarts = [];
+    if (ganttStart !== null) for (let c = ganttStart; c <= sheet.maxCol; c++) if (/^\d{4} Q[1-4]$/.test(clean(sheet.get(0, c)))) quarterStarts.push(c);
+    const lastCol = quarterStarts.length ? quarterStarts[quarterStarts.length - 1] + 12 : sheet.maxCol;
+    const layout = { ganttStart, lastCol, statusCol, quarterStarts, base: weekStart ? weekStart(ganttStart) : null };
+    return { strands, interventions, warnings, layout, sheet };
   }
 
   // Build a new tracker, or fold a re-import into an existing one.
@@ -165,7 +171,8 @@
       seen.add(p.id);
       const cur = byId.get(p.id);
       if (!cur) {
-        tracker.interventions.push({ ...p, template: null, deliverables: [] });
+        const { row, ...rest } = p;
+        tracker.interventions.push({ ...rest, template: null, deliverables: [] });
         changes.added.push(p.id);
         continue;
       }

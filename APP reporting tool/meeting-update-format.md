@@ -21,7 +21,7 @@ Status: At risk
 ```
 
 - **Headings:** each intervention starts with its number in square brackets, like `[6.2]`. Every line after it belongs to that intervention until the next heading.
-- **Notes:** `Update`, `Risk`, `Decision`, `Scope change` and `Question` are saved to the intervention's notes.
+- **Notes:** `Update`, `Risk`, `Decision`, `Scope change` and `Question` are saved to the intervention's notes. `Reason for delay` and `Success` are saved too, and feed the committee paper.
 - **Actions and deliverables:** `Action` is a short-term to-do from the meeting. `Deliverable` is a project milestone. Both take `| owner: Name | due: dd/mm/yyyy`, and can take `| status: In progress`.
 - **Template changes:** `Template: Section | what needs changing`. The section is one of `Top-level details`, `Timeframes`, `Theory of change` or `Evaluation`. These make up the list on the **Template changes** tab.
 - **Status:** changes the live status. It must be one of On track, Ahead of schedule, At risk, Behind schedule, To be mapped or BAU. The change is logged as a note.

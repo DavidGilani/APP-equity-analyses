@@ -189,6 +189,18 @@
       for (const s of ch.delivered) d.bullet(`${s.id}: delivered "${s.title}".`);
       for (const s of ch.newRisks) d.bullet(`${s.id}: new risk, ${s.text}`);
     }
+    const since = prev ? prev.date : '0000';
+    const recent = (type) => (tracker.notes || []).filter((n) => n.type === type && n.date > since);
+    const successes = recent('Success');
+    if (successes.length) {
+      d.h2('Successes and achievements');
+      for (const n of successes) d.bullet(`${n.interventionId} ${(tracker.interventions.find((iv) => iv.id === n.interventionId) || {}).name || ''}: ${n.text}`);
+    }
+    const reasons = recent('Reason for delay');
+    if (reasons.length) {
+      d.h2('Interventions behind schedule or at risk');
+      for (const n of reasons) d.bullet(`${n.interventionId} ${(tracker.interventions.find((iv) => iv.id === n.interventionId) || {}).name || ''}: ${n.text}`);
+    }
 
     d.h1('Analysis of progress against the delivery plan');
     d.p(`There are ${tracker.interventions.length} interventions across the seven strands:`);
@@ -201,12 +213,14 @@
     const rows = tracker.strands.map((s) => {
       const list = tracker.interventions.filter((iv) => iv.strand === s.number);
       const c = counts(list);
-      const risks = (tracker.notes || []).filter((n) => n.type === 'Risk' && list.some((iv) => iv.id === n.interventionId) && (!prev || n.date > prev.date));
-      const notes = risks.length ? risks.map((n) => [{ text: `${n.interventionId}: `, bold: true }, n.text]) : [[{ text: 'Add notes', italic: true, muted: true }]];
+      const written = ((tracker.committeeDraft || {}).strandNotes || {})[s.number];
+      const risks = (tracker.notes || []).filter((n) => ['Risk', 'Reason for delay'].includes(n.type) && list.some((iv) => iv.id === n.interventionId) && (!prev || n.date > prev.date));
+      const notes = written && written.trim() ? written.trim().split(/\n+/).map((line) => [line])
+        : risks.length ? risks.map((n) => [{ text: `${n.interventionId}: `, bold: true }, n.text]) : [[{ text: 'Add notes', italic: true, muted: true }]];
       return [`Strand ${s.number}: ${s.name}`, String(c['BAU']), String(c['On track']), String(c['To be mapped']), String(c['Behind schedule / at risk']), notes];
     });
     d.table(['Strand', 'BAU', 'On track', 'To be mapped', 'Behind / at risk', 'Notes and risks'], rows, [1900, 700, 900, 1000, 1000, 3900]);
-    d.note('The notes column lists risks recorded since the last snapshot, as a starting point. Edit before use.');
+    d.note('The notes column uses the Table 2 notes written on the Reporting tab. Where a strand has none, it lists risks and reasons for delay recorded since the last snapshot, as a starting point.');
 
     d.h2('Theory of change progress');
     const tocRows = tracker.strands.map((s) => {

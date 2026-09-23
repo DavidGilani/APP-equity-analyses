@@ -134,7 +134,7 @@
   // ---------- deliverables, notes and template updates ----------
 
   const DELIVERABLE_STATUSES = ['Not started', 'In progress', 'Done', 'Blocked'];
-  const NOTE_TYPES = ['Update', 'Risk', 'Decision', 'Scope change', 'Question'];
+  const NOTE_TYPES = ['Update', 'Risk', 'Decision', 'Scope change', 'Question', 'Reason for delay', 'Success'];
   const TEMPLATE_SECTIONS = ['Top-level details', 'Timeframes', 'Theory of change', 'Evaluation'];
 
   function newId(prefix) {

@@ -159,5 +159,46 @@
     return `${PROJECTS}/${DATA}/snapshots/${name}`;
   }
 
-  APP.folder = { remembered, choose, reconnect, hasPermission, loadTracker, saveTracker, findTimelineFile, saveReport, latestSnapshot, saveSnapshot, PROJECTS, DATA, TRACKER };
+  // Copy a file's current contents into _Tracker data/backups before it's replaced.
+  async function backupFile(projects, handle) {
+    const file = await handle.getFile();
+    const dir = await subdir(projects, [DATA, 'backups']);
+    const name = file.name.replace(/(\.[^.]+)$/, ` - before update ${stamp()}$1`);
+    const fh = await dir.getFileHandle(name, { create: true });
+    const w = await fh.createWritable();
+    await w.write(await file.arrayBuffer());
+    await w.close();
+    return `${PROJECTS}/${DATA}/backups/${name}`;
+  }
+
+  async function writeHandle(handle, bytes) {
+    const w = await handle.createWritable();
+    await w.write(bytes);
+    await w.close();
+  }
+
+  // Committee papers in APP Framework/Committees and reporting, newest first.
+  // Files the tool generated itself are left out.
+  async function committeePapers(conn) {
+    if (conn.root === conn.projects) return { dir: null, papers: [] };
+    const dir = await child(conn.root, 'Committees and reporting');
+    if (!dir) return { dir: null, papers: [] };
+    const papers = [];
+    for await (const [name, h] of dir.entries()) {
+      if (h.kind !== 'file' || !/\.docx$/i.test(name) || name.startsWith('~$') || /generated sections|from the tool/i.test(name)) continue;
+      const f = await h.getFile();
+      papers.push({ name, handle: h, lastModified: f.lastModified });
+    }
+    papers.sort((a, b) => b.lastModified - a.lastModified);
+    return { dir, papers };
+  }
+
+  async function writeInDir(dir, name, blob) {
+    const fh = await dir.getFileHandle(name, { create: true });
+    const w = await fh.createWritable();
+    await w.write(blob);
+    await w.close();
+  }
+
+  APP.folder = { backupFile, writeHandle, committeePapers, writeInDir, remembered, choose, reconnect, hasPermission, loadTracker, saveTracker, findTimelineFile, saveReport, latestSnapshot, saveSnapshot, PROJECTS, DATA, TRACKER };
 })(typeof window !== 'undefined' ? window : globalThis);

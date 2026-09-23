@@ -3,7 +3,10 @@
 (function (root) {
   const APP = (root.APPTool = root.APPTool || {});
 
-  const NOTE_KEYS = { 'update': 'Update', 'risk': 'Risk', 'decision': 'Decision', 'scope change': 'Scope change', 'question': 'Question' };
+  const NOTE_KEYS = {
+    'update': 'Update', 'risk': 'Risk', 'decision': 'Decision', 'scope change': 'Scope change', 'question': 'Question',
+    'reason for delay': 'Reason for delay', 'reason': 'Reason for delay', 'success': 'Success',
+  };
 
   function parseDate(s) {
     s = (s || '').trim();

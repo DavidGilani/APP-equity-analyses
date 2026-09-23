@@ -61,10 +61,12 @@
 
     const ws = xml(await zip.file(target).async('string'));
     const cells = {}; // "row,col" -> value
+    const styles = {}; // "row,col" -> style index
     let maxRow = 0, maxCol = 0;
     for (const c of Array.from(ws.getElementsByTagName('c'))) {
       const { row, col } = parseRef(c.getAttribute('r'));
       const t = c.getAttribute('t');
+      if (c.getAttribute('s') !== null) styles[row + ',' + col] = c.getAttribute('s');
       const v = c.getElementsByTagName('v')[0];
       let value = null;
       if (t === 's' && v) value = shared[parseInt(v.textContent, 10)];
@@ -86,6 +88,8 @@
 
     return {
       get: (row, col) => cells[row + ',' + col],
+      style: (row, col) => styles[row + ',' + col],
+      path: target,
       merges,
       maxRow,
       maxCol,

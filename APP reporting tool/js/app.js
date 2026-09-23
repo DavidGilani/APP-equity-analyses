@@ -1,6 +1,6 @@
 // Page logic: folder connection, strand view, template audit and tracker import.
 (function () {
-  const { model, folder, templates, trackerImport, meetingUpdate, reports, timelineCheck, docx } = window.APPTool;
+  const { model, folder, templates, trackerImport, meetingUpdate, reports, timelineCheck, docx, xlsxWrite, paperFill, reporting } = window.APPTool;
   const $ = (sel) => document.querySelector(sel);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -20,6 +20,8 @@
     lastSnapshot: null,
     timelineFiles: [],
     timeline: null,
+    papers: [],
+    fillReport: null,
     tab: 'progress',
     strand: 'all',
     nonBauOnly: true,
@@ -98,6 +100,7 @@
     if (!state.tracker) state.tab = 'timeline';
     state.message = null;
     try { state.timelineFiles = await folder.findTimelineFile(state.conn); } catch { state.timelineFiles = []; }
+    try { state.papers = (await folder.committeePapers(state.conn)).papers; } catch { state.papers = []; }
     if (state.tracker) {
       state.yourName = (state.tracker.settings && state.tracker.settings.yourName) || state.yourName;
       try { state.lastSnapshot = await folder.latestSnapshot(state.conn.projects); } catch { state.lastSnapshot = null; }
@@ -587,23 +590,10 @@ Status: At risk`;
       ${sp.bauCount ? `<p class="muted small">${sp.bauCount} business as usual intervention${sp.bauCount === 1 ? '' : 's'} not shown.</p>` : ''}`;
   }
 
-  function renderCommittee() {
-    const prev = state.lastSnapshot;
-    const ch = reports.diff(prev, reports.snapshot(state.tracker, TODAY), state.tracker);
-    const n = ch.statusChanges.length + ch.tocChanges.length + ch.delivered.length + ch.newRisks.length;
-    return `<section class="panel">
-      <h3>ESE committee update</h3>
-      <p>${prev ? `Compared with the snapshot from <strong>${fmtDate(prev.date)}</strong>: ${n} change${n === 1 ? '' : 's'} (${ch.statusChanges.length} status, ${ch.tocChanges.length} theory of change, ${ch.delivered.length} delivered, ${ch.newRisks.length} new risks).` : 'No snapshot saved yet, so there is nothing to compare with. Saving one now sets the baseline for the next update.'}</p>
-      <p class="muted small">Creates a Word document with the status counts, Table 2 by strand, theory of change progress and a "what changed" list, ready to copy into the committee paper. It's saved in Committees and reporting.</p>
-      <div class="bar"><button id="create-committee" class="primary">Create committee update</button>
-        <label class="small"><input type="checkbox" id="save-snap" checked> Also save a snapshot as the baseline for next time</label></div>
-    </section>`;
-  }
-
   function renderProgressTab() {
     if (!state.tracker) return '<p>Import the tracker first.</p>';
     return `<div class="bar">${strandTabs()}<span class="muted small">As at ${fmtDate(TODAY)}</span></div>
-      ${state.strand === 'all' ? `<h2>All strands</h2>${renderOverview()}${renderCommittee()}` : renderStrandProgress(state.strand)}`;
+      ${state.strand === 'all' ? `<h2>All strands</h2>${renderOverview()}<p><button class="quiet" data-tab="reporting">Committee reporting</button></p>` : renderStrandProgress(state.strand)}`;
   }
 
   async function saveSummary() {
@@ -611,7 +601,9 @@ Status: At risk`;
       const n = state.strand;
       const blob = await reports.strandSummaryDoc(state.tracker, n, TODAY, state.yourName);
       const path = await folder.saveReport(state.conn, `Strand ${n} summary - ${TODAY}.docx`, blob);
-      flash('ok', `Saved to ${path}.`);
+      recordContact(n, 'summarySent');
+      await folder.saveTracker(state.conn.projects, state.tracker);
+      flash('ok', `Saved to ${path}. Recorded as sent to the strand lead today.`);
     } catch (e) {
       flash('error', `Couldn't save the summary: ${e.message}`);
     }
@@ -620,7 +612,9 @@ Status: At risk`;
   async function copySummary() {
     try {
       await navigator.clipboard.writeText(reports.strandSummaryText(state.tracker, state.strand, TODAY, state.yourName));
-      flash('ok', 'Copied. Paste it into an email.');
+      recordContact(state.strand, 'summarySent');
+      await folder.saveTracker(state.conn.projects, state.tracker);
+      flash('ok', 'Copied. Paste it into an email. Recorded as sent to the strand lead today.');
     } catch (e) {
       flash('error', `Couldn't copy: ${e.message}`);
     }
@@ -643,6 +637,285 @@ Status: At risk`;
     }
   }
 
+  // ---------- reporting ----------
+
+  function nudgeBanner() {
+    if (!state.tracker) return '';
+    const cyc = reporting.cycle(state.tracker, TODAY);
+    if (!cyc.nudge || state.tab === 'reporting') return '';
+    const n = cyc.next;
+    return `<div class="msg nudge" role="status"><strong>${esc(n.name || 'ESE Committee')} paper due in ${cyc.daysLeft} day${cyc.daysLeft === 1 ? '' : 's'}</strong> (${fmtDate(n.deadline || n.meeting)}).
+      <button class="link" data-tab="reporting">Check what's still needed</button></div>`;
+  }
+
+  function responseTemplate(strand) {
+    const ivs = state.tracker.interventions.filter((iv) => iv.strand === Number(strand) && iv.status !== 'BAU');
+    return `Meeting: Strand ${strand} lead response to progress summary\nDate: ${TODAY.split('-').reverse().join('/')}\n\n${ivs.map((iv) => `[${iv.id}]\nUpdate: \n`).join('\n')}`;
+  }
+
+  function renderReportingTab() {
+    if (!state.tracker) return '<p>Import the tracker first.</p>';
+    const r = reporting.readiness(state.tracker, TODAY, { lastSnapshot: state.lastSnapshot, timeline: state.timeline, papers: state.papers });
+    const cyc = r.cycle;
+    const draft = state.tracker.committeeDraft || { strandNotes: {} };
+    const group = (g) => r.items.filter((i) => i.group === g);
+    const tick = (ok) => `<span class="tick ${ok ? 'ok' : 'todo'}" aria-label="${ok ? 'Done' : 'To do'}">${ok ? '✓' : '○'}</span>`;
+    const done = r.items.filter((i) => i.ok).length;
+
+    const strandRows = group('Strand leads').map((i) => `<li>${tick(i.ok)} <strong>${esc(i.text)}</strong> <span class="muted small">${esc(i.detail)}</span>
+      <span class="row-actions">
+        <button class="quiet small-btn" data-go-strand="${i.strand}">Progress page</button>
+        ${i.sent ? `<button class="quiet small-btn" data-response="${i.strand}">Record response</button>` : ''}
+        ${i.sent && !(i.received && i.received >= i.sent) ? `<button class="quiet small-btn" data-received="${i.strand}">Mark response received</button>` : ''}
+      </span></li>`).join('');
+
+    const explanations = group('Explanations').map((i) => `<li>${tick(i.ok)} <strong>${esc(i.text)}</strong>
+      ${i.ok ? `<div class="small muted">${esc(i.detail)}</div>` : `<div class="inline-form"><input type="text" data-reason-for="${esc(i.id)}" placeholder="Why it's behind, and what's being done about it"><button class="quiet small-btn" data-save-reason="${esc(i.id)}">Save</button></div>`}</li>`).join('')
+      || '<li class="muted small">Nothing is behind schedule or at risk.</li>';
+
+    const ivOptions = state.tracker.interventions.filter((iv) => iv.status !== 'BAU').map((iv) => `<option value="${esc(iv.id)}">${esc(iv.id)} ${esc(iv.name)}</option>`).join('');
+    const successes = (state.tracker.notes || []).filter((n) => n.type === 'Success' && n.date >= r.since);
+
+    const papers = state.papers || [];
+    const list = reporting.committees(state.tracker);
+    return `<h2>Reporting</h2>
+      <section class="panel">
+        ${cyc.next ? `<p class="lead-line"><strong>Next paper: ${esc(cyc.next.name || 'ESE Committee')}</strong>, due ${fmtDate(cyc.next.deadline || cyc.next.meeting)}
+          (${cyc.daysLeft} day${cyc.daysLeft === 1 ? '' : 's'} away)${cyc.next.meeting ? `, meeting ${fmtDate(cyc.next.meeting)}` : ''}.</p>` : '<p class="lead-line">Add your committee dates below, and the tool will show what\'s needed ahead of each deadline.</p>'}
+        <p class="muted small">${done} of ${r.items.length} checks done. Changes are counted from ${fmtDate(r.since)}${state.lastSnapshot ? ', the date of the last committee snapshot' : ''}.</p>
+      </section>
+
+      <h3 class="section">1. Strand lead summaries and responses</h3>
+      <p class="muted small">Send each strand lead their summary from the Progress page (saving or copying it records the date). When they reply, record their response as a meeting update, which adds it to the tracker.</p>
+      <ul class="checklist">${strandRows}</ul>
+
+      <h3 class="section">2. Reasons for anything behind schedule or at risk</h3>
+      <ul class="checklist">${explanations}</ul>
+
+      <h3 class="section">3. Successes and achievements</h3>
+      <ul class="checklist">${successes.map((n) => `<li>${tick(true)} <strong>${esc(n.interventionId)}</strong> ${esc(n.text)} <span class="muted small">${fmtDate(n.date)}</span></li>`).join('') || '<li class="muted small">None recorded yet.</li>'}</ul>
+      <div class="inline-form"><select id="success-iv">${ivOptions}</select><input type="text" id="success-text" placeholder="What went well"><button class="quiet small-btn" id="save-success">Add</button></div>
+
+      <h3 class="section">4. Table 2 notes by strand</h3>
+      <p class="muted small">These go into the notes column of Table 2. Saved as you type.</p>
+      <div class="strand-notes">${state.tracker.strands.map((s) => `<label><span>Strand ${s.number}: ${esc(s.name)}</span>
+        <textarea rows="3" data-strand-note="${s.number}">${esc((draft.strandNotes || {})[s.number] || '')}</textarea></label>`).join('')}</div>
+
+      <h3 class="section">5. Timeline spreadsheet</h3>
+      <ul class="checklist">${group('Timeline spreadsheet').map((i) => `<li>${tick(i.ok)} ${esc(i.text)} <button class="quiet small-btn" data-tab="timeline">Open</button></li>`).join('')}</ul>
+
+      <h3 class="section">6. Generate the paper</h3>
+      <section class="panel">
+        ${papers.length ? `<p>Latest paper in Committees and reporting: <strong>${esc(papers[0].name)}</strong>, saved ${new Date(papers[0].lastModified).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}.</p>` : '<p class="hot">No committee paper found in APP Framework/Committees and reporting.</p>'}
+        <p class="muted small"><strong>Create the draft paper</strong> copies the latest paper and updates its status counts and Table 2, including the notes above. Everything else, including Tables 1 and 3, is kept for you to edit. It's saved as a new file; the original isn't changed.
+          <strong>Create generated sections</strong> makes a separate document with the counts, Table 2, theory of change progress, and what changed, successes and reasons since the last snapshot.</p>
+        <div class="bar start">
+          ${papers.length ? '<button id="create-draft" class="primary">Create the draft paper</button>' : ''}
+          <button id="create-committee" class="quiet">Create generated sections</button>
+          <label class="small"><input type="checkbox" id="save-snap" checked> Save a snapshot as the baseline for next time</label>
+        </div>
+        ${state.fillReport ? `<div class="fill-report"><h4>What was updated in ${esc(state.fillReport.name)}</h4>
+          <ul class="small">${state.fillReport.updated.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+          ${state.fillReport.notFound.length ? `<h4>Not found, so update these by hand</h4><ul class="small">${state.fillReport.notFound.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</div>` : ''}
+      </section>
+
+      <h3 class="section">Committee dates</h3>
+      <div class="table-wrap"><table class="grid">
+        <thead><tr><th>Committee</th><th>Paper deadline</th><th>Meeting</th><th></th></tr></thead>
+        <tbody>${list.map((c) => `<tr class="${c.meeting && c.meeting < TODAY ? 'is-done' : ''}"><td>${esc(c.name || 'ESE Committee')}</td><td>${fmtDate(c.deadline)}</td><td>${fmtDate(c.meeting)}</td>
+          <td><button class="quiet small-btn" data-del-committee="${esc(c.id)}">Remove</button></td></tr>`).join('') || '<tr><td colspan="4" class="muted">No dates yet.</td></tr>'}</tbody>
+      </table></div>
+      <div class="inline-form">
+        <input type="text" id="c-name" value="ESE Committee" aria-label="Committee">
+        <label class="small">Paper deadline <input type="date" id="c-deadline"></label>
+        <label class="small">Meeting <input type="date" id="c-meeting"></label>
+        <button class="quiet small-btn" id="add-committee">Add</button>
+      </div>
+      ${list.length ? '<p><button id="save-ics" class="quiet">Add reminders to Outlook</button> <span class="muted small">Saves a calendar file with reminders 4 weeks, 2 weeks and 3 days before each deadline. Open it to add them to Outlook.</span></p>' : ''}`;
+  }
+
+  function recordContact(strand, key) {
+    state.tracker.strandContacts = state.tracker.strandContacts || {};
+    state.tracker.strandContacts[strand] = { ...(state.tracker.strandContacts[strand] || {}), [key]: TODAY };
+  }
+
+  async function createDraftPaper() {
+    try {
+      const latest = state.papers[0];
+      const counts = Object.fromEntries(model.COMMITTEE_CATEGORIES.map((k) => [k, 0]));
+      const byStrand = {};
+      for (const iv of state.tracker.interventions) {
+        const k = model.committeeCategory(iv.status);
+        byStrand[iv.strand] = byStrand[iv.strand] || Object.fromEntries(model.COMMITTEE_CATEGORIES.map((x) => [x, 0]));
+        if (k) { counts[k]++; byStrand[iv.strand][k]++; }
+      }
+      const { blob, report } = await paperFill.fillPaper(await (await latest.handle.getFile()).arrayBuffer(),
+        { counts, byStrand, strandNotes: (state.tracker.committeeDraft || {}).strandNotes });
+      const cyc = reporting.cycle(state.tracker, TODAY);
+      const name = paperFill.nextName(latest.name, cyc.next && cyc.next.meeting);
+      const { dir } = await folder.committeePapers(state.conn);
+      await folder.writeInDir(dir, name, blob);
+      state.fillReport = { name, ...report };
+      if (document.getElementById('save-snap').checked) {
+        const snap = reports.snapshot(state.tracker, TODAY);
+        await folder.saveSnapshot(state.conn.projects, snap);
+        state.lastSnapshot = snap;
+      }
+      flash('ok', `Saved the draft as Committees and reporting/${name}.`);
+    } catch (e) {
+      flash('error', `Couldn't create the draft: ${e.message}`);
+    }
+  }
+
+  function saveIcs() {
+    const blob = new Blob([reporting.ics(state.tracker)], { type: 'text/calendar' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'APP committee reminders.ics';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+
+  // ---------- automatic spreadsheet update ----------
+
+  function renderSheetUpdate() {
+    const tl = state.timeline;
+    if (!tl || !tl.plan) return '';
+    const { changes, analysis } = tl.plan;
+    if (!changes.length) return '<section class="panel"><h3>Update the spreadsheet</h3><p>The statuses and the Gantt bars for interventions with template dates already match the tool.</p></section>';
+    return `<section class="panel" id="sheet-update"><h3>Update the spreadsheet automatically</h3>
+      <p class="muted small">These changes can be made for you: statuses, and Gantt bars for interventions whose project template has dates. Bars that finish before the new dates start (such as BAU, or evaluation of the existing activity) are kept. A copy of the current spreadsheet goes into <code>_Tracker data/backups</code> first, and the new file is checked before it replaces the old one. Close the spreadsheet in Excel before updating.</p>
+      <ul class="tl">${changes.map((c) => `<li><label><input type="checkbox" data-sheet-change="${esc(c.id)}" checked> <strong>${esc(c.id)} ${esc(c.name)}</strong></label>
+        <ul class="small">
+          ${c.status ? `<li>Status: "${esc(c.status.from)}" to "${esc(c.status.to)}"</li>` : ''}
+          ${c.bars ? `<li>Gantt now: ${esc(xlsxWrite.describe(c.bars.from, analysis))}</li><li>Gantt after: <strong>${esc(xlsxWrite.describe(c.bars.to, analysis))}</strong></li>` : ''}
+          ${c.notes.map((n) => `<li class="hot">${esc(n)}</li>`).join('')}
+        </ul></li>`).join('')}</ul>
+      <button id="apply-sheet" class="primary">Update the spreadsheet</button>
+    </section>`;
+  }
+
+  async function applySheet() {
+    const f = state.timelineFiles[0];
+    try {
+      const data = await (await f.handle.getFile()).arrayBuffer();
+      const parsed = await trackerImport.parseTracker(data);
+      const ids = new Set(Array.from(document.querySelectorAll('[data-sheet-change]:checked')).map((x) => x.dataset.sheetChange));
+      const selected = xlsxWrite.plan(parsed, state.tracker).changes.filter((c) => ids.has(c.id));
+      if (!selected.length) { flash('info', 'Nothing selected.'); return; }
+      const { bytes, problems } = await xlsxWrite.apply(data, parsed, selected);
+      if (problems.length) { flash('error', `The spreadsheet wasn't changed, because the check after updating found problems: ${problems.join(' ')}`); return; }
+      const backup = await folder.backupFile(state.conn.projects, f.handle);
+      await folder.writeHandle(f.handle, bytes);
+      // Keep the tool's copy of the Gantt in step with the spreadsheet.
+      const fresh = await trackerImport.parseTracker(await (await f.handle.getFile()).arrayBuffer());
+      for (const p of fresh.interventions) { const iv = findIv(p.id); if (iv && ids.has(p.id)) iv.plannedStages = p.plannedStages; }
+      await folder.saveTracker(state.conn.projects, state.tracker);
+      await checkTimeline(true);
+      flash('ok', `Updated ${selected.length} row${selected.length === 1 ? '' : 's'} in ${f.path}. The previous version is in ${backup}.`);
+    } catch (e) {
+      flash('error', `The spreadsheet wasn't updated: ${e.message}${/lock|busy|in use|modif/i.test(e.message) ? ' Close it in Excel and try again.' : ''}`);
+    }
+  }
+
+  // ---------- how it works ----------
+
+  function box(x, y, w, h, title, sub, cls = '') {
+    return `<g class="${cls}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" class="dg-box"/>
+      <text x="${x + w / 2}" y="${y + (sub ? 24 : h / 2 + 5)}" text-anchor="middle" class="dg-title">${title}</text>
+      ${sub ? `<text x="${x + w / 2}" y="${y + 42}" text-anchor="middle" class="dg-sub">${sub}</text>` : ''}</g>`;
+  }
+
+  function arrow(x1, y1, x2, y2, label, lx, ly, cls = '') {
+    return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="dg-line ${cls}" marker-end="url(#${cls === 'dg-accent' ? 'dg-arrow-accent' : 'dg-arrow'})"/>
+      ${label ? `<text x="${lx}" y="${ly}" text-anchor="middle" class="dg-label">${label}</text>` : ''}`;
+  }
+
+  function flowFigure() {
+    return `<figure class="diagram">
+      <svg viewBox="0 0 1000 590" role="img" aria-label="Project templates, the timeline spreadsheet, meeting notes and strand lead responses all feed the APP reporting tool, which keeps tracker.json as the master copy. The tool writes statuses and Gantt bars back to the spreadsheet, and produces strand summaries, draft committee papers, snapshots and Outlook reminders. Summaries go to strand leads, whose replies come back in. GitHub and Vercel only supply the page's code; no data leaves the MDX boundary.">
+        <defs><marker id="dg-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+          <marker id="dg-arrow-accent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="dg-accent-fill"/></marker></defs>
+        <rect x="10" y="74" width="980" height="506" rx="14" class="dg-boundary"/>
+        <text x="28" y="100" class="dg-boundary-label">Inside the MDX boundary: your laptop, OneDrive and SharePoint</text>
+
+        ${box(420, 6, 160, 44, 'GitHub and Vercel', '', 'dg-outside')}
+        ${arrow(500, 50, 500, 168, 'page code only, no data', 590, 124)}
+
+        ${box(30, 124, 200, 56, 'Project templates', 'Word, one per intervention')}
+        ${box(30, 224, 200, 56, 'Timeline spreadsheet', 'Excel statuses and Gantt')}
+        ${box(30, 324, 200, 56, 'Meeting notes', 'typed, or Copilot from Teams')}
+        ${box(30, 424, 200, 56, 'Strand lead responses', 'replies to their summary')}
+
+        <rect x="380" y="170" width="240" height="270" rx="12" class="dg-hub"/>
+        <text x="500" y="200" text-anchor="middle" class="dg-title">APP reporting tool</text>
+        <text x="500" y="218" text-anchor="middle" class="dg-sub">runs in Chrome on your laptop</text>
+        ${box(410, 300, 180, 64, 'tracker.json', 'the master copy', 'dg-store')}
+        <text x="500" y="392" text-anchor="middle" class="dg-sub">statuses, actions, notes,</text>
+        <text x="500" y="408" text-anchor="middle" class="dg-sub">template details, dates</text>
+
+        ${arrow(230, 152, 380, 236, 'read each time', 318, 166)}
+        ${arrow(230, 244, 380, 268, 'import and check', 300, 240)}
+        ${arrow(380, 290, 230, 264, 'writes status and bars', 290, 300, 'dg-accent')}
+        ${arrow(230, 352, 380, 352, 'paste update', 305, 344)}
+        ${arrow(230, 452, 380, 412, 'record response', 318, 464)}
+
+        ${box(770, 124, 200, 56, 'Outlook reminders', '4 weeks, 2 weeks, 3 days')}
+        ${box(770, 224, 200, 56, 'Draft committee paper', 'from your latest paper')}
+        ${box(770, 324, 200, 56, 'Snapshots', 'one per committee paper')}
+        ${box(770, 424, 200, 56, 'Strand summaries', 'Word, or email text')}
+
+        ${arrow(620, 210, 770, 152, 'calendar file', 668, 160)}
+        ${arrow(620, 256, 770, 252, 'counts, Table 2, notes', 695, 246)}
+        ${arrow(620, 330, 770, 346, 'saved at each paper', 695, 326)}
+        ${arrow(770, 366, 620, 360, 'what changed since', 695, 382, 'dg-dashed')}
+        ${arrow(620, 420, 770, 452, 'before each catch-up', 690, 424)}
+
+        <path d="M870,480 V548 H130 V486" class="dg-line" marker-end="url(#dg-arrow)"/>
+        <text x="500" y="540" text-anchor="middle" class="dg-label">sent to strand leads, who check them and reply</text>
+      </svg>
+      <figcaption>Everything the tool reads and writes stays in your OneDrive folder. The tool keeps one master copy, <code>tracker.json</code>, and every view and document is built from it. The only thing that comes from outside is the page's code. The one write-back to an existing file, the timeline spreadsheet, is the accent arrow; it is backed up and checked each time.</figcaption>
+    </figure>`;
+  }
+
+  function cycleFigure() {
+    const steps = [
+      [110, '4 weeks before', 'Send each strand', 'lead their summary'],
+      [320, '2 weeks before', 'Record responses,', 'reasons and successes'],
+      [530, '3 days before', 'Update spreadsheet,', 'create draft paper'],
+      [740, 'Paper deadline', 'Edit the narrative', 'and submit'],
+      [910, 'Committee', 'Snapshot becomes', 'the next baseline'],
+    ];
+    return `<figure class="diagram">
+      <svg viewBox="0 0 1000 200" role="img" aria-label="The reporting cycle: four weeks before the paper deadline, send strand summaries; two weeks before, record responses, reasons for delay and successes; three days before, update the timeline spreadsheet and create the draft paper; at the deadline, edit and submit; at the committee, the snapshot becomes the baseline for next time. The Reporting tab nudges from 28 days before.">
+        <rect x="110" y="40" width="630" height="22" rx="6" class="dg-band"/>
+        <text x="425" y="56" text-anchor="middle" class="dg-label">the Reporting tab and Outlook reminders nudge you</text>
+        <line x1="40" y1="100" x2="960" y2="100" class="dg-line"/>
+        ${steps.map(([x, when, a, b], i) => `
+          <circle cx="${x}" cy="100" r="${i === 3 ? 8 : 6}" class="${i === 3 ? 'dg-dot-accent' : 'dg-dot'}"/>
+          <text x="${x}" y="130" text-anchor="middle" class="dg-title">${when}</text>
+          <text x="${x}" y="150" text-anchor="middle" class="dg-sub">${a}</text>
+          <text x="${x}" y="166" text-anchor="middle" class="dg-sub">${b}</text>`).join('')}
+      </svg>
+      <figcaption>The run-up to each committee paper. Add the committee dates on the Reporting tab, and the tool counts down to the next deadline and shows what is still needed.</figcaption>
+    </figure>`;
+  }
+
+  function renderHowTab() {
+    return `<h2>How it works</h2>
+      ${flowFigure()}
+      ${cycleFigure()}
+      <div class="how-grid">
+        <section class="panel tight"><h3>Before a strand lead catch-up</h3>
+          <ol class="small"><li>Open <strong>Progress</strong> and choose the strand.</li><li>Check your actions, the team's actions, and anything flagged.</li><li>Save or copy the summary to send ahead of the meeting.</li></ol></section>
+        <section class="panel tight"><h3>During and after the meeting</h3>
+          <ol class="small"><li>Record changes on <strong>Interventions</strong>, or paste a structured update on <strong>Meeting update</strong>.</li><li>Changes to project plans go on the <strong>Theory of Change audit</strong> checklist.</li><li>Once a template's dates change, <strong>Timeline spreadsheet</strong> updates the Gantt.</li></ol></section>
+        <section class="panel tight"><h3>Each committee cycle</h3>
+          <ol class="small"><li>Follow the <strong>Reporting</strong> checklist from four weeks out.</li><li>Create the draft paper from your latest paper.</li><li>Edit the narrative and Tables 1 and 3, then submit.</li></ol></section>
+      </div>`;
+  }
+
   // ---------- timeline spreadsheet ----------
 
   const KIND = { status: ['Status', 'warn'], dates: ['Dates', 'map'], meeting: ['From a meeting', 'map'], note: ['Note', ''], row: ['Row', 'risk'] };
@@ -654,7 +927,7 @@ Status: At risk`;
     if (tl) {
       let list = tl.result.results;
       if (state.strand !== 'all') list = list.filter((r) => r.iv.strand === Number(state.strand));
-      results = `<p>${tl.result.results.length} intervention${tl.result.results.length === 1 ? '' : 's'} with likely changes, checked against <strong>${esc(tl.file)}</strong>.
+      results = `<h3 class="section">Everything that may need changing</h3><p>${tl.result.results.length} intervention${tl.result.results.length === 1 ? '' : 's'} with likely changes, checked against <strong>${esc(tl.file)}</strong>. Items not covered by the automatic update above need changing by hand.
           <button id="save-timeline-list" class="quiet">Save as a Word checklist</button></p>
         ${list.map((r) => `<section class="panel tight" data-id="${esc(r.iv.id)}"><h3><span class="id">${esc(r.iv.id)}</span> ${esc(r.iv.name)}</h3>
           <ul class="tl">${r.items.map((it) => `<li><span class="chip ${KIND[it.kind][1]}">${KIND[it.kind][0]}</span> ${esc(it.text)}</li>`).join('')}</ul></section>`).join('') || '<p class="muted">No changes suggested for this strand.</p>'}
@@ -666,18 +939,18 @@ Status: At risk`;
       ${files.length ? `<p>Found <strong>${esc(files[0].path)}</strong>, last saved ${new Date(files[0].lastModified).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}.${files.length > 1 ? ` <span class="muted small">Also found: ${files.slice(1).map((f) => esc(f.path)).join(', ')}</span>` : ''}</p>
         ${state.tracker ? '<button id="check-timeline" class="primary">Check for changes needed</button>' : ''}`
         : '<p class="hot">No spreadsheet with "timeline" in its name was found in APP Projects or APP Framework.</p>'}
+      ${renderSheetUpdate()}
       ${results}
       <hr>
       ${renderImportTab()}`;
   }
 
-  async function checkTimeline() {
+  async function checkTimeline(quiet) {
     try {
       const f = state.timelineFiles[0];
       const parsed = await trackerImport.parseTracker(await (await f.handle.getFile()).arrayBuffer());
-      state.timeline = { file: f.path, result: timelineCheck.checkTimeline(state.tracker, parsed) };
-      state.message = null;
-      render();
+      state.timeline = { file: f.path, result: timelineCheck.checkTimeline(state.tracker, parsed), plan: xlsxWrite.plan(parsed, state.tracker) };
+      if (quiet !== true) { state.message = null; render(); }
     } catch (e) {
       flash('error', `Couldn't check the spreadsheet: ${e.message}`);
     }
@@ -764,11 +1037,11 @@ Status: At risk`;
       return;
     }
 
-    const tabs = [['progress', 'Progress'], ['strand', 'Interventions'], ['meeting', 'Meeting update'], ['audit', 'Theory of Change audit'], ['timeline', 'Timeline spreadsheet']];
+    const tabs = [['progress', 'Progress'], ['reporting', 'Reporting'], ['strand', 'Interventions'], ['meeting', 'Meeting update'], ['audit', 'Theory of Change audit'], ['timeline', 'Timeline spreadsheet'], ['how', 'How it works']];
     $('#tabs').innerHTML = tabs.map(([k, l]) => `<button role="tab" aria-selected="${state.tab === k}" data-tab="${k}">${l}</button>`).join('');
-    const views = { progress: renderProgressTab, audit: renderAuditTab, timeline: renderTimelineTab, meeting: renderMeetingTab };
+    const views = { progress: renderProgressTab, reporting: renderReportingTab, audit: renderAuditTab, timeline: renderTimelineTab, meeting: renderMeetingTab, how: renderHowTab };
     const body = (views[state.tab] || renderStrandTab)();
-    main.innerHTML = msg + body;
+    main.innerHTML = nudgeBanner() + msg + body;
   }
 
   // ---------- events ----------
@@ -786,6 +1059,42 @@ Status: At risk`;
     else if (t.id === 'check-timeline') checkTimeline();
     else if (t.id === 'save-timeline-list') saveTimelineList();
     else if (t.id === 'import-found') importFound();
+    else if (t.id === 'apply-sheet') applySheet();
+    else if (t.id === 'create-draft') createDraftPaper();
+    else if (t.id === 'save-ics') saveIcs();
+    else if (t.id === 'add-committee') {
+      const deadline = $('#c-deadline').value, meeting = $('#c-meeting').value;
+      if (!deadline && !meeting) { flash('error', 'Add a paper deadline or a meeting date.'); return; }
+      state.tracker.settings = state.tracker.settings || {};
+      state.tracker.settings.committees = (state.tracker.settings.committees || []).concat([{ id: model.newId('c'), name: $('#c-name').value.trim() || 'ESE Committee', deadline: deadline || null, meeting: meeting || null }]);
+      persist('Committee date added.');
+    }
+    else if (t.dataset.delCommittee) {
+      state.tracker.settings.committees = state.tracker.settings.committees.filter((c) => c.id !== t.dataset.delCommittee);
+      persist();
+    }
+    else if (t.dataset.goStrand) { state.tab = 'progress'; setStrand(t.dataset.goStrand); }
+    else if (t.dataset.received) { recordContact(t.dataset.received, 'responseReceived'); persist(`Strand ${t.dataset.received} response recorded as received.`); }
+    else if (t.dataset.response) {
+      state.meetingText = responseTemplate(t.dataset.response);
+      recordContact(t.dataset.response, 'responseReceived');
+      state.tab = 'meeting';
+      persist('Fill in the response under each intervention, then preview and save.');
+    }
+    else if (t.dataset.saveReason) {
+      const input = document.querySelector(`[data-reason-for="${CSS.escape(t.dataset.saveReason)}"]`);
+      if (!input.value.trim()) return;
+      state.tracker.notes = state.tracker.notes || [];
+      state.tracker.notes.push({ id: model.newId('n'), interventionId: t.dataset.saveReason, type: 'Reason for delay', text: input.value.trim(), date: TODAY });
+      persist('Reason saved.');
+    }
+    else if (t.id === 'save-success') {
+      const text = $('#success-text').value.trim();
+      if (!text) return;
+      state.tracker.notes = state.tracker.notes || [];
+      state.tracker.notes.push({ id: model.newId('n'), interventionId: $('#success-iv').value, type: 'Success', text, date: TODAY });
+      persist('Success saved.');
+    }
     else if (t.id === 'preview-update') previewUpdate();
     else if (t.id === 'save-update') saveUpdate();
     else if (t.dataset.add) addEntry(t.dataset.add);
@@ -829,8 +1138,16 @@ Status: At risk`;
     }
   });
 
+  let noteTimer = null;
   document.addEventListener('input', (e) => {
     if (e.target.id === 'meeting-text') state.meetingText = e.target.value;
+    if (e.target.dataset && e.target.dataset.strandNote) {
+      state.tracker.committeeDraft = state.tracker.committeeDraft || { strandNotes: {} };
+      state.tracker.committeeDraft.strandNotes = { ...(state.tracker.committeeDraft.strandNotes || {}), [e.target.dataset.strandNote]: e.target.value };
+      clearTimeout(noteTimer);
+      // Save quietly without re-rendering, so typing isn't interrupted.
+      noteTimer = setTimeout(() => folder.saveTracker(state.conn.projects, state.tracker).catch((err) => flash('error', `Couldn't save: ${err.message}`)), 800);
+    }
   });
 
   // Add a note, action, deliverable or template change from a card's form.
