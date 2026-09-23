@@ -11,7 +11,7 @@
     return APP.templates.parseDateText(s);
   }
 
-  // "Title | owner: Claire | due: 2026-10-16" -> { text, fields }
+  // "Title | owner: Name | due: 16/10/2026" -> { text, fields }
   function splitFields(value) {
     const parts = value.split('|').map((p) => p.trim());
     const fields = {};
