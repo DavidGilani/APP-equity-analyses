@@ -28,6 +28,53 @@
 
   const PLACEHOLDERS = [/^insert intervention/i, /^choose an item/i, /^click or tap/i];
 
+  // Free-text sections, keyed by their row label.
+  const CONTENT_FIELDS = {
+    'activity details': ['details', 'activityDetails'],
+    'cross intervention details': ['details', 'crossIntervention'],
+    'problem statement': ['theoryOfChange', 'problemStatement'],
+    'inputs': ['theoryOfChange', 'inputs'],
+    'activities': ['theoryOfChange', 'activities'],
+    'outcomes': ['theoryOfChange', 'outcomes'],
+    'impact': ['theoryOfChange', 'impact'],
+    'causal pathways': ['theoryOfChange', 'causalPathways'],
+    'moderating factors / assumptions': ['theoryOfChange', 'moderatingFactors'],
+    'targeting': ['theoryOfChange', 'targeting'],
+    'research questions': ['evaluation', 'researchQuestions'],
+    'outcome measures': ['evaluation', 'outcomeMeasures'],
+    'evaluation methods': ['evaluation', 'evaluationMethods'],
+    'analysis strategy': ['evaluation', 'analysisStrategy'],
+    'evaluation reporting': ['evaluation', 'evaluationReporting'],
+  };
+
+  // The opening words of each guidance prompt in the blank template. A paragraph
+  // that starts with one of these is guidance, not content someone has written.
+  const GUIDANCE = [
+    'insert top-level activity details', 'note if this intervention is related',
+    'what is the current background', 'what human, financial, and organisational',
+    'what will happen and what will be delivered', 'include any outputs here',
+    'what are the short, intermediate and long-term', 'what is the long-term goal which relates',
+    'what are the key steps that must happen', 'what are the moderating factors',
+    'what opportunities are there to target', 'what are the main research questions',
+    'examples of potential indicators', 'identify whether the research approach',
+    'also indicate here if any process evaluation', 'detail what methods will be used',
+    'who will be leading on the creation', 'is there any reason why details',
+  ];
+
+  const norm = (s) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+
+  function writtenContent(tc) {
+    const paras = els(tc, 'p').map((p) => text(p).trim()).filter(Boolean);
+    const kept = paras.filter((p) => {
+      const n = norm(p);
+      if (/^https?:\/\/\S+$/.test(n)) return false;
+      return !GUIDANCE.some((g) => n.startsWith(g) || (n.length < g.length && g.startsWith(n)));
+    });
+    const joined = kept.join(' ').trim();
+    // Very short leftovers ("TBC", "-", "n/a") don't count as written content.
+    return joined.replace(/^(tbc|tbd|n\/a|-+|\.+)$/i, '').length >= 12 ? joined : '';
+  }
+
   function setPath(obj, path, value) {
     const parts = path.split('.');
     let o = obj;
@@ -69,7 +116,7 @@
     const file = zip.file('word/document.xml');
     if (!file) throw new Error('Not a Word document');
     const doc = new DOMParser().parseFromString(await file.async('string'), 'application/xml');
-    const out = { complete: {}, timeframes: {} };
+    const out = { complete: {}, timeframes: {}, details: {}, theoryOfChange: {}, evaluation: {} };
     let recognised = 0;
 
     for (const tr of els(doc, 'tr')) {
@@ -89,10 +136,20 @@
       cells.forEach((tc, i) => {
         const key = labelKey(text(tc));
         const next = cells[i + 1] ? text(cells[i + 1]).trim() : '';
-        const val = next && !PLACEHOLDERS.some((re) => re.test(next)) ? next : null;
+        const val = next && !PLACEHOLDERS.some((re) => re.test(next)) && !/:$/.test(next) ? next : null;
         if (key === 'intervention name') out.name = val;
         if (key === 'intervention') out.number = val; // "Intervention #:"
+        if (key === 'intervention lead') out.lead = val;
+        if (key === 'app strand owner') out.strandOwner = val;
       });
+
+      // Free-text sections: record whether each has written content, with a short excerpt.
+      const field = CONTENT_FIELDS[label];
+      if (field && cells[1]) {
+        const content = writtenContent(cells[1]);
+        out[field[0]][field[1]] = content ? (content.length > 240 ? content.slice(0, 237) + '...' : content) : null;
+        recognised++;
+      }
     }
     if (!recognised) throw new Error('No template fields found. Is this an APP project template?');
     return out;
@@ -156,5 +213,53 @@
     return { results, unmatched, fileCount: files.length };
   }
 
-  APP.templates = { readTemplate, completeness, listTemplateFiles, auditTemplates, parseDateText };
+  // Strands whose interventions are architectural and don't need a full theory of change.
+  const TOC_EXEMPT_STRANDS = [7];
+
+  const SECTION_LABELS = {
+    theoryOfChange: {
+      problemStatement: 'Problem statement', inputs: 'Inputs', activities: 'Activities', outcomes: 'Outcomes',
+      impact: 'Impact', causalPathways: 'Causal pathways', moderatingFactors: 'Moderating factors and assumptions', targeting: 'Targeting',
+    },
+    evaluation: {
+      researchQuestions: 'Research questions', outcomeMeasures: 'Outcome measures', evaluationMethods: 'Evaluation methods',
+      analysisStrategy: 'Analysis strategy', evaluationReporting: 'Evaluation reporting',
+    },
+  };
+
+  // How far a project template is from a complete theory of change.
+  // State is one of: exempt, bau, missing, partial, complete.
+  function assess(iv) {
+    if (TOC_EXEMPT_STRANDS.includes(iv.strand)) return { state: 'exempt' };
+    if (iv.status === 'BAU') return { state: 'bau' };
+    const t = iv.template;
+    if (!t) return { state: 'missing' };
+    const gaps = { timeframes: [], theoryOfChange: [], evaluation: [], details: [] };
+    const tf = t.timeframes || {};
+    for (const [k, l] of [['planning', 'Planning'], ['implementation', 'Implementation'], ['evaluation', 'Evaluation']]) {
+      if (!tf[k] || !tf[k].start || !tf[k].end) gaps.timeframes.push(`${l} dates`);
+    }
+    // Templates read before section checking existed only have the completion flags.
+    const recheck = !t.theoryOfChange;
+    if (!recheck) {
+      for (const sec of ['theoryOfChange', 'evaluation']) {
+        for (const [k, l] of Object.entries(SECTION_LABELS[sec])) if (!t[sec][k]) gaps[sec].push(l);
+      }
+      if (!t.lead) gaps.details.push('Intervention lead');
+      if (!t.stage) gaps.details.push('Project status stage');
+    } else {
+      if (t.complete.theoryOfChange !== 'Completed') gaps.theoryOfChange.push('Marked as not complete');
+      if (t.complete.evaluation !== 'Completed') gaps.evaluation.push('Marked as not complete');
+    }
+    const core = gaps.timeframes.length + gaps.theoryOfChange.length + gaps.evaluation.length;
+    // Sections that are ticked as completed in the template but still have gaps.
+    const mismatch = [];
+    if (t.complete.timeframes === 'Completed' && gaps.timeframes.length) mismatch.push('timeframes');
+    if (t.complete.theoryOfChange === 'Completed' && gaps.theoryOfChange.length && !recheck) mismatch.push('theory of change');
+    if (t.complete.evaluation === 'Completed' && gaps.evaluation.length && !recheck) mismatch.push('evaluation');
+    const total = 3 + Object.keys(SECTION_LABELS.theoryOfChange).length + Object.keys(SECTION_LABELS.evaluation).length;
+    return { state: core ? 'partial' : 'complete', gaps, mismatch, recheck, filled: total - core, total };
+  }
+
+  APP.templates = { readTemplate, completeness, listTemplateFiles, auditTemplates, parseDateText, assess, TOC_EXEMPT_STRANDS, SECTION_LABELS };
 })(typeof window !== 'undefined' ? window : globalThis);

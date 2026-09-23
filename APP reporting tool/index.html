@@ -58,6 +58,7 @@
   .msg.info { background: var(--map-bg); color: var(--map-fg); }
   .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
   .bar .primary { margin-left: auto; }
+  .bar.start .primary { margin-left: 0; }
   .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--surface); }
   .seg button { border: 0; background: none; padding: 6px 12px; color: var(--muted); min-width: 36px; }
   .seg button + button { border-left: 1px solid var(--line); }
@@ -126,9 +127,33 @@
   .help summary { cursor: pointer; }
   pre.example { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px; font-size: .82rem; white-space: pre-wrap; }
   button:disabled { opacity: .5; cursor: default; }
+  .counts.three { grid-template-columns: repeat(3, minmax(0, 1fr)); max-width: 620px; }
+  .gaps { margin: 6px 0 4px; padding-left: 18px; font-size: .88rem; }
+  .gaps li { margin: 2px 0; }
+  .help-notes { margin: 6px 0 0; }
+  .help-notes summary { cursor: pointer; color: var(--accent); }
+  .help-notes .notes { margin-top: 4px; }
+  h3.section { margin: 24px 0 6px; }
+  .nowrap { white-space: nowrap; }
+  hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0 8px; }
+  .tl { list-style: none; margin: 6px 0 0; padding: 0; font-size: .9rem; }
+  .tl li { padding: 3px 0; }
+  /* Target chips: filled = relates, outlined = partly, faint = doesn't relate. */
+  .targets { display: inline-flex; gap: 2px; flex-wrap: nowrap; }
+  .t { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; border-radius: 4px; font-size: .68rem; font-weight: 700; font-variant-numeric: tabular-nums; box-sizing: border-box; }
+  .t-y { background: var(--accent); color: var(--accent-fg); }
+  .t-p { background: var(--map-bg); color: var(--accent); border: 1.5px solid var(--accent); }
+  .t-n { color: var(--muted); border: 1px dashed var(--line); opacity: .7; }
+  .legend { margin: 4px 0 8px; }
+  .legend summary { cursor: pointer; }
+  .legend summary .t { vertical-align: middle; margin: 0 2px 0 6px; }
+  .legend-list { columns: 3 220px; margin: 6px 0 0; padding-left: 22px; }
+  table.progress td { font-size: .88rem; }
+  .deliv.wide { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 4px 14px; }
+  .deliv.wide li { grid-template-columns: auto 1fr 110px 110px auto; }
   @media (max-width: 720px) {
     .facts, .facts.two { grid-template-columns: 1fr; gap: 10px; }
-    .deliv li { grid-template-columns: auto 1fr; }
+    .deliv li, .deliv.wide li { grid-template-columns: auto 1fr; }
     .bar .primary { margin-left: 0; }
   }
 </style>
@@ -148,6 +173,9 @@
 <script src="js/tracker-import.js"></script>
 <script src="js/template-read.js"></script>
 <script src="js/meeting-update.js"></script>
+<script src="js/docx-write.js"></script>
+<script src="js/reports.js"></script>
+<script src="js/timeline-check.js"></script>
 <script src="js/folder.js"></script>
 <script src="js/app.js"></script>
 </body>

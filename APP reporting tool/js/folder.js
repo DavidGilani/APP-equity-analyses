@@ -105,5 +105,59 @@
     await writeText(dir, TRACKER, JSON.stringify(tracker, null, 2));
   }
 
-  APP.folder = { remembered, choose, reconnect, hasPermission, loadTracker, saveTracker, PROJECTS, DATA, TRACKER };
+  // Find the APP timeline and status spreadsheet in APP Projects or APP Framework.
+  // Where there are several, the most recently saved one is used.
+  async function findTimelineFile(conn) {
+    const found = [];
+    const dirs = [[conn.projects, conn.projects.name]];
+    if (conn.root !== conn.projects) dirs.push([conn.root, conn.root.name]);
+    for (const [dir, label] of dirs) {
+      for await (const [name, h] of dir.entries()) {
+        if (h.kind === 'file' && /\.xlsx$/i.test(name) && /timeline/i.test(name) && !name.startsWith('~$')) {
+          const file = await h.getFile();
+          found.push({ name, path: `${label}/${name}`, handle: h, lastModified: file.lastModified });
+        }
+      }
+    }
+    found.sort((a, b) => b.lastModified - a.lastModified);
+    return found;
+  }
+
+  async function subdir(dir, parts) {
+    for (const p of parts) dir = await dir.getDirectoryHandle(p, { create: true });
+    return dir;
+  }
+
+  // Committee papers go to APP Framework/Committees and reporting when it's there;
+  // everything else goes to APP Projects/_Tracker data/Reports.
+  async function saveReport(conn, name, blob, { committee = false } = {}) {
+    let dir, path;
+    const committees = committee && conn.root !== conn.projects ? await child(conn.root, 'Committees and reporting') : null;
+    if (committees) { dir = committees; path = `${conn.root.name}/Committees and reporting/${name}`; }
+    else { dir = await subdir(conn.projects, [DATA, 'Reports']); path = `${PROJECTS}/${DATA}/Reports/${name}`; }
+    const fh = await dir.getFileHandle(name, { create: true });
+    const w = await fh.createWritable();
+    await w.write(blob);
+    await w.close();
+    return path;
+  }
+
+  async function latestSnapshot(projects) {
+    const data = await dataDir(projects, false);
+    const dir = data ? await child(data, 'snapshots') : null;
+    if (!dir) return null;
+    const names = [];
+    for await (const [name, h] of dir.entries()) if (h.kind === 'file' && /^snapshot-.*\.json$/.test(name)) names.push(name);
+    names.sort();
+    return names.length ? readJson(dir, names[names.length - 1]) : null;
+  }
+
+  async function saveSnapshot(projects, snap) {
+    const dir = await subdir(projects, [DATA, 'snapshots']);
+    const name = `snapshot-${snap.date}.json`;
+    await writeText(dir, name, JSON.stringify(snap, null, 2));
+    return `${PROJECTS}/${DATA}/snapshots/${name}`;
+  }
+
+  APP.folder = { remembered, choose, reconnect, hasPermission, loadTracker, saveTracker, findTimelineFile, saveReport, latestSnapshot, saveSnapshot, PROJECTS, DATA, TRACKER };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -15,19 +15,27 @@ Either way, the page runs in Chrome on the laptop and works on files in the sync
 ### First use
 
 1. Click **Choose folder** and pick **APP Framework** in OneDrive - Middlesex University. Allow Chrome to view and edit it.
-2. On **Import tracker**, choose the APP timeline and status spreadsheet, check the preview, then save. This creates `APP Projects/_Tracker data/tracker.json`.
-3. On **Template audit**, click **Check templates**.
+2. On **Timeline spreadsheet**, import the APP timeline and status spreadsheet (the tool finds it in APP Projects or APP Framework), check the preview, then save. This creates `APP Projects/_Tracker data/tracker.json`.
 
-Chrome remembers the folder, so later visits need one click at most.
+Chrome remembers the folder, so later visits need one click at most. Each time the folder is opened, the tool re-reads every project template, so the views are always current.
 
-### What it does so far
+### The tabs
 
-- **Import tracker:** reads the `APP Timeline` sheet (names, descriptions, status, the nine target columns, and the Gantt stages with their dates) into `tracker.json`. Importing again updates everything except status, because the tool's copy owns live status. The previous copy goes into `_Tracker data/backups/` first.
-- **Template audit:** finds `APPx.y - Name.docx` files in the strand folders, including subfolders, and reads each template's dropdowns and dates. It lists missing, incomplete, unreadable and duplicate templates, plus any file that doesn't match a tracker row. The details it finds are copied into the tracker.
-- **Meeting update:** paste a structured update from a meeting (typed by hand, or written by Copilot from a Teams transcript), check the preview, and save it. Notes, actions, deliverables, template changes and status changes go to the right intervention. See `meeting-update-format.md` for the format and the Copilot prompt.
-- **Template changes:** a checklist of every change raised in meetings that needs making in a project template, grouped by intervention, with the template's file location. Tick each one off once the template is updated.
-- **On each intervention card:** change the live status (the change is logged as a note), update the status of deliverables and actions, tick off template changes, and add a note, action, deliverable or template change directly during a meeting.
-- **Strands:** an all-strand table with the committee's four status categories, and a view of each strand showing where each intervention should be by now and whether it is behind plan or due to change stage within 14 days. The check compares planned dates (from the template, or the Gantt if there is no template) with the stage recorded in the template. Deliverables and actions that are overdue, blocked or due within 14 days also raise the flag.
+- **Progress:** the page to use before a strand lead catch-up. For each strand: your open actions, the team's open actions and deliverables, and every non-BAU intervention with its APP targets (1 to 9), status, planned stage now, next action and theory of change progress. It saves a Word summary for the strand lead, or copies the same summary as email text. The **All** view has the status table by strand and creates the ESE committee update (see below).
+- **Interventions:** one card per intervention, for recording things during a meeting: change the status, update actions and deliverables, add notes, and tick off template changes.
+- **Meeting update:** paste a structured update from a meeting (typed by hand, or written by Copilot from a Teams transcript), check the preview, and save it. See `meeting-update-format.md` for the format and the Copilot prompt.
+- **Theory of Change audit:** counts of complete, partly written and missing theories of change for non-BAU interventions in strands 1 to 6. Strand 7 is listed separately, because its interventions are architectural. For partly written templates it lists exactly which sections are still empty, and shows the meeting notes and template changes that could help fill them. Below that is the checklist of template changes raised in meetings.
+- **Timeline spreadsheet:** checks the APP timeline and status spreadsheet against the tool and lists the changes it probably needs: status differences, template dates that differ from the Gantt, deliverables due after the timeline ends, timing changes raised in meetings, and notes that mention timing. The list can be saved as a Word checklist. The import sits on the same tab.
+
+### What counts as a complete theory of change
+
+A section counts as written when its cell has content beyond the template's guidance prompts. "Complete" means all eight theory of change sections and all five evaluation sections are written, and planning, implementation and evaluation all have start and end dates. If a template is ticked as completed but still has gaps, the audit says so.
+
+### Committee updates and snapshots
+
+**Create committee update** (Progress, All) saves a Word document to `APP Framework/Committees and reporting` with the status counts in the committee paper's wording, Table 2 by strand (with risks recorded since the last update as a starting point for the notes column), theory of change progress by strand, and a "what changed since the last update" list. By default it also saves a dated snapshot in `_Tracker data/snapshots/`, which the next update compares against. Tables 1 and 3 are still added by hand.
+
+Strand summaries and the timeline checklist are saved in `APP Projects/_Tracker data/Reports/`.
 
 ### Setting up the web address on Vercel
 
@@ -43,6 +51,7 @@ The repository stays private. The address shows the tool's code to anyone who ha
 - `scoping-brief.md`: purpose, constraints, data model, pipeline and demo scope.
 - `source-document-structure.md`: the layout of the tracker and the Word templates the tool reads and writes, plus the vocabulary mismatches between them.
 - `index.html` and `js/`: the tool. `js/lib/jszip.min.js` is JSZip 3.10.2 (MIT licence), used to open Word and Excel files in the browser.
+- `js/`: `app.js` (the page), `model.js` (statuses and slip checks), `template-read.js` (reading templates and judging theory of change completeness), `tracker-import.js` and `xlsx-read.js` (reading the spreadsheet), `meeting-update.js`, `reports.js` (summaries, snapshots and the committee update), `timeline-check.js`, `docx-write.js` (writing Word files) and `folder.js`.
 - `meeting-update-format.md`: the meeting update format and the Copilot prompt that produces it.
 - `folder-access-check.html`: a one-off check that Chrome can read and write the synced folder. Download it, double-click it, choose the synced folder, and check that every step says Pass.
 

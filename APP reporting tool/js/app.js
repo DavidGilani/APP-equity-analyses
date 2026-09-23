@@ -1,6 +1,6 @@
 // Page logic: folder connection, strand view, template audit and tracker import.
 (function () {
-  const { model, folder, templates, trackerImport, meetingUpdate } = window.APPTool;
+  const { model, folder, templates, trackerImport, meetingUpdate, reports, timelineCheck, docx } = window.APPTool;
   const $ = (sel) => document.querySelector(sel);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -16,7 +16,11 @@
     pendingUpdate: null,
     meetingText: '',
     showDone: false,
-    tab: 'strand',
+    yourName: 'David',
+    lastSnapshot: null,
+    timelineFiles: [],
+    timeline: null,
+    tab: 'progress',
     strand: 'all',
     nonBauOnly: true,
     message: null,
@@ -91,9 +95,15 @@
       flash('error', `The tracker file couldn't be read: ${e.message}`);
       return;
     }
-    if (!state.tracker) state.tab = 'import';
+    if (!state.tracker) state.tab = 'timeline';
     state.message = null;
+    try { state.timelineFiles = await folder.findTimelineFile(state.conn); } catch { state.timelineFiles = []; }
+    if (state.tracker) {
+      state.yourName = (state.tracker.settings && state.tracker.settings.yourName) || state.yourName;
+      try { state.lastSnapshot = await folder.latestSnapshot(state.conn.projects); } catch { state.lastSnapshot = null; }
+    }
     render();
+    if (state.tracker) runAudit({ quiet: true });
   }
 
   // ---------- import ----------
@@ -116,8 +126,9 @@
       await folder.saveTracker(state.conn.projects, state.pendingImport.tracker, { backup: true });
       state.tracker = state.pendingImport.tracker;
       state.pendingImport = null;
-      state.tab = 'strand';
+      state.tab = 'progress';
       flash('ok', `Saved to ${folder.PROJECTS}/${folder.DATA}/${folder.TRACKER}.`);
+      await runAudit({ quiet: true });
     } catch (e) {
       flash('error', `Couldn't save: ${e.message}`);
     }
@@ -125,21 +136,30 @@
 
   // ---------- audit ----------
 
-  async function runAudit() {
-    flash('info', 'Checking templates…');
+  // Reads every project template. Runs quietly each time the folder is opened,
+  // so the theory of change and progress views are always current.
+  async function runAudit({ quiet = false } = {}) {
+    if (!quiet) flash('info', 'Checking templates…');
     try {
       const audit = await templates.auditTemplates(state.conn.projects, state.tracker, new Date().toISOString());
       state.audit = audit;
-      // The template owns these fields; the tracker keeps a copy for the strand view.
+      // The template owns these fields; the tracker keeps a copy for the other views.
+      const strip = (t) => (t ? JSON.stringify({ ...t, checkedAt: null }) : null);
+      let changed = !state.tracker.templatesCheckedAt;
       for (const r of audit.results) {
-        const iv = state.tracker.interventions.find((x) => x.id === r.id);
-        if (iv && !r.error) iv.template = r.template;
+        const iv = findIv(r.id);
+        if (!iv || r.error) continue;
+        if (strip(iv.template) !== strip(r.template)) changed = true;
+        iv.template = r.template;
       }
-      state.tracker.templatesCheckedAt = new Date().toISOString();
-      await folder.saveTracker(state.conn.projects, state.tracker);
-      flash('ok', `Checked ${audit.fileCount} template file${audit.fileCount === 1 ? '' : 's'} and updated the tracker.`);
+      if (changed || !quiet) {
+        state.tracker.templatesCheckedAt = new Date().toISOString();
+        await folder.saveTracker(state.conn.projects, state.tracker);
+      }
+      if (quiet) render();
+      else flash('ok', `Checked ${audit.fileCount} template file${audit.fileCount === 1 ? '' : 's'} and updated the tracker.`);
     } catch (e) {
-      flash('error', `The audit didn't finish: ${e.message}`);
+      flash('error', `The template check didn't finish: ${e.message}`);
     }
   }
 
@@ -304,6 +324,14 @@
       ${cards.join('') || '<p class="muted">No interventions in this strand.</p>'}`;
   }
 
+  function renderStrandTab() {
+    if (!state.tracker) return '<p>Import the tracker first.</p>';
+    const title = state.strand === 'all' ? 'All strands' : `Strand ${state.strand}: ${esc(strandName(state.strand))}`;
+    return `<div class="bar">${strandTabs()}<span class="muted small">Checked against ${fmtDate(TODAY)}</span></div>
+      <h2>${title}</h2>
+      ${state.strand === 'all' ? renderOverview() : renderStrand(state.strand)}`;
+  }
+
   // ---------- meeting update ----------
 
   const EXAMPLE = `Meeting: Strand 6 catch-up with strand lead
@@ -385,14 +413,13 @@ Status: At risk`;
 
   // ---------- template changes ----------
 
-  function renderUpdatesTab() {
-    if (!state.tracker) return '<p>Import the tracker first.</p>';
+  function templateChangesHtml(strandFilter) {
     let items = (state.tracker.templateUpdates || []).filter((u) => state.showDone || !u.done);
-    if (state.strand !== 'all') items = items.filter((u) => (findIv(u.interventionId) || {}).strand === Number(state.strand));
+    if (strandFilter !== 'all') items = items.filter((u) => (findIv(u.interventionId) || {}).strand === Number(strandFilter));
     const byIv = new Map();
     for (const u of items) (byIv.get(u.interventionId) || byIv.set(u.interventionId, []).get(u.interventionId)).push(u);
     const ids = [...byIv.keys()].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-    const groups = ids.map((id) => {
+    return ids.map((id) => {
       const iv = findIv(id);
       const file = iv.template && iv.template.file;
       return `<section class="panel tight" data-id="${esc(id)}">
@@ -402,19 +429,39 @@ Status: At risk`;
           <label><input type="checkbox" data-tu="${esc(u.id)}" ${u.done ? 'checked' : ''}> <strong>${esc(u.section)}:</strong> ${esc(u.text)}</label>
           <span class="muted small">raised ${fmtDate(u.raisedOn)}${u.done && u.doneOn ? `, done ${fmtDate(u.doneOn)}` : ''}</span></li>`).join('')}</ul>
       </section>`;
-    });
-    return `<div class="bar">${strandTabs()}<label class="small"><input type="checkbox" id="showdone" ${state.showDone ? 'checked' : ''}> Show done</label></div>
-      <h2>Project template changes</h2>
-      <p class="muted">Changes raised in meetings that need making in the project templates. Tick each one once the template is updated, then run the template audit to refresh the tool's copy.</p>
-      ${groups.join('') || '<p class="muted">Nothing outstanding.</p>'}`;
+    }).join('') || '<p class="muted">Nothing outstanding.</p>';
   }
 
-  function renderStrandTab() {
-    if (!state.tracker) return '<p>Import the tracker first.</p>';
-    const title = state.strand === 'all' ? 'All strands' : `Strand ${state.strand}: ${esc(strandName(state.strand))}`;
-    return `<div class="bar">${strandTabs()}<span class="muted small">Checked against ${fmtDate(TODAY)}</span></div>
-      <h2>${title}</h2>
-      ${state.strand === 'all' ? renderOverview() : renderStrand(state.strand)}`;
+  // ---------- theory of change audit ----------
+
+  const TOC_PILL = {
+    complete: '<span class="pill ok">Complete</span>',
+    partial: '<span class="pill warn">Partly written</span>',
+    missing: '<span class="pill risk">Missing</span>',
+  };
+
+  function gapsHtml(a) {
+    if (a.state !== 'partial') return '';
+    const part = (label, list) => (list.length ? `<li><strong>${label}:</strong> ${list.map(esc).join(', ')}</li>` : '');
+    return `<ul class="gaps">
+      ${part('Timeframes still needed', a.gaps.timeframes)}
+      ${part('Theory of change still needed', a.gaps.theoryOfChange)}
+      ${part('Evaluation still needed', a.gaps.evaluation)}
+      ${part('Details still needed', a.gaps.details)}
+    </ul>
+    ${a.mismatch.length ? `<p class="small hot">Marked as completed in the template, but still has gaps: ${a.mismatch.join(', ')}.</p>` : ''}
+    ${a.recheck ? '<p class="small muted">Run the check again to see which parts are missing.</p>' : ''}`;
+  }
+
+  // Notes and meeting items that could help fill the gaps.
+  function helpHtml(iv) {
+    const notes = (state.tracker.notes || []).filter((n) => n.interventionId === iv.id && n.type !== 'Status change');
+    const changes = (state.tracker.templateUpdates || []).filter((u) => u.interventionId === iv.id && !u.done);
+    if (!notes.length && !changes.length) return '';
+    return `<details class="help-notes"><summary class="small">From your meeting notes (${notes.length + changes.length})</summary><ul class="notes">
+      ${changes.map((u) => `<li><span class="chip map">Change: ${esc(u.section)}</span> ${esc(u.text)}</li>`).join('')}
+      ${notes.map((n) => `<li><span class="muted small">${fmtDate(n.date)}</span> <span class="chip ${n.type === 'Risk' ? 'risk' : n.type === 'Question' ? 'warn' : ''}">${esc(n.type)}</span> ${esc(n.text)}</li>`).join('')}
+    </ul></details>`;
   }
 
   function renderAuditTab() {
@@ -422,43 +469,240 @@ Status: At risk`;
     const checked = state.tracker.templatesCheckedAt;
     let list = state.tracker.interventions;
     if (state.strand !== 'all') list = list.filter((iv) => iv.strand === Number(state.strand));
-    if (state.nonBauOnly) list = list.filter((iv) => iv.status !== 'BAU');
+    const assessed = list.map((iv) => ({ iv, a: templates.assess(iv) }));
+    const inScope = assessed.filter((x) => ['complete', 'partial', 'missing'].includes(x.a.state));
+    const exempt = assessed.filter((x) => x.a.state === 'exempt' && x.iv.status !== 'BAU');
+    const n = (st) => inScope.filter((x) => x.a.state === st).length;
     const extra = state.audit ? new Map(state.audit.results.map((r) => [r.id, r])) : new Map();
 
-    const rows = list.map((iv) => {
+    const rows = inScope.map(({ iv, a }) => {
       const r = extra.get(iv.id) || {};
       const t = iv.template;
-      let state_ = '<span class="pill risk">Missing</span>';
-      if (r.error) state_ = `<span class="pill risk" title="${esc(r.error)}">Unreadable</span>`;
-      else if (t) state_ = templates.completeness(t).complete ? '<span class="pill ok">Complete</span>' : '<span class="pill warn">Incomplete</span>';
-      else if (!checked) state_ = '<span class="muted">Not checked</span>';
-      const flag = (v) => `<span class="chip ${v === 'Completed' ? 'ok' : v === 'In progress' ? 'warn' : ''}">${esc(v || 'Not set')}</span>`;
+      const pill = r.error ? `<span class="pill risk" title="${esc(r.error)}">Unreadable</span>` : TOC_PILL[a.state];
       return `<tr data-id="${esc(iv.id)}">
         <td>${esc(iv.id)}</td>
-        <td>${esc(iv.name)}${t && t.file ? `<div class="muted small">${esc(t.file)}</div>` : ''}${r.others && r.others.length ? `<div class="small hot">Also found: ${r.others.map(esc).join(', ')}</div>` : ''}</td>
-        <td>${state_}</td>
-        <td>${t ? flag(t.complete.timeframes) : ''}</td>
-        <td>${t ? flag(t.complete.theoryOfChange) : ''}</td>
-        <td>${t ? flag(t.complete.evaluation) : ''}</td>
-        <td>${t ? esc(t.status || '') : ''}</td>
+        <td><strong>${esc(iv.name)}</strong>
+          ${t && t.file ? `<div class="muted small">${esc(t.file)}</div>` : ''}
+          ${r.others && r.others.length ? `<div class="small hot">Also found: ${r.others.map(esc).join(', ')}</div>` : ''}
+          ${r.error ? `<div class="small hot">The template file couldn't be opened: ${esc(r.error)}. Check it opens in Word.</div>` : a.state === 'missing' ? '<div class="small">No project template in the strand folder yet.</div>' : ''}
+          ${gapsHtml(a)}
+          ${helpHtml(iv)}</td>
+        <td>${pill}${a.state === 'partial' ? `<div class="muted small">${a.filled} of ${a.total} parts</div>` : ''}</td>
+        <td>${t ? esc(t.lead || '') : ''}</td>
         <td>${t ? fmtDate(t.lastUpdated) : ''}</td>
       </tr>`;
     });
 
-    const missing = list.filter((iv) => !iv.template).length;
-    const unmatched = state.audit && state.audit.unmatched.length
-      ? `<p class="small">Template files that don't match a tracker row: ${state.audit.unmatched.map(esc).join(', ')}</p>` : '';
-
     return `<div class="bar">${strandTabs()}
-        <label class="small"><input type="checkbox" id="nonbau" ${state.nonBauOnly ? 'checked' : ''}> Non-BAU only</label>
         <button id="run-audit" class="primary">${checked ? 'Check again' : 'Check templates'}</button></div>
-      <h2>Template audit</h2>
-      <p class="muted">Looks in each strand folder inside ${esc(folder.PROJECTS)} for Word files named like <code>APP6.3 - Name.docx</code>, and reads the completion flags and dates from each one.
-        ${checked ? `Last checked ${fmtDate(checked.slice(0, 10))}. ${missing} of ${list.length} shown have no readable template.` : ''}</p>
+      <h2>Theory of Change audit</h2>
+      <p class="muted">Which non-BAU interventions have a project template with a written theory of change, evaluation plan and timeframes. It reads the Word files named like <code>APP6.3 - Name.docx</code> in each strand folder.
+        ${checked ? `Last checked ${fmtDate(checked.slice(0, 10))}.` : ''}</p>
+      <div class="counts three">
+        <div><span class="big">${n('complete')}</span><span>Complete</span></div>
+        <div><span class="big">${n('partial')}</span><span>Partly written</span></div>
+        <div><span class="big">${n('missing')}</span><span>Missing</span></div>
+      </div>
+      <p class="muted small">Out of ${inScope.length} non-BAU interventions${state.strand === 'all' ? ' in strands 1 to 6' : ''}. Strand 7 isn't counted, because its interventions are architectural and don't need a full theory of change.
+        "Complete" means every theory of change and evaluation section has written content, and all three stages have dates.</p>
       <div class="table-wrap"><table class="grid">
-        <thead><tr><th>#</th><th>Intervention</th><th>Template</th><th>Timeframes</th><th>Theory of change</th><th>Evaluation</th><th>Template status</th><th>Last updated</th></tr></thead>
-        <tbody>${rows.join('')}</tbody>
-      </table></div>${unmatched}`;
+        <thead><tr><th>#</th><th>Intervention and what's still needed</th><th>Theory of change</th><th>Lead</th><th>Last updated</th></tr></thead>
+        <tbody>${rows.join('') || '<tr><td colspan="5" class="muted">None in this view.</td></tr>'}</tbody>
+      </table></div>
+      ${state.audit && state.audit.unmatched.length ? `<p class="small">Template files that don't match a tracker row: ${state.audit.unmatched.map(esc).join(', ')}</p>` : ''}
+      ${exempt.length ? `<details class="panel tight"><summary><strong>Not needing a full theory of change (${exempt.length})</strong></summary>
+        <ul class="small">${exempt.map(({ iv }) => `<li>${esc(iv.id)} ${esc(iv.name)}${iv.template ? ' <span class="muted">(template found)</span>' : ''}</li>`).join('')}</ul></details>` : ''}
+      <h2>Changes raised in meetings</h2>
+      <p class="muted">Changes that need making in the project templates. Tick each one once the template is updated, then check the templates again.
+        <label class="small"><input type="checkbox" id="showdone" ${state.showDone ? 'checked' : ''}> Show done</label></p>
+      ${templateChangesHtml(state.strand)}`;
+  }
+
+  // ---------- targets ----------
+
+  const TARGET_WORD = { Y: 'Yes', Partial: 'Partly', N: 'No' };
+
+  function targetChips(iv) {
+    const t = iv.targets || {};
+    const label = model.TARGETS.map(([k, l], i) => `${i + 1} ${l}: ${TARGET_WORD[t[k]] || 'not set'}`).join('; ');
+    return `<span class="targets" role="img" aria-label="${esc(label)}">${model.TARGETS.map(([k, l], i) => {
+      const v = t[k];
+      const cls = v === 'Y' ? 't-y' : v === 'Partial' ? 't-p' : 't-n';
+      return `<span class="t ${cls}" title="${i + 1}. ${esc(l)}: ${TARGET_WORD[v] || 'not set'}">${i + 1}</span>`;
+    }).join('')}</span>`;
+  }
+
+  function targetLegend() {
+    return `<details class="legend"><summary class="small">Targets key: <span class="t t-y">1</span> relates <span class="t t-p">1</span> partly relates <span class="t t-n">1</span> doesn't relate</summary>
+      <ol class="small legend-list">${model.TARGETS.map(([, l]) => `<li>${esc(l)}</li>`).join('')}</ol></details>`;
+  }
+
+  // ---------- progress ----------
+
+  const FLAG_LABEL = { behind: 'Behind plan', soon: 'Due soon', ok: 'In line', unknown: "Can't check", bau: 'BAU' };
+  const FLAG_CLASS = { behind: 'risk', soon: 'warn', ok: 'ok', unknown: 'map', bau: 'bau' };
+
+  function itemRows(list, showIv) {
+    if (!list.length) return '<p class="muted small">Nothing open.</p>';
+    return `<ul class="deliv wide">${list.map((d) => `<li>
+        <span class="chip">${d.kind === 'action' ? 'Action' : 'Deliverable'}</span>
+        <span class="deliv-title">${showIv ? `<span class="id">${esc(d.iv.id)}</span> ` : ''}${esc(d.title)}</span>
+        <span class="muted small">${esc(d.owner || 'No owner')}</span>
+        <span class="small ${dueClass(d)}">${d.due ? fmtDate(d.due) : '<span class="muted">No date</span>'}</span>
+        <select data-deliv="${esc(d.iv.id)}|${esc(d.id)}" aria-label="Status">${model.DELIVERABLE_STATUSES.map((s) => `<option ${s === d.status ? 'selected' : ''}>${s}</option>`).join('')}</select>
+      </li>`).join('')}</ul>`;
+  }
+
+  function renderStrandProgress(n) {
+    const sp = reports.strandProgress(state.tracker, n, TODAY, state.yourName);
+    const rows = sp.rows.map((r) => {
+      const toc = r.toc.state === 'partial' ? `Partly written<div class="muted small">${r.toc.filled} of ${r.toc.total} parts</div>` : { complete: 'Complete', missing: '<span class="hot">No template</span>', exempt: '<span class="muted">Not needed</span>' }[r.toc.state] || '';
+      const next = r.nextItem ? `<div>${esc(r.nextItem.title)}</div><div class="muted small">${esc(r.nextItem.owner || 'No owner')}${r.nextItem.due ? `, <span class="${dueClass(r.nextItem)}">${fmtDate(r.nextItem.due)}</span>` : ''}</div>` : '<span class="muted small">No actions recorded</span>';
+      return `<tr data-id="${esc(r.iv.id)}">
+        <td class="nowrap"><span class="id">${esc(r.iv.id)}</span></td>
+        <td><strong>${esc(r.iv.name)}</strong>
+          ${r.latest ? `<div class="small muted">${fmtDate(r.latest.date)}: ${esc(r.latest.text)}</div>` : ''}
+          ${r.risks.length ? `<div class="small hot">Risk: ${r.risks.map((x) => esc(x.text)).join(' ')}</div>` : ''}</td>
+        <td>${targetChips(r.iv)}</td>
+        <td>${statusPill(r.iv.status)}<div style="margin-top:4px"><span class="pill ${FLAG_CLASS[r.flag]}" title="${esc([r.stageCheck.text, r.delivCheck.text].filter(Boolean).join('. '))}">${FLAG_LABEL[r.flag]}</span></div></td>
+        <td>${esc(r.now.text)}${r.nextStage ? `<div class="muted small">${esc(r.nextStage.text)}</div>` : ''}</td>
+        <td>${next}${r.openItems.length > 1 ? `<div class="muted small">+${r.openItems.length - 1} more</div>` : ''}</td>
+        <td>${toc}</td>
+      </tr>`;
+    });
+    return `<h2>Strand ${sp.strand}: ${esc(sp.name)}</h2>
+      <div class="bar start">
+        <button id="save-summary" class="primary">Save summary for the strand lead</button>
+        <button id="copy-summary" class="quiet">Copy as email text</button>
+        <label class="small">Your actions are those owned by <input id="your-name" type="text" size="8" value="${esc(state.yourName)}"></label>
+      </div>
+      <h3 class="section">With you (${sp.yours.length})</h3>${itemRows(sp.yours, true)}
+      <h3 class="section">With the strand team (${sp.team.length})</h3>${itemRows(sp.team, true)}
+      <h3 class="section">Interventions on the go</h3>
+      ${targetLegend()}
+      <div class="table-wrap"><table class="grid progress">
+        <thead><tr><th>#</th><th>Intervention and latest update</th><th>Targets</th><th>Status</th><th>Planned stage now</th><th>Next action or deliverable</th><th>Theory of change</th></tr></thead>
+        <tbody>${rows.join('') || '<tr><td colspan="7" class="muted">No non-BAU interventions.</td></tr>'}</tbody>
+      </table></div>
+      ${sp.bauCount ? `<p class="muted small">${sp.bauCount} business as usual intervention${sp.bauCount === 1 ? '' : 's'} not shown.</p>` : ''}`;
+  }
+
+  function renderCommittee() {
+    const prev = state.lastSnapshot;
+    const ch = reports.diff(prev, reports.snapshot(state.tracker, TODAY), state.tracker);
+    const n = ch.statusChanges.length + ch.tocChanges.length + ch.delivered.length + ch.newRisks.length;
+    return `<section class="panel">
+      <h3>ESE committee update</h3>
+      <p>${prev ? `Compared with the snapshot from <strong>${fmtDate(prev.date)}</strong>: ${n} change${n === 1 ? '' : 's'} (${ch.statusChanges.length} status, ${ch.tocChanges.length} theory of change, ${ch.delivered.length} delivered, ${ch.newRisks.length} new risks).` : 'No snapshot saved yet, so there is nothing to compare with. Saving one now sets the baseline for the next update.'}</p>
+      <p class="muted small">Creates a Word document with the status counts, Table 2 by strand, theory of change progress and a "what changed" list, ready to copy into the committee paper. It's saved in Committees and reporting.</p>
+      <div class="bar"><button id="create-committee" class="primary">Create committee update</button>
+        <label class="small"><input type="checkbox" id="save-snap" checked> Also save a snapshot as the baseline for next time</label></div>
+    </section>`;
+  }
+
+  function renderProgressTab() {
+    if (!state.tracker) return '<p>Import the tracker first.</p>';
+    return `<div class="bar">${strandTabs()}<span class="muted small">As at ${fmtDate(TODAY)}</span></div>
+      ${state.strand === 'all' ? `<h2>All strands</h2>${renderOverview()}${renderCommittee()}` : renderStrandProgress(state.strand)}`;
+  }
+
+  async function saveSummary() {
+    try {
+      const n = state.strand;
+      const blob = await reports.strandSummaryDoc(state.tracker, n, TODAY, state.yourName);
+      const path = await folder.saveReport(state.conn, `Strand ${n} summary - ${TODAY}.docx`, blob);
+      flash('ok', `Saved to ${path}.`);
+    } catch (e) {
+      flash('error', `Couldn't save the summary: ${e.message}`);
+    }
+  }
+
+  async function copySummary() {
+    try {
+      await navigator.clipboard.writeText(reports.strandSummaryText(state.tracker, state.strand, TODAY, state.yourName));
+      flash('ok', 'Copied. Paste it into an email.');
+    } catch (e) {
+      flash('error', `Couldn't copy: ${e.message}`);
+    }
+  }
+
+  async function createCommittee() {
+    try {
+      const keep = document.getElementById('save-snap').checked;
+      const { blob, snapshot } = reports.committeeDoc(state.tracker, TODAY, state.lastSnapshot);
+      const path = await folder.saveReport(state.conn, `APP update - generated sections - ${TODAY}.docx`, await blob, { committee: true });
+      let snapText = '';
+      if (keep) {
+        await folder.saveSnapshot(state.conn.projects, snapshot);
+        state.lastSnapshot = snapshot;
+        snapText = ' A snapshot was saved as the baseline for next time.';
+      }
+      flash('ok', `Saved to ${path}.${snapText}`);
+    } catch (e) {
+      flash('error', `Couldn't create the committee update: ${e.message}`);
+    }
+  }
+
+  // ---------- timeline spreadsheet ----------
+
+  const KIND = { status: ['Status', 'warn'], dates: ['Dates', 'map'], meeting: ['From a meeting', 'map'], note: ['Note', ''], row: ['Row', 'risk'] };
+
+  function renderTimelineTab() {
+    const files = state.timelineFiles || [];
+    const tl = state.timeline;
+    let results = '';
+    if (tl) {
+      let list = tl.result.results;
+      if (state.strand !== 'all') list = list.filter((r) => r.iv.strand === Number(state.strand));
+      results = `<p>${tl.result.results.length} intervention${tl.result.results.length === 1 ? '' : 's'} with likely changes, checked against <strong>${esc(tl.file)}</strong>.
+          <button id="save-timeline-list" class="quiet">Save as a Word checklist</button></p>
+        ${list.map((r) => `<section class="panel tight" data-id="${esc(r.iv.id)}"><h3><span class="id">${esc(r.iv.id)}</span> ${esc(r.iv.name)}</h3>
+          <ul class="tl">${r.items.map((it) => `<li><span class="chip ${KIND[it.kind][1]}">${KIND[it.kind][0]}</span> ${esc(it.text)}</li>`).join('')}</ul></section>`).join('') || '<p class="muted">No changes suggested for this strand.</p>'}
+        ${tl.result.extra.length ? `<p class="small">In the spreadsheet but not the tool: ${tl.result.extra.join(', ')}</p>` : ''}`;
+    }
+    return `<div class="bar">${state.tracker ? strandTabs() : ''}</div>
+      <h2>Timeline spreadsheet</h2>
+      <p class="muted">Checks the APP timeline and status spreadsheet against the tool: live statuses, the dates in each project template, deliverables that fall outside the timeline, and timing changes raised in meetings. Update the spreadsheet by hand from this list.</p>
+      ${files.length ? `<p>Found <strong>${esc(files[0].path)}</strong>, last saved ${new Date(files[0].lastModified).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}.${files.length > 1 ? ` <span class="muted small">Also found: ${files.slice(1).map((f) => esc(f.path)).join(', ')}</span>` : ''}</p>
+        ${state.tracker ? '<button id="check-timeline" class="primary">Check for changes needed</button>' : ''}`
+        : '<p class="hot">No spreadsheet with "timeline" in its name was found in APP Projects or APP Framework.</p>'}
+      ${results}
+      <hr>
+      ${renderImportTab()}`;
+  }
+
+  async function checkTimeline() {
+    try {
+      const f = state.timelineFiles[0];
+      const parsed = await trackerImport.parseTracker(await (await f.handle.getFile()).arrayBuffer());
+      state.timeline = { file: f.path, result: timelineCheck.checkTimeline(state.tracker, parsed) };
+      state.message = null;
+      render();
+    } catch (e) {
+      flash('error', `Couldn't check the spreadsheet: ${e.message}`);
+    }
+  }
+
+  async function saveTimelineList() {
+    try {
+      const d = docx.create();
+      d.title('APP timeline and status: changes to make');
+      d.note(`Generated on ${fmtDate(TODAY)} from ${state.timeline.file}.`);
+      for (const r of state.timeline.result.results) {
+        d.h2(`${r.iv.id} ${r.iv.name}`);
+        for (const it of r.items) d.bullet([{ text: `${KIND[it.kind][0]}: `, bold: true }, it.text]);
+      }
+      const path = await folder.saveReport(state.conn, `Timeline changes - ${TODAY}.docx`, await d.toBlob());
+      flash('ok', `Saved to ${path}.`);
+    } catch (e) {
+      flash('error', `Couldn't save: ${e.message}`);
+    }
+  }
+
+  async function importFound() {
+    const f = state.timelineFiles[0];
+    const file = await f.handle.getFile();
+    await onImportFile(new File([await file.arrayBuffer()], f.name));
   }
 
   function renderImportTab() {
@@ -491,7 +735,8 @@ Status: At risk`;
     return `<h2>Import the tracker</h2>
       <p class="muted">Choose the <strong>APP timeline and status</strong> spreadsheet. The tool reads the "${trackerImport.SHEET}" sheet and saves it as <code>${folder.DATA}/${folder.TRACKER}</code> inside ${esc(folder.PROJECTS)}.
       After the first import, the tool's copy is the master and holds live status. Importing again updates names, descriptions, targets and timeline dates, and keeps the statuses recorded here.</p>
-      <label class="file"><input type="file" id="xlsx" accept=".xlsx"> <span>Choose spreadsheet</span></label>
+      ${state.timelineFiles && state.timelineFiles.length ? `<button id="import-found" class="quiet">Import from ${esc(state.timelineFiles[0].name)}</button> <span class="muted small">or</span>` : ''}
+      <label class="file"><input type="file" id="xlsx" accept=".xlsx"> <span>Choose a spreadsheet</span></label>
       ${preview}`;
   }
 
@@ -519,9 +764,9 @@ Status: At risk`;
       return;
     }
 
-    const tabs = [['strand', 'Strands'], ['meeting', 'Meeting update'], ['updates', 'Template changes'], ['audit', 'Template audit'], ['import', 'Import tracker']];
+    const tabs = [['progress', 'Progress'], ['strand', 'Interventions'], ['meeting', 'Meeting update'], ['audit', 'Theory of Change audit'], ['timeline', 'Timeline spreadsheet']];
     $('#tabs').innerHTML = tabs.map(([k, l]) => `<button role="tab" aria-selected="${state.tab === k}" data-tab="${k}">${l}</button>`).join('');
-    const views = { audit: renderAuditTab, import: renderImportTab, meeting: renderMeetingTab, updates: renderUpdatesTab };
+    const views = { progress: renderProgressTab, audit: renderAuditTab, timeline: renderTimelineTab, meeting: renderMeetingTab };
     const body = (views[state.tab] || renderStrandTab)();
     main.innerHTML = msg + body;
   }
@@ -535,6 +780,12 @@ Status: At risk`;
     else if (t.id === 'reconnect') reconnect();
     else if (t.id === 'save-import') saveImport();
     else if (t.id === 'run-audit') runAudit();
+    else if (t.id === 'save-summary') saveSummary();
+    else if (t.id === 'copy-summary') copySummary();
+    else if (t.id === 'create-committee') createCommittee();
+    else if (t.id === 'check-timeline') checkTimeline();
+    else if (t.id === 'save-timeline-list') saveTimelineList();
+    else if (t.id === 'import-found') importFound();
     else if (t.id === 'preview-update') previewUpdate();
     else if (t.id === 'save-update') saveUpdate();
     else if (t.dataset.add) addEntry(t.dataset.add);
@@ -546,6 +797,11 @@ Status: At risk`;
     if (e.target.id === 'xlsx' && e.target.files[0]) onImportFile(e.target.files[0]);
     if (e.target.id === 'nonbau') { state.nonBauOnly = e.target.checked; render(); }
     if (e.target.id === 'showdone') { state.showDone = e.target.checked; render(); }
+    if (e.target.id === 'your-name') {
+      state.yourName = e.target.value.trim();
+      state.tracker.settings = { ...(state.tracker.settings || {}), yourName: state.yourName };
+      persist();
+    }
     if (e.target.id === 'update-file' && e.target.files[0]) {
       e.target.files[0].text().then((txt) => { state.meetingText = txt; previewUpdate(); });
     }
