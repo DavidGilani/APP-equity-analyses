@@ -1,0 +1,661 @@
+# =============================================================================
+# OfS individualised student data: continuation analysis
+#
+# Purpose
+#   1. Import the OfS individualised file (IND_2026_1_Core_10004351 - Tableau.xlsx)
+#   2. Filter to the continuation population used in the access and participation
+#      (APP) dashboard: full-time, first degree, UK-domiciled undergraduates
+#   3. Rebuild continuation rates by year and by entry qualification group, so the
+#      figures can be checked against the published OfS dashboard
+#   4. Fit logistic regression models of continuation on student characteristics
+#
+# Source for all filter rules:
+#   OfS, "Rebuilding student outcome and experience measures used in OfS
+#   regulation" (May 2026). Table 3 (populations), Table 4 (years), Table 9
+#   (continuation steps) and Annex B Table B1 (characteristics).
+# =============================================================================
+
+# ---- 0. Packages -------------------------------------------------------------
+# install.packages(c("readxl", "dplyr", "tidyr", "broom", "purrr",
+#                    "forcats", "readr", "writexl"))
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(broom)
+library(purrr)
+library(forcats)
+library(readr)
+
+# Tidy the column names: lower case, spaces and punctuation to underscores.
+# "Course title V2" -> course_title_v2, "FacultyV4" -> facultyv4,
+# "Collab - Partner Name" -> collab_partner_name
+clean_names <- function(df) {
+  nm <- tolower(names(df))
+  nm <- gsub("[^a-z0-9]+", "_", nm)
+  nm <- gsub("^_|_$", "", nm)
+  names(df) <- nm
+  df
+}
+
+# ---- 1. Import ----------------------------------------------------------------
+# readxl imports .xlsx directly, so there is no need to convert to CSV first.
+# Two things to be aware of:
+#   a. Excel caps a sheet at 1,048,576 rows. The OfS file is one row per student
+#      per CAH3 subject, so if the original CSV was longer than that, rows were
+#      lost when it was saved as .xlsx. Check the row count against the CSV.
+#   b. readxl guesses column types from the first rows. guess_max = 1100000 makes it
+#      look at every row, which avoids codes like "E1" being read as numbers
+#      and then turned into NA. It is slower but safer.
+# If the import takes more than a few minutes, saving the sheet as CSV and using
+# readr::read_csv() will be quicker. The rest of the script is unchanged.
+
+data_dir  <- "C:/Users/David278/OneDrive - Middlesex University/APP Framework/Data/Indivisualised data for regression"
+data_file <- file.path(data_dir, "IND_2026_1_Core_10004351 - Tableau.xlsx")
+
+# excel_sheets(data_file)   # run this first if unsure which sheet holds the data
+
+raw <- read_excel(data_file, sheet = 1, guess_max = 1100000) %>%
+  clean_names()
+
+cat("Rows imported:", nrow(raw), "\n")
+cat("Columns:", ncol(raw), "\n")
+
+# Force the coded fields to character so that filters compare like with like.
+# Numeric codes (0/1 flags, entry qualification codes) are kept numeric.
+raw <- raw %>%
+  mutate(
+    across(c(level_aggregate_1, linked_engagement_starting_mode,
+             continuation_outcome_after_1_year, broad_student_ethnicity,
+             home_imd_quintile_by_nation, engagement_starting_age_group,
+             is_reported_disabled, reported_disability_type, student_domicile),
+           as.character),
+    across(c(app_exclusion_reason, entrant_exclusion, broad_entry_qualifications,
+             student_sex, base_academic_year, subject_weighting,
+             linked_engagement_has_foundation_year, registering_ukprn),
+           as.numeric)
+  )
+
+# Quick look at the values in the key filter columns before filtering.
+raw %>% count(level_aggregate_1, sort = TRUE) %>% print()
+raw %>% count(linked_engagement_starting_mode) %>% print()
+raw %>% count(continuation_outcome_after_1_year) %>% print()
+raw %>% count(base_academic_year) %>% print()
+raw %>% count(app_exclusion_reason) %>% print()
+raw %>% count(entrant_exclusion) %>% print()
+
+# ---- 2. Filter to the APP continuation population -----------------------------
+# Steps follow Table 9 of the rebuild guidance, with the population choices
+# from the colleague's Tableau filters (screenshot):
+#   Level Aggregate 1 = DEG            first degree            (Table 3)
+#   Linked Engagement Starting Mode = FT  full-time            (Table 3)
+#   App Exclusion Reason = 0           UK-domiciled UG in scope for APP
+#   Entrant Exclusion = 0              counted as an entrant   (Table 9, step 6)
+#   continuation_outcome_after_1_year != TRANSFER               (Table 9, step 6)
+#
+# The APP dashboard uses the "registered" view of the provider, so records are
+# also restricted to registering_ukprn = 10004351 (Middlesex). If the file only
+# contains Middlesex-registered students this filter changes nothing.
+
+mdx_ukprn <- 10004351
+
+cont_pop <- raw %>%
+  filter(
+    registering_ukprn == mdx_ukprn,
+    app_exclusion_reason == 0,
+    level_aggregate_1 == "DEG",
+    linked_engagement_starting_mode == "FT",
+    entrant_exclusion == 0,
+    continuation_outcome_after_1_year != "TRANSFER"
+  ) %>%
+  mutate(
+    # Numerator per Table 9, step 7
+    continued = continuation_outcome_after_1_year %in%
+      c("QUALIFIED", "CONTINUING", "TRANSFER_COLLAB", "QUALIFIED_PGRDORM"),
+
+    # Entry qualification labels from Annex B, Table B1
+    entry_qual_label = case_when(
+      broad_entry_qualifications == 1  ~ "A-levels (AAA or higher)",
+      broad_entry_qualifications == 2  ~ "A-levels (ABB or higher)",
+      broad_entry_qualifications == 3  ~ "A-levels (BCC or higher) or IB",
+      broad_entry_qualifications == 4  ~ "A-levels (CDD or higher)",
+      broad_entry_qualifications == 5  ~ "A-levels (DDD or lower), other L3 at 105+ tariff, or 2 A-levels and 1 BTEC",
+      broad_entry_qualifications == 6  ~ "HE level qualifications on entry",
+      broad_entry_qualifications == 7  ~ "BTECs (at least DDM), or 1 A-level and 2 BTECs",
+      broad_entry_qualifications == 8  ~ "BTECs (lower than DDM)",
+      broad_entry_qualifications == 9  ~ "Other quals reported by non-UK domiciled",
+      broad_entry_qualifications == 10 ~ "Access and foundation courses, or other L3 at 65+ tariff",
+      broad_entry_qualifications == 11 ~ "None, unknown or other",
+      TRUE ~ "Not coded"
+    ),
+
+    # Three-way grouping for the BTEC / A-level / other comparison. This matches
+    # the grouping in the "BTEC analyses" workbook: A-level is codes 1 to 4 only.
+    # Code 5 (DDD or lower, other Level 3 at 105+ tariff, or 2 A-levels and
+    # 1 BTEC) sits in Other, along with HE-level, access and unknown.
+    entry_qual_group = case_when(
+      broad_entry_qualifications %in% 1:4  ~ "A-level",
+      broad_entry_qualifications %in% 7:8  ~ "BTEC",
+      TRUE ~ "Other"
+    ),
+
+    # Which years are in the published six-year APP series (Table 4, FT)
+    in_app_series = base_academic_year %in% 2018:2023
+  )
+
+cat("\nRows in continuation population:", nrow(cont_pop), "\n")
+cat("Weighted headcount:", round(sum(cont_pop$subject_weighting), 1), "\n")
+
+# ---- 3. Rebuild continuation rates -------------------------------------------
+# Headcounts are the sum of subject_weighting, never a count of rows
+# (paragraphs 33 and 34 of the guidance).
+
+continuation_rate <- function(df, ...) {
+  df %>%
+    group_by(...) %>%
+    summarise(
+      denominator = sum(subject_weighting),
+      numerator   = sum(subject_weighting[continued]),
+      .groups = "drop"
+    ) %>%
+    mutate(continuation_pct = round(100 * numerator / denominator, 1))
+}
+
+# 3a. Overall by year. Compare against the dashboard time series first.
+overall_by_year <- continuation_rate(cont_pop, base_academic_year, in_app_series)
+print(overall_by_year)
+
+# 3b. Three-way entry qualification group by year (wide for easy comparison)
+group_by_year <- continuation_rate(cont_pop, base_academic_year, entry_qual_group)
+print(group_by_year)
+
+group_by_year_wide <- group_by_year %>%
+  select(base_academic_year, entry_qual_group, continuation_pct) %>%
+  pivot_wider(names_from = entry_qual_group, values_from = continuation_pct)
+print(group_by_year_wide)
+
+# 3c. Full 11-category breakdown by year. This matches the dashboard split
+#     directly, so it is the best check that the filters are right.
+detail_by_year <- continuation_rate(cont_pop, base_academic_year,
+                                    broad_entry_qualifications, entry_qual_label)
+print(detail_by_year, n = Inf)
+
+# 3d. Four-year aggregate (2020 to 2023), as reported on the dashboard
+four_year_agg <- cont_pop %>%
+  filter(base_academic_year %in% 2020:2023) %>%
+  continuation_rate(broad_entry_qualifications, entry_qual_label)
+print(four_year_agg, n = Inf)
+
+# Write the checks out
+out_dir <- file.path(data_dir, "outputs")
+dir.create(out_dir, showWarnings = FALSE)
+write_csv(overall_by_year,     file.path(out_dir, "continuation_overall_by_year.csv"))
+write_csv(group_by_year,       file.path(out_dir, "continuation_by_entry_qual_group.csv"))
+write_csv(detail_by_year,      file.path(out_dir, "continuation_by_entry_qual_detail.csv"))
+write_csv(four_year_agg,       file.path(out_dir, "continuation_entry_qual_4yr_agg.csv"))
+
+# =============================================================================
+# STOP HERE until the figures above match the OfS dashboard.
+# If they do not, the usual causes are:
+#   - the file holds the "taught or registered" view rather than "registered"
+#   - subject_weighting has been read as text (check class(raw$subject_weighting))
+#   - rows were truncated at Excel's row limit
+# =============================================================================
+
+# ---- 4. Comparison tables in the layout of the BTEC analyses workbook ---------
+# Reproduces the "Continuation" tab: one column per entry year, and for each
+# group the continuation %, non-continuation %, continuing headcount and
+# non-continuing headcount, with a Gap row (top group minus BTEC).
+#   Block 1: A-level vs BTEC, with a Grand Total of those two groups only
+#   Block 2: BTEC vs Non-BTEC, with a Grand Total of everyone
+# Both blocks are written to one xlsx file and to CSV.
+
+# Recompute the grouping here so this section works on a cont_pop built with
+# an earlier version of section 2.
+cont_pop <- cont_pop %>%
+  mutate(entry_qual_group = case_when(
+    broad_entry_qualifications %in% 1:4 ~ "A-level",
+    broad_entry_qualifications %in% 7:8 ~ "BTEC",
+    TRUE ~ "Other"))
+
+workbook_years <- 2016:2023   # 2016/17 to 2023/24, as in the workbook
+
+comparison_block <- function(df, group_var, group_levels, total_label = "Grand Total") {
+  df <- df %>%
+    filter(base_academic_year %in% workbook_years) %>%
+    mutate(grp = .data[[group_var]]) %>%
+    filter(grp %in% group_levels)
+
+  by_group <- df %>%
+    group_by(grp, base_academic_year) %>%
+    summarise(continuing = sum(subject_weighting[continued]),
+              non_continuing = sum(subject_weighting[!continued]),
+              .groups = "drop")
+
+  total <- df %>%
+    group_by(base_academic_year) %>%
+    summarise(continuing = sum(subject_weighting[continued]),
+              non_continuing = sum(subject_weighting[!continued]),
+              .groups = "drop") %>%
+    mutate(grp = total_label)
+
+  long <- bind_rows(by_group, total) %>%
+    mutate(continuation_pct = 100 * continuing / (continuing + non_continuing),
+           non_continuation_pct = 100 - continuation_pct,
+           year_label = paste0(base_academic_year, "/",
+                               substr(base_academic_year + 1, 3, 4))) %>%
+    select(grp, year_label, continuation_pct, non_continuation_pct,
+           continuing, non_continuing) %>%
+    pivot_longer(c(continuation_pct, non_continuation_pct, continuing, non_continuing),
+                 names_to = "measure", values_to = "value") %>%
+    mutate(measure = factor(measure, levels = c("continuation_pct", "non_continuation_pct",
+                                                "continuing", "non_continuing"),
+                            labels = c("Continuation %", "Non-continuation %",
+                                       "Continuing (headcount)",
+                                       "Non-continuing (headcount)")),
+           grp = factor(grp, levels = c(group_levels, total_label)),
+           value = round(value, 1))
+
+  wide <- long %>%
+    arrange(grp, measure) %>%
+    pivot_wider(names_from = year_label, values_from = value)
+
+  # Gap row: first group minus BTEC, in percentage points
+  gap <- wide %>%
+    filter(measure == "Continuation %", grp %in% c(group_levels[1], "BTEC")) %>%
+    summarise(across(-c(grp, measure),
+                     ~ round(.x[grp == group_levels[1]] - .x[grp == "BTEC"], 1))) %>%
+    mutate(grp = "Gap", measure = paste(group_levels[1], "minus BTEC (pp)"), .before = 1)
+
+  bind_rows(wide %>% mutate(grp = as.character(grp), measure = as.character(measure)),
+            gap) %>%
+    rename(group = grp)
+}
+
+block1_alevel_vs_btec <- comparison_block(cont_pop, "entry_qual_group",
+                                          c("A-level", "BTEC"))
+
+block2_btec_vs_nonbtec <- cont_pop %>%
+  mutate(btec_flag = if_else(entry_qual_group == "BTEC", "BTEC", "Non-BTEC")) %>%
+  comparison_block("btec_flag", c("Non-BTEC", "BTEC"))
+
+# Three-way view as well, since the regression uses these three groups
+block3_three_way <- comparison_block(cont_pop, "entry_qual_group",
+                                     c("A-level", "BTEC", "Other"))
+
+cat("\nBlock 1: A-level vs BTEC\n");   print(block1_alevel_vs_btec, n = Inf, width = Inf)
+cat("\nBlock 2: BTEC vs Non-BTEC\n");  print(block2_btec_vs_nonbtec, n = Inf, width = Inf)
+cat("\nBlock 3: three-way\n");         print(block3_three_way, n = Inf, width = Inf)
+
+out_dir <- file.path(data_dir, "outputs")
+dir.create(out_dir, showWarnings = FALSE)
+write_csv(block1_alevel_vs_btec,  file.path(out_dir, "check_continuation_alevel_vs_btec.csv"))
+write_csv(block2_btec_vs_nonbtec, file.path(out_dir, "check_continuation_btec_vs_nonbtec.csv"))
+write_csv(block3_three_way,       file.path(out_dir, "check_continuation_three_way.csv"))
+if (requireNamespace("writexl", quietly = TRUE)) {
+  writexl::write_xlsx(
+    list("A-level vs BTEC"  = block1_alevel_vs_btec,
+         "BTEC vs Non-BTEC" = block2_btec_vs_nonbtec,
+         "Three-way"        = block3_three_way),
+    file.path(out_dir, "check_continuation_vs_workbook.xlsx"))
+}
+
+# ---- 5. Prepare a student-level dataset for regression ------------------------
+# The file is one row per student per CAH3 subject. For a logistic regression
+# each student should appear once, so keep the row with the largest
+# subject_weighting for each student-entry (their main subject). The outcome and
+# all student characteristics are identical across a student's rows, so nothing
+# is lost except the minor subject codes.
+
+# The student key is husid (HESA) with learnrefnumber (ILR) as the fallback,
+# since husid is blank for ILR-returned students. record_id is NOT a student
+# identifier: it is unique per row, so using it would keep every subject row
+# as a separate student.
+reg_data <- cont_pop %>%
+  mutate(student_key = paste(
+    base_academic_year,
+    coalesce(as.character(husid), as.character(learnrefnumber),
+             as.character(sid), "NOID"),
+    numhus, sep = "_")) %>%
+  group_by(student_key) %>%
+  slice_max(subject_weighting, n = 1, with_ties = FALSE) %>%
+  ungroup() %>%
+  mutate(
+    continued = as.integer(continued),
+    year = factor(base_academic_year),
+
+    entry_qual_group = fct_relevel(factor(entry_qual_group), "A-level"),
+
+    sex = case_when(student_sex == 2 ~ "Female",
+                    student_sex == 1 ~ "Male",
+                    TRUE ~ "Unknown") %>% factor() %>% fct_relevel("Female"),
+
+    # Annex B age bands for undergraduates
+    age_group = case_when(
+      engagement_starting_age_group == "U21" ~ "Under 21",
+      engagement_starting_age_group %in% c("21_25", "26_30") ~ "21 to 30",
+      engagement_starting_age_group %in% c("31_40", "41_50", "51+") ~ "31 and over",
+      TRUE ~ "Unknown") %>% factor() %>% fct_relevel("Under 21"),
+
+    ethnicity = case_when(
+      broad_student_ethnicity == "W" ~ "White",
+      broad_student_ethnicity == "A" ~ "Asian",
+      broad_student_ethnicity == "B" ~ "Black",
+      broad_student_ethnicity == "M" ~ "Mixed",
+      broad_student_ethnicity == "O" ~ "Other",
+      TRUE ~ "Unknown") %>% factor() %>% fct_relevel("White"),
+
+    # IMD quintile: E1 is most deprived. Restricted to English domicile so the
+    # quintiles are on one scale.
+    imd_quintile = case_when(
+      student_domicile == "E" & home_imd_quintile_by_nation %in% paste0("E", 1:5) ~
+        home_imd_quintile_by_nation,
+      TRUE ~ "Unknown") %>% factor() %>% fct_relevel("E5"),
+
+    disabled = case_when(is_reported_disabled == "Y" ~ "Disability reported",
+                         is_reported_disabled == "N" ~ "No disability reported",
+                         TRUE ~ "Unknown") %>% factor() %>%
+      fct_relevel("No disability reported"),
+
+    foundation_year = if_else(linked_engagement_has_foundation_year == 1,
+                              "Foundation year", "No foundation year") %>%
+      factor() %>% fct_relevel("No foundation year"),
+
+    # Fold the small collaborative partner categories into one level
+    faculty = case_when(
+      grepl("^Collab", facultyv4) ~ "Collaborative partner",
+      TRUE ~ facultyv4) %>% factor()
+  )
+
+cat("\nStudents in regression dataset:", nrow(reg_data), "\n")
+cat("Weighted headcount in cont_pop:", round(sum(cont_pop$subject_weighting)), "\n")
+if (abs(nrow(reg_data) - sum(cont_pop$subject_weighting)) > 0.02 * nrow(reg_data)) {
+  warning("Student count differs from weighted headcount by more than 2%. ",
+          "Check that the student key is unique per student.")
+}
+
+# Check the reference categories and cell sizes before modelling
+reg_data %>% count(entry_qual_group) %>% print()
+reg_data %>% count(age_group) %>% print()
+reg_data %>% count(ethnicity) %>% print()
+reg_data %>% count(imd_quintile) %>% print()
+reg_data %>% count(faculty) %>% print()
+
+# ---- 6. Regression models ------------------------------------------------------
+# Model 1: entry qualification only, with year controls.
+m1 <- glm(continued ~ entry_qual_group + year,
+          data = reg_data, family = binomial)
+
+# Model 2: full set of student characteristics plus faculty and year.
+m2 <- glm(continued ~ entry_qual_group + sex + age_group + ethnicity +
+            imd_quintile + disabled + foundation_year + faculty + year,
+          data = reg_data, family = binomial)
+
+# Odds ratios with 95% Wald confidence intervals. tidy(conf.int = TRUE) would
+# use profile likelihood intervals, which take minutes on a sample this size
+# and give the same answer to two decimal places.
+tidy_or <- function(model) {
+  tidy(model) %>%
+    mutate(odds_ratio = round(exp(estimate), 3),
+           conf.low   = round(exp(estimate - 1.96 * std.error), 3),
+           conf.high  = round(exp(estimate + 1.96 * std.error), 3),
+           p.value    = signif(p.value, 3)) %>%
+    select(term, odds_ratio, conf.low, conf.high, p.value)
+}
+
+print(tidy_or(m1), n = Inf)
+print(tidy_or(m2), n = Inf)
+glance(m1); glance(m2)
+anova(m1, m2, test = "Chisq")   # does adding characteristics improve fit?
+
+# Model 3: does the entry qualification gap change over time?
+m3 <- update(m2, . ~ . + entry_qual_group:year)
+anova(m2, m3, test = "Chisq")
+
+# Model 4: one model per year, so drivers can be compared year on year
+by_year_models <- reg_data %>%
+  group_split(year) %>%
+  set_names(map_chr(., ~ as.character(first(.x$year)))) %>%
+  map(~ glm(continued ~ entry_qual_group + sex + age_group + ethnicity +
+              imd_quintile + disabled + foundation_year + faculty,
+            data = .x, family = binomial))
+
+by_year_or <- imap_dfr(by_year_models, ~ tidy_or(.x) %>% mutate(year = .y, .before = 1))
+print(by_year_or %>% filter(grepl("entry_qual_group", term)), n = Inf)
+
+write_csv(tidy_or(m1),  file.path(out_dir, "model1_entry_qual_odds_ratios.csv"))
+write_csv(tidy_or(m2),  file.path(out_dir, "model2_full_odds_ratios.csv"))
+write_csv(by_year_or,   file.path(out_dir, "models_by_year_odds_ratios.csv"))
+
+# ---- 7. Notes for interpretation ----------------------------------------------
+# - Odds ratios above 1 mean higher odds of continuing than the reference group
+#   (A-level entrants, female, under 21, White, IMD quintile 5, no disability,
+#   no foundation year), holding the other variables constant.
+# - Cells with very few students give wide confidence intervals. Collapse or
+#   drop levels if a category has fewer than about 30 students.
+# - Unknown categories are kept in the model rather than dropped, so that the
+#   sample stays the same as the dashboard population. Remove them from the
+#   formula if the coefficients are not of interest.
+
+# ---- 8. Extended regression: what drives continuation? ------------------------
+# Entrants 2020/21 to 2023/24 only (the OfS four-year aggregate window).
+# Two models:
+#   Model A  student characteristics only
+#   Model B  Model A plus university structure: department, foundation year,
+#            course length, sandwich year, distance learning
+# Comparing the two shows how much of each characteristic's effect runs
+# through where and what students study, rather than who they are.
+#
+# For each model: variable importance (drop-one likelihood ratio test), odds
+# ratios, average marginal effects in percentage points if the
+# marginaleffects package is installed, and fit statistics. Model B is also
+# refitted within each entry year to see whether the drivers change.
+#
+# Variables NOT used, and why:
+#   abcs_continuation_quintile   OfS builds it from these same characteristics
+#                                as a predicted continuation risk, so it would
+#                                double count. It is kept as a benchmark model.
+#   degree_class, progression_*  outcomes that happen after continuation
+#   interim_study_mode, geography_of_employment_quintile   post-entry
+#   sexual_orientation           mostly unknown
+
+analysis_years <- 2020:2023
+min_cell       <- 30      # department levels smaller than this fold into "Other"
+
+fold_small <- function(x, min_n = min_cell, other = "Other (small groups)") {
+  x <- as.character(x)
+  tab <- table(x)
+  x[x %in% names(tab)[tab < min_n]] <- other
+  x
+}
+
+reg_data8 <- reg_data %>%
+  filter(base_academic_year %in% analysis_years) %>%
+  mutate(
+    year = droplevels(year),
+
+    entry_qual_detail = factor(entry_qual_label) %>%
+      fct_relevel("A-levels (BCC or higher) or IB"),
+
+    # IMD: quintiles 1 and 2 (most deprived 40% of areas) against 3 to 5
+    imd2 = case_when(
+      student_domicile == "E" & home_imd_quintile_by_nation %in% c("E1", "E2") ~ "IMD Q1-2 (most deprived)",
+      student_domicile == "E" & home_imd_quintile_by_nation %in% c("E3", "E4", "E5") ~ "IMD Q3-5",
+      TRUE ~ "Unknown or not England") %>% factor() %>% fct_relevel("IMD Q3-5"),
+
+    disability_type = case_when(
+      is_reported_disabled == "N"        ~ "No disability reported",
+      reported_disability_type == "COG"  ~ "Cognitive or learning",
+      reported_disability_type == "MH"   ~ "Mental health",
+      reported_disability_type == "MULTI"~ "Multiple",
+      reported_disability_type == "PHY"  ~ "Physical or sensory",
+      reported_disability_type == "SOC"  ~ "Social or communication",
+      is_reported_disabled == "Y"        ~ "Disability, type unknown",
+      TRUE ~ "Unknown") %>% factor() %>% fct_relevel("No disability reported"),
+
+    fsm = case_when(
+      in_free_school_meal_population == 1 & had_free_school_meals == 1 ~ "Eligible for FSM",
+      in_free_school_meal_population == 1 & had_free_school_meals == 0 ~ "Not eligible for FSM",
+      TRUE ~ "Not in FSM population") %>% factor() %>% fct_relevel("Not eligible for FSM"),
+
+    nssec = case_when(
+      as.character(socioeconomic_class) %in% c("01", "02", "1", "2") ~ "Higher managerial and professional",
+      as.character(socioeconomic_class) %in% c("03", "04", "3", "4") ~ "Intermediate",
+      as.character(socioeconomic_class) %in% c("05", "06", "07", "5", "6", "7") ~ "Routine and manual",
+      as.character(socioeconomic_class) %in% c("08", "8") ~ "Not classified",
+      TRUE ~ "Unknown") %>% factor() %>% fct_relevel("Higher managerial and professional"),
+
+    # POLAR4 is only defined for young entrants
+    polar4 = case_when(
+      engagement_starting_age_group == "U21" & as.character(polar4_quintile) %in% as.character(1:5) ~
+        paste0("Q", polar4_quintile),
+      engagement_starting_age_group == "U21" ~ "Young, unknown",
+      TRUE ~ "Mature, not applicable") %>% factor() %>% fct_relevel("Q5"),
+
+    department    = fold_small(department) %>% factor(),
+    course_length = factor(as.character(expected_course_length_grouped)),
+    sandwich      = if_else(as.character(is_sandwich_year) == "1", "Sandwich", "Not sandwich") %>%
+      factor() %>% fct_relevel("Not sandwich"),
+    distance      = if_else(as.character(is_distance_learner) == "1", "Distance", "Campus") %>%
+      factor() %>% fct_relevel("Campus"),
+
+    abcs = case_when(
+      as.character(abcs_continuation_quintile) %in% as.character(1:5) ~
+        paste0("ABCS Q", abcs_continuation_quintile),
+      TRUE ~ "Unknown") %>% factor() %>% fct_relevel("ABCS Q5")
+  )
+
+cat("\nStudents in 2020/21 to 2023/24 regression sample:", nrow(reg_data8), "\n")
+for (v in c("entry_qual_group", "imd2", "disability_type", "fsm", "nssec", "polar4",
+            "department", "course_length", "sandwich", "distance", "year")) {
+  cat("\n--", v, "--\n"); print(table(reg_data8[[v]], useNA = "ifany"))
+}
+
+# ---- 8a. Fit the two models ------------------------------------------------------
+student_vars   <- c("entry_qual_group", "sex", "age_group", "ethnicity", "imd2",
+                    "disability_type", "fsm", "nssec", "polar4")
+structure_vars <- c("department", "foundation_year", "course_length", "sandwich", "distance")
+
+# Drop any variable with a single level in this sample, otherwise glm errors
+usable <- function(vars, d) {
+  keep <- vars[sapply(vars, function(v) nlevels(droplevels(d[[v]])) >= 2)]
+  dropped <- setdiff(vars, keep)
+  if (length(dropped)) message("Dropped single-level variables: ", paste(dropped, collapse = ", "))
+  keep
+}
+rhs_A <- c(usable(student_vars, reg_data8), "year")
+rhs_B <- c(usable(c(student_vars, structure_vars), reg_data8), "year")
+
+model_A <- glm(reformulate(rhs_A, "continued"), data = reg_data8, family = binomial)
+model_B <- glm(reformulate(rhs_B, "continued"), data = reg_data8, family = binomial)
+model_B_detail <- update(model_B, . ~ . - entry_qual_group + entry_qual_detail)
+model_abcs <- glm(continued ~ abcs + year, data = reg_data8, family = binomial)
+
+pseudo_r2 <- function(m) round(1 - m$deviance / m$null.deviance, 4)   # McFadden
+auc <- function(m) {                                                  # rank-based AUC
+  p <- fitted(m); y <- m$y
+  r <- rank(p); n1 <- sum(y == 1); n0 <- sum(y == 0)
+  round((sum(r[y == 1]) - n1 * (n1 + 1) / 2) / (n1 * n0), 4)
+}
+fit_table <- tibble(
+  model = c("A: student characteristics", "B: A + university structure",
+            "B with 11-category entry quals", "ABCS benchmark"),
+  n     = c(nobs(model_A), nobs(model_B), nobs(model_B_detail), nobs(model_abcs)),
+  AIC   = round(c(AIC(model_A), AIC(model_B), AIC(model_B_detail), AIC(model_abcs)), 1),
+  mcfadden_r2 = c(pseudo_r2(model_A), pseudo_r2(model_B), pseudo_r2(model_B_detail), pseudo_r2(model_abcs)),
+  auc   = c(auc(model_A), auc(model_B), auc(model_B_detail), auc(model_abcs)))
+cat("\nModel fit comparison\n"); print(fit_table)
+cat("\nDoes adding university structure improve fit?\n")
+print(anova(model_A, model_B, test = "Chisq"))
+
+# ---- 8b. Variable importance and odds ratios --------------------------------------
+importance <- function(m, label) {
+  drop1(m, test = "LRT") %>%
+    as.data.frame() %>%
+    tibble::rownames_to_column("variable") %>%
+    filter(variable != "<none>") %>%
+    transmute(model = label, variable, df = Df, deviance_change = round(LRT, 1),
+              p_value = signif(`Pr(>Chi)`, 3)) %>%
+    arrange(desc(deviance_change)) %>%
+    as_tibble()
+}
+importance_A <- importance(model_A, "A")
+importance_B <- importance(model_B, "B")
+cat("\nVariable importance, model A\n"); print(importance_A, n = Inf)
+cat("\nVariable importance, model B\n"); print(importance_B, n = Inf)
+
+# Odds ratios side by side: how much does each effect change once structure
+# is controlled for?
+or_A <- tidy_or(model_A) %>% rename(or_A = odds_ratio, low_A = conf.low, high_A = conf.high, p_A = p.value)
+or_B <- tidy_or(model_B) %>% rename(or_B = odds_ratio, low_B = conf.low, high_B = conf.high, p_B = p.value)
+or_side_by_side <- full_join(or_A, or_B, by = "term")
+cat("\nOdds ratios, model A and model B\n"); print(or_side_by_side, n = Inf, width = Inf)
+
+# ---- 8c. Average marginal effects in percentage points ----------------------------
+# For each variable: the average change in the probability of continuing when
+# a student is moved from the reference level to each other level, holding
+# their other characteristics as they are.
+if (requireNamespace("marginaleffects", quietly = TRUE)) {
+  ame <- function(m, label) {
+    marginaleffects::avg_comparisons(m) %>%
+      as_tibble() %>%
+      transmute(model = label, variable = term, contrast,
+                effect_pp = round(100 * estimate, 1),
+                conf.low  = round(100 * conf.low, 1),
+                conf.high = round(100 * conf.high, 1),
+                p_value   = signif(p.value, 3))
+  }
+  ame_both <- bind_rows(ame(model_A, "A"), ame(model_B, "B"))
+  cat("\nAverage marginal effects (percentage points)\n"); print(ame_both, n = Inf)
+  write_csv(ame_both, file.path(out_dir, "model_AB_marginal_effects_pp.csv"))
+} else {
+  message("Install the 'marginaleffects' package to get effects in percentage points: ",
+          "install.packages('marginaleffects')")
+}
+
+# ---- 8d. Do the drivers change over time? -------------------------------------------
+# Model B refitted within each entry year.
+rhs_B_year <- setdiff(rhs_B, "year")
+by_year <- reg_data8 %>%
+  group_split(year) %>%
+  map(function(d) {
+    keep <- usable(rhs_B_year, d)
+    list(year = as.character(first(d$year)), n = nrow(d),
+         model = glm(reformulate(keep, "continued"), data = d, family = binomial))
+  })
+
+importance_by_year <- map_dfr(by_year, function(x)
+  importance(x$model, x$year) %>% rename(year = model) %>% mutate(n = x$n))
+importance_by_year_wide <- importance_by_year %>%
+  select(year, variable, deviance_change) %>%
+  pivot_wider(names_from = year, values_from = deviance_change) %>%
+  arrange(desc(rowSums(across(-variable), na.rm = TRUE)))
+cat("\nVariable importance by entry year, model B (deviance change)\n")
+print(importance_by_year_wide, n = Inf, width = Inf)
+
+entry_qual_by_year <- map_dfr(by_year, function(x)
+  tidy_or(x$model) %>% filter(grepl("^entry_qual_group", term)) %>%
+    mutate(year = x$year, .before = 1))
+cat("\nEntry qualification odds ratios by year, model B controls\n")
+print(entry_qual_by_year, n = Inf)
+
+# ---- 8e. Write out -------------------------------------------------------------------
+write_csv(fit_table,               file.path(out_dir, "model_AB_fit_comparison.csv"))
+write_csv(bind_rows(importance_A, importance_B),
+                                   file.path(out_dir, "model_AB_variable_importance.csv"))
+write_csv(or_side_by_side,         file.path(out_dir, "model_AB_odds_ratios.csv"))
+write_csv(tidy_or(model_B_detail), file.path(out_dir, "model_B_11cat_entry_qual_odds_ratios.csv"))
+write_csv(importance_by_year,      file.path(out_dir, "model_B_variable_importance_by_year.csv"))
+write_csv(importance_by_year_wide, file.path(out_dir, "model_B_variable_importance_by_year_wide.csv"))
+write_csv(entry_qual_by_year,      file.path(out_dir, "model_B_entry_qual_odds_ratios_by_year.csv"))
+
+# ---- 8f. Notes -----------------------------------------------------------------------
+# - Read model A as "who continues" and model B as "who continues, given what
+#   and where they study". If an effect shrinks from A to B, part of it runs
+#   through course choice. If it holds, it is there regardless of course.
+# - Age and entry qualifications overlap: mature students mostly enter through
+#   access courses. Expect wider confidence intervals for both than in section 6.
+# - FSM, POLAR4 and NS-SEC each carry a "not applicable" or "unknown" level for
+#   students outside the population they are defined on. Those levels keep the
+#   sample whole; do not interpret them as a substantive group.
+# - The ABCS model is a benchmark only. If model B beats it on AUC, the
+#   individual characteristics explain more than the OfS composite measure.
