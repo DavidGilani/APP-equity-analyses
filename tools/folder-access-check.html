@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Folder access check</title>
+<style>
+  :root { --bg:#fff; --fg:#1a1a1a; --muted:#666; --ok:#1a7f37; --bad:#c62828; --line:#ddd; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#161616; --fg:#eee; --muted:#aaa; --ok:#5cc47a; --bad:#ef6b6b; --line:#333; }
+  }
+  body { background:var(--bg); color:var(--fg); font:16px/1.5 system-ui, sans-serif; max-width:720px; margin:0 auto; padding:24px 16px; }
+  h1 { font-size:1.4rem; margin:0 0 8px; }
+  p { color:var(--muted); }
+  button { font:inherit; padding:8px 16px; border-radius:6px; border:1px solid var(--line); background:var(--fg); color:var(--bg); cursor:pointer; }
+  button:disabled { opacity:.4; cursor:default; }
+  ol { padding-left:20px; }
+  li { margin:6px 0; }
+  .ok { color:var(--ok); } .bad { color:var(--bad); }
+  pre { background:transparent; border:1px solid var(--line); border-radius:6px; padding:10px; white-space:pre-wrap; font-size:.9rem; }
+</style>
+</head>
+<body>
+<h1>Folder access check</h1>
+<p>This page checks whether Chrome can read and write files in your OneDrive-synced folder when the page is opened by double-clicking it.
+It writes one small test file, reads it back, then deletes it. Nothing leaves your laptop.</p>
+
+<button id="go">Choose the synced folder and run the check</button>
+
+<ol id="steps"></ol>
+<pre id="files" hidden></pre>
+
+<script>
+const steps = document.getElementById('steps');
+const filesBox = document.getElementById('files');
+const TEST_NAME = 'folder-access-check.tmp.json';
+
+function step(text, ok, detail) {
+  const li = document.createElement('li');
+  li.innerHTML = `<span class="${ok ? 'ok' : 'bad'}">${ok ? 'Pass' : 'Fail'}</span>: ${text}` +
+    (detail ? ` <br><small>${detail}</small>` : '');
+  steps.appendChild(li);
+  return ok;
+}
+
+document.getElementById('go').addEventListener('click', async () => {
+  steps.innerHTML = '';
+  filesBox.hidden = true;
+
+  if (!step('Browser supports folder access', 'showDirectoryPicker' in window,
+      'showDirectoryPicker' in window ? '' : 'Try Chrome or Edge. If you are already in one, this feature may be switched off by IT policy.')) return;
+
+  let dir;
+  try {
+    dir = await window.showDirectoryPicker({ mode: 'readwrite' });
+    step(`Folder chosen: "${dir.name}"`, true);
+  } catch (e) {
+    step('Folder chosen', false, e.message);
+    return;
+  }
+
+  try {
+    const names = [];
+    for await (const [name, handle] of dir.entries()) {
+      names.push((handle.kind === 'directory' ? '[folder] ' : '') + name);
+    }
+    names.sort();
+    step(`Folder can be read (${names.length} items)`, true,
+      'The list below is shown on this page only, so you can check it is the right folder.');
+    filesBox.textContent = names.join('\n') || '(empty folder)';
+    filesBox.hidden = false;
+  } catch (e) {
+    step('Folder can be read', false, e.message);
+    return;
+  }
+
+  const stamp = new Date().toISOString();
+  try {
+    const fh = await dir.getFileHandle(TEST_NAME, { create: true });
+    const w = await fh.createWritable();
+    await w.write(JSON.stringify({ check: 'ok', written: stamp }));
+    await w.close();
+    step('Test file written', true);
+  } catch (e) {
+    step('Test file written', false, e.message);
+    return;
+  }
+
+  try {
+    const fh = await dir.getFileHandle(TEST_NAME);
+    const text = await (await fh.getFile()).text();
+    step('Test file read back and matches', JSON.parse(text).written === stamp);
+  } catch (e) {
+    step('Test file read back', false, e.message);
+  }
+
+  try {
+    await dir.removeEntry(TEST_NAME);
+    step('Test file removed', true);
+  } catch (e) {
+    step('Test file removed', false, `${e.message}. You can delete ${TEST_NAME} by hand.`);
+  }
+});
+</script>
+</body>
+</html>
