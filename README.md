@@ -3,6 +3,14 @@
 Tools for comparing a group of students against the whole student population, to
 support Access and Participation Plan (APP) equity work.
 
+## APP tracking and reporting tool (in scoping)
+
+A local, in-boundary tool for tracking APP intervention delivery and
+semi-automating the ESE committee report. See
+[`docs/app-tracker/scoping-brief.md`](docs/app-tracker/scoping-brief.md). As with
+the dashboard below, this repository holds code only: no tracker data, notes,
+transcripts or snapshots are committed here.
+
 ## Student cohort comparison dashboard
 
 A single-page tool that compares a group of students against the whole student
