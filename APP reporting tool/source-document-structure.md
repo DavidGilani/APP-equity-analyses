@@ -81,11 +81,22 @@ Free text, each with guidance prompts: research questions; outcome measures; eva
 
 This has seven section tables, each a heading row over an empty two-column body: introduction and summaries; intervention details; theory of change details; evaluation details; results: quantitative; results: qualitative; reflections and recommendations. It is out of scope for the demo.
 
+## 4. The synced `APP Projects` folder
+
+The in-boundary folder the tool works against. Top level:
+
+- Reference files: TASO theory of change templates, the project management manual, `Mapping APP interventions to targets.docx`.
+- `APP project template.docx` (the blank template) and `APP template - Fund projects.docx`.
+- `APP Programme Implementation - June 2026.docx`.
+- One subfolder per strand: `Strand 1 - Access`, `Strand 2 - Transitions`, `Strand 3 - Studies`, `Strand 4 - Wellbeing`, `Strand 5 - Assessment`, `Strand 6 - Future success`, `Strand 7 - Infrastructure`.
+
+Completed project templates sit in the strand subfolders.
+
 ## Mismatches to resolve
 
 The tracker and the project template don't use the same vocabularies. The tool needs one mapping for each of these.
 
 1. **Project status.** The tracker uses BAU / On Track / To be mapped. The template uses On track / At risk / Ahead of schedule / Behind schedule. The committee report counts use a fourth set: BAU / On track / To be mapped / Behind schedule or at risk.
 2. **Stage.** The tracker Gantt uses Planning / Implementation / Evaluation / BAU. The template uses an eight-step scale, Stage 1 to Stage 8. Both are useful, since the Gantt gives the planned stage by date and the eight steps give finer detail on where a project is now.
-3. **Strand 3 name.** It is "Studies" in the tracker and "First year" in the template dropdown.
+3. **Strand names.** Strand 3 is "Studies" in the tracker and folder but "First year" in the template dropdown. Strand 5 is "Assessing" in the tracker and template but "Assessment" in the folder. Strand 6 is "Futures" in the tracker and template but "Future success" in the folder. The tool will match on strand number only.
 4. **Dates in two places.** The Gantt already holds stage dates, and so does the template's timeframes table. Under the one-writer rule, the template owns them. The Gantt dates can seed the skeleton templates.

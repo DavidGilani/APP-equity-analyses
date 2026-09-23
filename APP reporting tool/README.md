@@ -16,4 +16,5 @@ This folder holds code and documentation only. Tracker data, notes, transcripts,
 - **Master data:** JSON in the synced folder. The Excel tracker is imported once, then becomes an export.
 - **Phone view:** a `latest-summary.pdf` saved into the synced folder, opened in the OneDrive app. Nothing is published to GitHub Pages, because the view would need the data behind it.
 - **Committee report:** built as a Word file in the browser on the laptop, not by a cloud routine, so the data stays in the MDX boundary.
-- **Template audit:** the tool reads the synced templates folder and matches file names that start with the intervention number (for example `APP6.3 ...docx`) against the tracker.
+- **Folder access confirmed:** the folder check passed every step in Chrome against the synced `APP Projects` folder (read, write, read back, delete).
+- **Template audit:** the tool reads the strand subfolders inside `APP Projects` and matches templates to tracker rows by intervention number.
