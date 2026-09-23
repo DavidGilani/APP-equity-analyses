@@ -7,7 +7,7 @@ support Access and Participation Plan (APP) equity work.
 
 A local, in-boundary tool for tracking APP intervention delivery and
 semi-automating the ESE committee report. See
-[`docs/app-tracker/scoping-brief.md`](docs/app-tracker/scoping-brief.md). As with
+[`APP reporting tool/`](APP%20reporting%20tool/README.md). As with
 the dashboard below, this repository holds code only: no tracker data, notes,
 transcripts or snapshots are committed here.
 
