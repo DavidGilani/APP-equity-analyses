@@ -23,7 +23,7 @@ Status: At risk
 - **Headings:** each intervention starts with its number in square brackets, like `[6.2]`. Every line after it belongs to that intervention until the next heading.
 - **Notes:** `Update`, `Risk`, `Decision`, `Scope change` and `Question` are saved to the intervention's notes. `Reason for delay` and `Success` are saved too, and feed the committee paper.
 - **Actions and deliverables:** `Action` is a short-term to-do from the meeting. `Deliverable` is a project milestone. Both take `| owner: Name | due: dd/mm/yyyy`, and can take `| status: In progress`.
-- **Template changes:** `Template: Section | what needs changing`. The section is one of `Top-level details`, `Timeframes`, `Theory of change` or `Evaluation`. These make up the list on the **Template changes** tab.
+- **Template changes:** `Template: Section | what needs changing`. The section is one of `Top-level details`, `Timeframes`, `Theory of change` or `Evaluation`. These make up the checklist of changes on the **Theory of Change audit** tab.
 - **Status:** changes the live status. It must be one of On track, Ahead of schedule, At risk, Behind schedule, To be mapped or BAU. The change is logged as a note.
 
 Bullet points at the start of lines are ignored, so a pasted list works. Anything the tool doesn't understand is listed in the preview before you save, and nothing is saved until you click **Save to the tracker**. The previous tracker is copied to `_Tracker data/backups/` first.
@@ -46,6 +46,8 @@ Risk: <anything that threatens delivery, including budget, staffing or timing>
 Decision: <anything agreed>
 Scope change: <any change to what the project will deliver>
 Question: <anything left open>
+Reason for delay: <why it is behind schedule, and what is being done>
+Success: <an achievement worth reporting to committee>
 Template: <Top-level details, Timeframes, Theory of change or Evaluation> | <what in the project plan needs changing>
 Status: <only if a status change was agreed: On track, Ahead of schedule, At risk or Behind schedule>
 
