@@ -200,5 +200,34 @@
     await w.close();
   }
 
-  APP.folder = { backupFile, writeHandle, committeePapers, writeInDir, remembered, choose, reconnect, hasPermission, loadTracker, saveTracker, findTimelineFile, saveReport, latestSnapshot, saveSnapshot, PROJECTS, DATA, TRACKER };
+  // Files kept in _Tracker data, such as the annual report data spreadsheet.
+  async function dataFileInfo(projects, name) {
+    const dir = await dataDir(projects, false);
+    if (!dir) return null;
+    try {
+      const file = await (await dir.getFileHandle(name)).getFile();
+      return { file, lastModified: file.lastModified };
+    } catch { return null; }
+  }
+
+  async function writeDataFile(projects, name, bytes) {
+    const dir = await dataDir(projects, true);
+    await writeText(dir, name, bytes);
+    return `${PROJECTS}/${DATA}/${name}`;
+  }
+
+  // The snapshot closest to a date, for comparing across a year.
+  async function snapshotNear(projects, isoDate) {
+    const data = await dataDir(projects, false);
+    const dir = data ? await child(data, 'snapshots') : null;
+    if (!dir) return null;
+    const names = [];
+    for await (const [name, h] of dir.entries()) if (h.kind === 'file' && /^snapshot-(\d{4}-\d{2}-\d{2})\.json$/.test(name)) names.push(name);
+    if (!names.length) return null;
+    const dist = (n) => Math.abs(Date.parse(n.slice(9, 19)) - Date.parse(isoDate));
+    names.sort((a, b) => dist(a) - dist(b));
+    return readJson(dir, names[0]);
+  }
+
+  APP.folder = { dataFileInfo, writeDataFile, snapshotNear, backupFile, writeHandle, committeePapers, writeInDir, remembered, choose, reconnect, hasPermission, loadTracker, saveTracker, findTimelineFile, saveReport, latestSnapshot, saveSnapshot, PROJECTS, DATA, TRACKER };
 })(typeof window !== 'undefined' ? window : globalThis);

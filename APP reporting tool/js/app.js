@@ -1,6 +1,6 @@
 // Page logic: folder connection, strand view, template audit and tracker import.
 (function () {
-  const { model, folder, templates, trackerImport, meetingUpdate, reports, timelineCheck, docx, xlsxWrite, paperFill, reporting } = window.APPTool;
+  const { model, folder, templates, trackerImport, meetingUpdate, reports, timelineCheck, docx, xlsxWrite, papers, annualData, reporting } = window.APPTool;
   const $ = (sel) => document.querySelector(sel);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -21,7 +21,7 @@
     timelineFiles: [],
     timeline: null,
     papers: [],
-    fillReport: null,
+    annualFile: null,
     tab: 'progress',
     strand: 'all',
     nonBauOnly: true,
@@ -101,6 +101,7 @@
     state.message = null;
     try { state.timelineFiles = await folder.findTimelineFile(state.conn); } catch { state.timelineFiles = []; }
     try { state.papers = (await folder.committeePapers(state.conn)).papers; } catch { state.papers = []; }
+    try { state.annualFile = await folder.dataFileInfo(state.conn.projects, annualData.FILE); } catch { state.annualFile = null; }
     if (state.tracker) {
       state.yourName = (state.tracker.settings && state.tracker.settings.yourName) || state.yourName;
       try { state.lastSnapshot = await folder.latestSnapshot(state.conn.projects); } catch { state.lastSnapshot = null; }
@@ -620,23 +621,6 @@ Status: At risk`;
     }
   }
 
-  async function createCommittee() {
-    try {
-      const keep = document.getElementById('save-snap').checked;
-      const { blob, snapshot } = reports.committeeDoc(state.tracker, TODAY, state.lastSnapshot);
-      const path = await folder.saveReport(state.conn, `APP update - generated sections - ${TODAY}.docx`, await blob, { committee: true });
-      let snapText = '';
-      if (keep) {
-        await folder.saveSnapshot(state.conn.projects, snapshot);
-        state.lastSnapshot = snapshot;
-        snapText = ' A snapshot was saved as the baseline for next time.';
-      }
-      flash('ok', `Saved to ${path}.${snapText}`);
-    } catch (e) {
-      flash('error', `Couldn't create the committee update: ${e.message}`);
-    }
-  }
-
   // ---------- reporting ----------
 
   function nudgeBanner() {
@@ -657,7 +641,6 @@ Status: At risk`;
     if (!state.tracker) return '<p>Import the tracker first.</p>';
     const r = reporting.readiness(state.tracker, TODAY, { lastSnapshot: state.lastSnapshot, timeline: state.timeline, papers: state.papers });
     const cyc = r.cycle;
-    const draft = state.tracker.committeeDraft || { strandNotes: {} };
     const group = (g) => r.items.filter((i) => i.group === g);
     const tick = (ok) => `<span class="tick ${ok ? 'ok' : 'todo'}" aria-label="${ok ? 'Done' : 'To do'}">${ok ? '✓' : '○'}</span>`;
     const done = r.items.filter((i) => i.ok).length;
@@ -696,27 +679,24 @@ Status: At risk`;
       <ul class="checklist">${successes.map((n) => `<li>${tick(true)} <strong>${esc(n.interventionId)}</strong> ${esc(n.text)} <span class="muted small">${fmtDate(n.date)}</span></li>`).join('') || '<li class="muted small">None recorded yet.</li>'}</ul>
       <div class="inline-form"><select id="success-iv">${ivOptions}</select><input type="text" id="success-text" placeholder="What went well"><button class="quiet small-btn" id="save-success">Add</button></div>
 
-      <h3 class="section">4. Table 2 notes by strand</h3>
-      <p class="muted small">These go into the notes column of Table 2. Saved as you type.</p>
-      <div class="strand-notes">${state.tracker.strands.map((s) => `<label><span>Strand ${s.number}: ${esc(s.name)}</span>
-        <textarea rows="3" data-strand-note="${s.number}">${esc((draft.strandNotes || {})[s.number] || '')}</textarea></label>`).join('')}</div>
-
-      <h3 class="section">5. Timeline spreadsheet</h3>
+      <h3 class="section">4. Timeline spreadsheet</h3>
       <ul class="checklist">${group('Timeline spreadsheet').map((i) => `<li>${tick(i.ok)} ${esc(i.text)} <button class="quiet small-btn" data-tab="timeline">Open</button></li>`).join('')}</ul>
 
-      <h3 class="section">6. Generate the paper</h3>
+      <h3 class="section">5. Create the papers</h3>
       <section class="panel">
-        ${papers.length ? `<p>Latest paper in Committees and reporting: <strong>${esc(papers[0].name)}</strong>, saved ${new Date(papers[0].lastModified).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}.</p>` : '<p class="hot">No committee paper found in APP Framework/Committees and reporting.</p>'}
-        <p class="muted small"><strong>Create the draft paper</strong> copies the latest paper and updates its status counts and Table 2, including the notes above. Everything else, including Tables 1 and 3, is kept for you to edit. It's saved as a new file; the original isn't changed.
-          <strong>Create generated sections</strong> makes a separate document with the counts, Table 2, theory of change progress, and what changed, successes and reasons since the last snapshot.</p>
+        ${papers.length ? `<p>Latest paper in Committees and reporting: <strong>${esc(papers[0].name)}</strong>. The cover sheet, Table 1 and the Interventions Fund table are carried over from it.</p>` : '<p class="muted small">No earlier paper found in Committees and reporting, so the cover sheet and Table 1 will be left for you to fill in.</p>'}
+        <h4>Termly ESE paper</h4>
+        <p class="muted small">Executive summary, delivery at a glance, exceptions, changes to the plan, theory of change and evaluation, successes, targets, the Interventions Fund, priorities for next term, and the delivery roadmap as an appendix. Parts only you can write are marked in brackets. Saved in Committees and reporting as a new file.</p>
         <div class="bar start">
-          ${papers.length ? '<button id="create-draft" class="primary">Create the draft paper</button>' : ''}
-          <button id="create-committee" class="quiet">Create generated sections</button>
+          <button id="create-termly" class="primary">Create the termly paper</button>
           <label class="small"><input type="checkbox" id="save-snap" checked> Save a snapshot as the baseline for next time</label>
         </div>
-        ${state.fillReport ? `<div class="fill-report"><h4>What was updated in ${esc(state.fillReport.name)}</h4>
-          <ul class="small">${state.fillReport.updated.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
-          ${state.fillReport.notFound.length ? `<h4>Not found, so update these by hand</h4><ul class="small">${state.fillReport.notFound.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>` : ''}</div>` : ''}
+        <h4 style="margin-top:16px">Annual report</h4>
+        <p class="muted small">Adds targets by faculty (with charts), other gaps to monitor, evaluation findings and impact, and expenditure against the plan. The faculty, gap and expenditure figures come from a spreadsheet you fill in once a year: <code>_Tracker data/${esc(annualData.FILE)}</code>.</p>
+        <div class="bar start">
+          ${state.annualFile ? `<span class="small">Data spreadsheet found, last saved ${new Date(state.annualFile.lastModified).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}.</span>` : '<button id="create-annual-data" class="quiet">Create the data spreadsheet</button>'}
+          <button id="create-annual" class="primary">Create the annual report</button>
+        </div>
       </section>
 
       <h3 class="section">Committee dates</h3>
@@ -739,31 +719,72 @@ Status: At risk`;
     state.tracker.strandContacts[strand] = { ...(state.tracker.strandContacts[strand] || {}), [key]: TODAY };
   }
 
-  async function createDraftPaper() {
+  async function previousPaper() {
+    const latest = state.papers[0];
+    if (!latest) return { previous: null, prevName: null };
     try {
-      const latest = state.papers[0];
-      const counts = Object.fromEntries(model.COMMITTEE_CATEGORIES.map((k) => [k, 0]));
-      const byStrand = {};
-      for (const iv of state.tracker.interventions) {
-        const k = model.committeeCategory(iv.status);
-        byStrand[iv.strand] = byStrand[iv.strand] || Object.fromEntries(model.COMMITTEE_CATEGORIES.map((x) => [x, 0]));
-        if (k) { counts[k]++; byStrand[iv.strand][k]++; }
-      }
-      const { blob, report } = await paperFill.fillPaper(await (await latest.handle.getFile()).arrayBuffer(),
-        { counts, byStrand, strandNotes: (state.tracker.committeeDraft || {}).strandNotes });
+      return { previous: await papers.readPreviousPaper(await (await latest.handle.getFile()).arrayBuffer()), prevName: `the last paper (${latest.name.replace(/\.docx$/i, '')})` };
+    } catch { return { previous: null, prevName: null }; }
+  }
+
+  // Never overwrites: a draft that already exists (and may have been edited)
+  // is kept, and the new one is numbered.
+  async function saveCommitteeFile(name, blob) {
+    const { dir } = await folder.committeePapers(state.conn);
+    if (!dir) return folder.saveReport(state.conn, name, blob);
+    let candidate = name;
+    for (let i = 2; ; i++) {
+      try { await dir.getFileHandle(candidate); } catch { break; }
+      candidate = name.replace(/\.docx$/i, ` (${i}).docx`);
+    }
+    await folder.writeInDir(dir, candidate, blob);
+    return `Committees and reporting/${candidate}`;
+  }
+
+  async function createTermly() {
+    try {
       const cyc = reporting.cycle(state.tracker, TODAY);
-      const name = paperFill.nextName(latest.name, cyc.next && cyc.next.meeting);
-      const { dir } = await folder.committeePapers(state.conn);
-      await folder.writeInDir(dir, name, blob);
-      state.fillReport = { name, ...report };
+      const list = reporting.committees(state.tracker);
+      const committee = cyc.next ? { ...cyc.next, nextMeeting: (list[list.indexOf(cyc.next) + 1] || {}).meeting } : null;
+      const { previous, prevName } = await previousPaper();
+      const blob = await papers.termlyPaper({ tracker: state.tracker, today: TODAY, prevSnapshot: state.lastSnapshot, committee, previous, prevName });
+      const when = new Date(((committee && committee.meeting) || TODAY) + 'T00:00:00Z').toLocaleDateString('en-GB', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+      const path = await saveCommitteeFile(`ESE ${when} - APP update (draft from the tool).docx`, blob);
+      let snapText = '';
       if (document.getElementById('save-snap').checked) {
         const snap = reports.snapshot(state.tracker, TODAY);
         await folder.saveSnapshot(state.conn.projects, snap);
         state.lastSnapshot = snap;
+        snapText = ' A snapshot was saved as the baseline for next time.';
       }
-      flash('ok', `Saved the draft as Committees and reporting/${name}.`);
+      flash('ok', `Saved to ${path}.${snapText}`);
     } catch (e) {
-      flash('error', `Couldn't create the draft: ${e.message}`);
+      flash('error', `Couldn't create the paper: ${e.message}`);
+    }
+  }
+
+  async function createAnnualData() {
+    try {
+      const path = await folder.writeDataFile(state.conn.projects, annualData.FILE, await annualData.template());
+      state.annualFile = await folder.dataFileInfo(state.conn.projects, annualData.FILE);
+      flash('ok', `Created ${path}. Open it in Excel, fill it in, save it, then create the annual report.`);
+    } catch (e) {
+      flash('error', `Couldn't create the spreadsheet: ${e.message}`);
+    }
+  }
+
+  async function createAnnual() {
+    try {
+      const info = await folder.dataFileInfo(state.conn.projects, annualData.FILE);
+      const annual = info ? await annualData.read(await info.file.arrayBuffer()) : null;
+      const yearSnapshot = await folder.snapshotNear(state.conn.projects, model.addDays(TODAY, -365));
+      const { previous, prevName } = await previousPaper();
+      const cyc = reporting.cycle(state.tracker, TODAY);
+      const blob = await papers.annualReport({ tracker: state.tracker, today: TODAY, yearSnapshot, previous, prevName, annual, committee: cyc.next });
+      const path = await saveCommitteeFile(`APP annual report ${TODAY.slice(0, 4)} (draft from the tool).docx`, blob);
+      flash('ok', `Saved to ${path}.${annual ? '' : ' The data spreadsheet wasn\'t found, so the faculty, gaps and expenditure sections are left for you to fill in.'}`);
+    } catch (e) {
+      flash('error', `Couldn't create the annual report: ${e.message}`);
     }
   }
 
@@ -1055,12 +1076,13 @@ Status: At risk`;
     else if (t.id === 'run-audit') runAudit();
     else if (t.id === 'save-summary') saveSummary();
     else if (t.id === 'copy-summary') copySummary();
-    else if (t.id === 'create-committee') createCommittee();
     else if (t.id === 'check-timeline') checkTimeline();
     else if (t.id === 'save-timeline-list') saveTimelineList();
     else if (t.id === 'import-found') importFound();
     else if (t.id === 'apply-sheet') applySheet();
-    else if (t.id === 'create-draft') createDraftPaper();
+    else if (t.id === 'create-termly') createTermly();
+    else if (t.id === 'create-annual') createAnnual();
+    else if (t.id === 'create-annual-data') createAnnualData();
     else if (t.id === 'save-ics') saveIcs();
     else if (t.id === 'add-committee') {
       const deadline = $('#c-deadline').value, meeting = $('#c-meeting').value;
@@ -1138,16 +1160,8 @@ Status: At risk`;
     }
   });
 
-  let noteTimer = null;
   document.addEventListener('input', (e) => {
     if (e.target.id === 'meeting-text') state.meetingText = e.target.value;
-    if (e.target.dataset && e.target.dataset.strandNote) {
-      state.tracker.committeeDraft = state.tracker.committeeDraft || { strandNotes: {} };
-      state.tracker.committeeDraft.strandNotes = { ...(state.tracker.committeeDraft.strandNotes || {}), [e.target.dataset.strandNote]: e.target.value };
-      clearTimeout(noteTimer);
-      // Save quietly without re-rendering, so typing isn't interrupted.
-      noteTimer = setTimeout(() => folder.saveTracker(state.conn.projects, state.tracker).catch((err) => flash('error', `Couldn't save: ${err.message}`)), 800);
-    }
   });
 
   // Add a note, action, deliverable or template change from a card's form.

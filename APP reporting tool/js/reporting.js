@@ -50,10 +50,6 @@
     const successes = notes.filter((n) => n.type === 'Success' && n.date >= since);
     items.push({ group: 'Successes', ok: successes.length > 0, text: `${successes.length} success${successes.length === 1 ? '' : 'es'} recorded since ${reports.fmt(since)}`, detail: successes.length ? '' : 'Worth adding any achievements to report' });
 
-    const draft = tracker.committeeDraft || {};
-    const strandNotes = Object.values(draft.strandNotes || {}).filter((x) => x && x.trim()).length;
-    items.push({ group: 'Table 2 notes', ok: strandNotes === tracker.strands.length, text: `${strandNotes} of ${tracker.strands.length} strands have Table 2 notes written`, detail: '' });
-
     if (timeline) {
       const pending = timeline.plan ? timeline.plan.changes.length : 0;
       items.push({ group: 'Timeline spreadsheet', ok: pending === 0, text: pending ? `${pending} intervention${pending === 1 ? '' : 's'} with spreadsheet updates to apply` : 'Spreadsheet matches the tool', detail: '' });

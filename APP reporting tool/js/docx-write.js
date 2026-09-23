@@ -1,16 +1,17 @@
 // Builds simple Word documents (.docx) in the browser: headings, paragraphs,
-// bullets and tables. Enough for summaries that people then edit in Word.
+// bullets, tables and pictures. Enough for papers that people then edit in Word.
 (function (root) {
   const APP = (root.APPTool = root.APPTool || {});
 
   const x = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
-  // runs: a string, or a list of strings and { text, bold, italic, muted }
+  // runs: a string, or a list of strings and { text, bold, italic, muted, color }
   function runsXml(runs) {
     const list = Array.isArray(runs) ? runs : [runs];
     return list.map((r) => {
       const o = typeof r === 'string' ? { text: r } : r;
-      const pr = (o.bold ? '<w:b/>' : '') + (o.italic ? '<w:i/>' : '') + (o.muted ? '<w:color w:val="666666"/>' : '');
+      const color = o.color || (o.muted ? '666666' : null);
+      const pr = (o.bold ? '<w:b/>' : '') + (o.italic ? '<w:i/>' : '') + (color ? `<w:color w:val="${color}"/>` : '');
       return `<w:r>${pr ? `<w:rPr>${pr}</w:rPr>` : ''}<w:t xml:space="preserve">${x(o.text)}</w:t></w:r>`;
     }).join('');
   }
@@ -22,6 +23,7 @@
 
   function create() {
     const body = [];
+    const media = []; // { name, bytes }
     const doc = {
       title: (t) => { body.push(para(t, 'Title')); return doc; },
       h1: (t) => { body.push(para(t, 'Heading1')); return doc; },
@@ -29,20 +31,41 @@
       p: (runs) => { body.push(para(runs)); return doc; },
       note: (t) => { body.push(para({ text: t, italic: true, muted: true })); return doc; },
       bullet: (runs) => { body.push(para(runs, 'ListBullet', '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr>')); return doc; },
-      // header: list of strings; rows: list of lists of runs
+      // header: list of strings, or null for no heading row; rows: list of lists of cells.
+      // A cell is runs, a list of paragraphs (each a list of runs), or { content, fill }.
       table: (header, rows, widths) => {
-        const n = header.length;
-        const w = widths || header.map(() => Math.floor(9000 / n));
-        const cell = (runs, i, isHead) => `<w:tc><w:tcPr><w:tcW w:w="${w[i]}" w:type="dxa"/>${isHead ? '<w:shd w:val="clear" w:color="auto" w:fill="E8EAF4"/>' : ''}</w:tcPr>${
-          (Array.isArray(runs) && runs.length && Array.isArray(runs[0]) ? runs : [runs]).map((r) => para(isHead ? { text: r, bold: true } : r, 'TableText')).join('')}</w:tc>`;
+        const n = header ? header.length : rows[0].length;
+        const w = widths || Array.from({ length: n }, () => Math.floor(9000 / n));
+        const cell = (value, i, isHead) => {
+          const c = value && typeof value === 'object' && !Array.isArray(value) && 'content' in value ? value : { content: value };
+          const fill = isHead ? 'E8EAF4' : c.fill;
+          const runs = c.content;
+          return `<w:tc><w:tcPr><w:tcW w:w="${w[i]}" w:type="dxa"/>${fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${fill}"/>` : ''}</w:tcPr>${
+            (Array.isArray(runs) && runs.length && Array.isArray(runs[0]) ? runs : [runs]).map((r) => para(isHead ? { text: r, bold: true } : r, 'TableText')).join('')}</w:tc>`;
+        };
         const tr = (cells, isHead) => `<w:tr>${isHead ? '<w:trPr><w:tblHeader/></w:trPr>' : ''}${cells.map((c, i) => cell(c, i, isHead)).join('')}</w:tr>`;
         body.push(`<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="0" w:type="auto"/><w:tblLook w:val="04A0"/></w:tblPr>
           <w:tblGrid>${w.map((v) => `<w:gridCol w:w="${v}"/>`).join('')}</w:tblGrid>
-          ${tr(header, true)}${rows.map((r) => tr(r, false)).join('')}</w:tbl>`);
+          ${header ? tr(header, true) : ''}${rows.map((r) => tr(r, false)).join('')}</w:tbl>`);
         body.push(para(''));
         return doc;
       },
-      toBlob: () => build(body),
+      // A PNG picture, scaled to widthInches with its aspect ratio kept.
+      image: (bytes, pxW, pxH, alt, widthInches = 6.2) => {
+        const id = media.length + 1;
+        media.push({ name: `image${id}.png`, bytes });
+        const cx = Math.round(widthInches * 914400), cy = Math.round(cx * pxH / pxW);
+        body.push(`<w:p><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/>
+          <wp:docPr id="${id}" name="Picture ${id}" descr="${x(alt)}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr>
+          <a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+          <pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${id}" name="image${id}.png" descr="${x(alt)}"/><pic:cNvPicPr/></pic:nvPicPr>
+          <pic:blipFill><a:blip r:embed="rIdImg${id}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>
+          <pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>
+          </a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`);
+        return doc;
+      },
+      pageBreak: () => { body.push('<w:p><w:r><w:br w:type="page"/></w:r></w:p>'); return doc; },
+      toBlob: () => build(body, media),
     };
     return doc;
   }
@@ -51,6 +74,7 @@
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
 <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
 <Default Extension="xml" ContentType="application/xml"/>
+<Default Extension="png" ContentType="image/png"/>
 <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
 <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
 <Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>
@@ -61,10 +85,11 @@
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
 </Relationships>`;
 
-  const DOC_RELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+  const docRels = (media) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
 <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>
+${media.map((m, i) => `<Relationship Id="rIdImg${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${m.name}"/>`).join('\n')}
 </Relationships>`;
 
   const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
@@ -90,17 +115,18 @@
 <w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>
 </w:numbering>`;
 
-  async function build(body) {
+  async function build(body, media = []) {
     const zip = new root.JSZip();
     // No separate folder entries in the package; Word doesn't expect them.
     const add = (name, data) => zip.file(name, data, { createFolders: false });
     add('[Content_Types].xml', CONTENT_TYPES);
     add('_rels/.rels', RELS);
-    add('word/_rels/document.xml.rels', DOC_RELS);
+    add('word/_rels/document.xml.rels', docRels(media));
+    for (const m of media) add(`word/media/${m.name}`, m.bytes);
     add('word/styles.xml', STYLES);
     add('word/numbering.xml', NUMBERING);
     add('word/document.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document ${W}><w:body>${body.join('')}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr></w:body></w:document>`);
+<w:document ${W} xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>${body.join('')}<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" w:header="567" w:footer="567" w:gutter="0"/></w:sectPr></w:body></w:document>`);
     return zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
   }
 
