@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>APP Equity Gaps</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;600;700&display=swap">
+<style>
+:root{
+  --side:#2B1F52; --side-ink:#FFFFFF; --side-muted:#C9C3DD;
+  --bg:#FFFFFF; --panel:#F3F3F5; --panel-line:#E2E1E7; --row-alt:#E9E8EE;
+  --ink:#2A2148; --ink2:#4A4560; --muted:#77728A; --grid:#D9D7E0;
+  --teal:#6A9E9F; --teal-dk:#2F6E70; --purple:#8A4DB6; --purple-dk:#6B3596; --grey:#BDB8C6;
+  --base-bar:#CFCCD8; --tick:#141122;
+  --font:"Source Sans 3","Segoe UI",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.4}
+button,select,input{font-family:inherit}
+.app{display:grid;grid-template-columns:230px minmax(0,1fr);min-height:100vh}
+.side{background:var(--side);color:var(--side-ink);padding:22px 14px;display:flex;flex-direction:column;gap:18px}
+.brand{font-size:19px;font-weight:600;line-height:1.1;text-align:center;letter-spacing:.01em}
+.side h2{margin:0;font-size:14px;font-weight:700;text-align:center}
+.nav{display:flex;flex-direction:column;gap:9px}
+.nav button{background:transparent;color:var(--side-ink);border:2px solid var(--side-ink);border-radius:2px;padding:9px 6px;font-size:13px;cursor:pointer}
+.nav button:hover{background:rgba(255,255,255,.1)}
+.nav button[aria-current="page"]{background:var(--side-ink);color:var(--side)}
+.nav button:focus-visible,.side select:focus-visible,.side input:focus-visible{outline:3px solid #F2C94C;outline-offset:2px}
+.filters{display:flex;flex-direction:column;gap:10px}
+.field{display:flex;flex-direction:column;gap:3px}
+.field label{font-size:12px;color:var(--side-muted)}
+.field select{background:#8E88A4;color:#fff;border:0;border-radius:2px;padding:5px 6px;font-size:13px;max-width:100%}
+.check{display:flex;gap:6px;align-items:flex-start;font-size:12px;color:var(--side-muted)}
+.main{padding-block:22px 40px;padding-inline:clamp(16px,2.4vw,30px);display:flex;flex-direction:column;gap:18px;min-width:0}
+.head{display:flex;align-items:flex-start;gap:16px}
+.head h1{margin:0;font-size:clamp(20px,2.4vw,28px);font-weight:700;letter-spacing:.32em;color:var(--ink);text-wrap:balance}
+.head p{margin:4px 0 0;font-size:clamp(15px,1.5vw,19px);font-weight:300;color:var(--ink2)}
+.head .grow{flex:1;min-width:0}
+.src{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--purple-dk);border:1px solid var(--purple);padding:3px 8px;border-radius:2px;white-space:nowrap;margin-top:6px}
+.info{flex:none;width:52px;height:52px;border-radius:50%;border:4px solid var(--tick);background:var(--bg);font:700 26px/1 Georgia,serif;color:var(--tick);cursor:pointer}
+.info:focus-visible{outline:3px solid var(--purple);outline-offset:2px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px}
+.tile{background:var(--panel);border:1px solid var(--panel-line);padding:16px 14px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px}
+.tile .lab{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink2);min-height:2.8em}
+.tile .val{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums}
+.tile .sub{font-size:12px;color:var(--muted)}
+.panel{background:var(--panel);border:1px solid var(--panel-line);padding:16px 16px 18px}
+.panel h3{margin:0 0 2px;font-size:13px;font-weight:600;letter-spacing:.3em;text-transform:uppercase}
+.panel .cap{margin:0 0 12px;font-size:12px;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:18px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th{font-size:12px;font-weight:600;color:var(--ink2);text-align:left;padding:6px 8px;border-bottom:1px solid var(--grid);vertical-align:bottom}
+td{padding:6px 8px;vertical-align:middle}
+.tt tbody tr.row{cursor:pointer}
+.tt tbody tr.row:nth-of-type(4n+1){background:var(--row-alt)}
+.tt tbody tr.row:hover{box-shadow:inset 3px 0 0 var(--purple)}
+.tt tbody tr.row:focus-visible{outline:2px solid var(--purple);outline-offset:-2px}
+.tt .open{box-shadow:inset 3px 0 0 var(--ink)}
+.tname b{display:block;font-size:13px}
+.tname span{font-size:12px;color:var(--muted)}
+.num{text-align:right}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:2px 9px 2px 7px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;background:color-mix(in srgb,var(--c) 22%,#fff);color:var(--ink);border:1px solid var(--c)}
+.pill::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--c)}
+.chg{white-space:nowrap;font-weight:600}
+.chg.good{color:var(--teal-dk)} .chg.bad{color:var(--purple-dk)} .chg.flat{color:var(--muted)}
+.ev{font-size:12px;white-space:nowrap}
+.ev small{display:block;color:var(--muted)}
+.uni{font-size:12px;color:var(--muted);white-space:nowrap}
+.detail > td{background:var(--bg);padding:14px 12px 16px;border:1px solid var(--panel-line)}
+.detail table td{border:0;padding:4px 8px}
+.detail table tbody tr:nth-child(odd){background:var(--panel)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--ink2);align-items:center}
+.sw{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-2px;margin-right:5px}
+.sw.line{height:3px;width:16px;border-radius:2px;vertical-align:3px}
+.sw.tick{width:3px;height:14px;background:var(--tick);border-radius:0}
+.heat{border-collapse:separate;border-spacing:3px;width:100%}
+.heat th{border:0;text-align:center;padding:4px 2px;font-weight:600;line-height:1.2}
+.heat th small{display:block;font-weight:400;color:var(--muted)}
+.heat td.nm{text-align:left;font-weight:600;white-space:nowrap;padding-right:10px}
+.heat td.nm button{all:unset;cursor:pointer;border-bottom:1px dotted var(--ink2)}
+.heat td.nm button:focus-visible{outline:2px solid var(--purple)}
+.heat td.c{text-align:center;font-weight:600;min-width:64px;border-radius:2px;cursor:default}
+.hatch{background:repeating-linear-gradient(135deg,#fff 0 4px,#DDDAE3 4px 7px)!important;color:var(--muted)!important;font-weight:400!important}
+.rank td{padding:5px 6px}
+.rank tr:nth-child(odd){background:var(--row-alt)}
+.rank .an{min-width:190px}
+.rank .an button{all:unset;cursor:pointer}
+.rank .an button:hover,.rank .an button:focus-visible{text-decoration:underline}
+.chip{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+.facname{font-size:11px;color:var(--muted);display:block}
+.sortable th{cursor:pointer;user-select:none}
+.sortable th[aria-sort]::after{content:" ▾";color:var(--muted)}
+.sortable th[aria-sort="ascending"]::after{content:" ▴"}
+.empty{color:var(--muted);font-size:13px;padding:10px 0}
+svg text{font-family:var(--font)}
+.tip{position:fixed;z-index:30;pointer-events:none;background:#fff;color:var(--ink);border:1px solid var(--panel-line);box-shadow:0 4px 14px rgba(30,20,60,.18);padding:8px 10px;border-radius:3px;font-size:12px;max-width:280px;line-height:1.45}
+.tip b{font-weight:700}
+.overlay{position:fixed;inset:0;background:rgba(20,14,40,.45);z-index:40;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto}
+.about{background:var(--bg);max-width:720px;width:100%;padding:24px 26px;border-top:6px solid var(--side)}
+.about h2{margin:0 0 10px;letter-spacing:.25em;font-size:16px;text-transform:uppercase}
+.about h3{margin:18px 0 6px;font-size:14px}
+.about p,.about li{max-width:65ch;color:var(--ink2)}
+.about code{background:var(--panel);padding:1px 4px;border-radius:2px;font-size:12px}
+.about .close{float:right;background:var(--side);color:#fff;border:0;padding:6px 12px;cursor:pointer}
+@media (max-width:900px){
+  .app{grid-template-columns:1fr}
+  .side{padding:16px}
+  .nav{flex-direction:row;flex-wrap:wrap}
+  .nav button{flex:1 1 140px}
+  .filters{flex-direction:row;flex-wrap:wrap}
+  .field{flex:1 1 180px}
+  .info{width:40px;height:40px;font-size:20px;border-width:3px}
+  .head h1{letter-spacing:.18em}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+.load{display:flex;flex-direction:column;gap:6px}
+.load label.btn{display:block;text-align:center;border:2px dashed var(--side-muted);color:var(--side-ink);padding:8px 6px;font-size:13px;cursor:pointer;border-radius:2px}
+.load label.btn:hover{background:rgba(255,255,255,.1)}
+.load input{position:absolute;width:1px;height:1px;opacity:0}
+.load input:focus-visible + label.btn{outline:3px solid #F2C94C;outline-offset:2px}
+.load small{font-size:11px;color:var(--side-muted);word-break:break-word}
+.load .err{color:#FFC7C7}
+.startbox{background:var(--panel);border:1px solid var(--panel-line);padding:28px;max-width:640px}
+.startbox h3{margin:0 0 8px;letter-spacing:.25em;text-transform:uppercase;font-size:14px}
+.startbox p{color:var(--ink2);max-width:60ch}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">Middlesex<br>University</div>
+    <h2>Navigation</h2>
+    <nav class="nav" aria-label="Dashboard pages">
+      <button data-page="overview">University overview</button>
+      <button data-page="faculty">Faculty</button>
+      <button data-page="department">Department</button>
+      <button data-page="programme">Programme</button>
+      <button data-page="ranking">Target ranking</button>
+      <button data-page="map">Progress map</button>
+    </nav>
+    <h2 id="fHead">Filters</h2>
+    <div class="filters">
+      <div class="field" id="fTargetW"><label for="fTarget">Equity gap target</label><select id="fTarget"></select></div>
+      <div class="field" id="fLevelW"><label for="fLevel">Compare</label><select id="fLevel"><option>Faculty</option><option selected>Department</option><option>Programme</option></select></div>
+      <div class="field" id="fRefW"><label for="fRef">Judge against</label><select id="fRef"><option value="m">2027-28 milestone</option><option value="t">2028-29 target</option></select></div>
+      <div class="field" id="fFacW"><label for="fFac">Faculty</label><select id="fFac"></select></div>
+      <div class="field" id="fDeptW"><label for="fDept">Department</label><select id="fDept"></select></div>
+      <div class="field" id="fProgW"><label for="fProg">Programme</label><select id="fProg"></select></div>
+      <label class="check" id="fSmallW"><input type="checkbox" id="fSmall" checked> Hide areas where either group has fewer than 10 students</label>
+    </div>
+    <h2>Data</h2>
+    <div class="load">
+      <input type="file" id="fileIn" accept=".csv,text/csv">
+      <label class="btn" for="fileIn">Load results file</label>
+      <small id="srcNote">Choose equity_gaps_all_levels_long.csv from the R outputs folder.</small>
+    </div>
+  </aside>
+  <main class="main">
+    <header class="head">
+      <div class="grow"><h1 id="pTitle"></h1><p id="pSub"></p></div>
+      <span class="src" id="srcChip"></span>
+      <button class="info" id="infoBtn" aria-label="About this dashboard">i</button>
+    </header>
+    <div id="view" style="display:flex;flex-direction:column;gap:18px"></div>
+  </main>
+</div>
+<div class="tip" id="tip" hidden></div>
+<div class="overlay" id="about" hidden>
+  <div class="about" role="dialog" aria-labelledby="aboutH">
+    <button class="close" id="aboutClose">Close</button>
+    <h2 id="aboutH">About this dashboard</h2>
+    <p>Results come from <code>equity_gaps_all_levels_long.csv</code>, produced by <code>app_equity_gaps.R</code> from the OfS individualised student data. The population is full-time, UK-domiciled first degree students registered at Middlesex. Only the four academic faculties are shown.</p>
+    <h3>Equity gap</h3>
+    <p>The comparator group's rate minus the target group's rate, in percentage points. A positive gap means the target group does worse. BTEC entrants are compared with A-level entrants for continuation, completion and attainment, and with all other qualifications for progression.</p>
+    <h3>Status</h3>
+    <ul>
+      <li><b>Target met</b>: the latest gap is at or below the 2028-29 target.</li>
+      <li><b>On track</b>: the latest gap is at or below the 2027-28 milestone.</li>
+      <li><b>Behind milestone</b>: the latest gap is above the 2027-28 milestone.</li>
+      <li><b>Small numbers</b>: either group has fewer than 10 students in the latest year.</li>
+    </ul>
+    <h3>Is the difference significant?</h3>
+    <p>Each gap has a 95% margin of error based on the number of students in each group. If the whole range sits above the milestone, the area is <b>significantly behind</b>. If it sits below, it is <b>significantly ahead</b>. Otherwise the difference could be chance.</p>
+    <p>Tableau calculation: <code>1.96 * SQRT(pT*(1-pT)/nT + pC*(1-pC)/nC) * 100</code>, where p is each group's rate and n its headcount. The R export includes this as <code>margin_pp</code>, with <code>significance</code> alongside it.</p>
+    <h3>Direction of travel</h3>
+    <p>Compares the latest gap with the four-year pooled baseline. A change of 1 percentage point or more is shown as narrowed or widened.</p>
+    <h3>Progress map</h3>
+    <p>Across: how far the latest gap is below the milestone or target, so right is better. Up: how far the gap has narrowed since the baseline, so up is better. Bubble area shows the number of students in the target group. Colour shows whether the difference from the milestone or target is significant.</p>
+  </div>
+</div>
+<script type="text/csv" id="embedded">__DATA__</script>
+<script>
+/* ---------- Targets (agreed APP milestones) ---------- */
+const SMALL=10;
+const TG=[
+ {id:'PTS_1',stage:'Continuation',grp:'BTEC',cmp:'A-level',hd:'BTEC vs A-level',m:[9,7,5],fin:3.9},
+ {id:'PTS_2',stage:'Completion',grp:'Eligible for FSM',cmp:'Not eligible',hd:'Free school meals',m:[4.5,3.5,2.5],fin:1.9},
+ {id:'PTS_3',stage:'Completion',grp:'BTEC',cmp:'A-level',hd:'BTEC vs A-level',m:[8.5,7,5.5],fin:3.9},
+ {id:'PTS_4',stage:'Attainment',grp:'ABMO',cmp:'White',hd:'Ethnicity',m:[9.5,7.5,6],fin:4.9},
+ {id:'PTS_5',stage:'Attainment',grp:'Eligible for FSM',cmp:'Not eligible',hd:'Free school meals',m:[9,7,5],fin:4.5},
+ {id:'PTS_6',stage:'Attainment',grp:'IMD Q1-2',cmp:'IMD Q3-5',hd:'Deprivation (IMD)',m:[6,5,4],fin:2.9},
+ {id:'PTS_7',stage:'Attainment',grp:'BTEC',cmp:'A-level',hd:'BTEC vs A-level',m:[20,16,12],fin:7.9},
+ {id:'PTP_2',stage:'Progression',grp:'BTEC',cmp:'All other quals',hd:'BTEC vs all other',m:[8.5,7.5,6.5],fin:4.9}
+];
+const TGm=Object.fromEntries(TG.map(t=>[t.id,t]));
+const FACDEF={
+ 'Arts and Creative Industries':{code:'ACI',name:'Arts and Creative Industries',color:'#D96F83'},
+ 'Business and Law':{code:'BAL',name:'Business and Law',color:'#3A66B0'},
+ 'Health,Social Care & Education':{code:'HSCE',name:'Health, Social Care and Education',color:'#C25F3C'},
+ 'Health, Social Care and Education':{code:'HSCE',name:'Health, Social Care and Education',color:'#C25F3C'},
+ 'Science and Technology':{code:'S&T',name:'Science and Technology',color:'#C29A2E'}};
+const FAC=[...new Map(Object.values(FACDEF).map(f=>[f.code,f])).values()];
+const FACm=Object.fromEntries(FAC.map(f=>[f.code,f]));
+const SKIP=new Set(['Unknown','No Department','0','NA','']);
+const PIDX={'YR1':0,'YR2':1,'YR3':2,'YR4':3,'1 year after baseline':4,'2 years after baseline':5,'3 years after baseline':6};
+
+/* ---------- CSV ---------- */
+function parseCSV(text){
+  const rows=[];let row=[],f='',q=false;
+  for(let i=0;i<text.length;i++){const c=text[i];
+    if(q){if(c==='"'){if(text[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+    else if(c==='"')q=true;else if(c===','){row.push(f);f=''}
+    else if(c==='\n'||c==='\r'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(f);f='';if(row.length>1||row[0]!=='')rows.push(row);row=[]}
+    else f+=c}
+  if(f!==''||row.length){row.push(f);rows.push(row)}
+  const h=rows.shift().map(s=>s.trim());
+  return rows.map(r=>Object.fromEntries(h.map((k,i)=>[k,r[i]])));
+}
+const num=v=>v===undefined||v===''||v==='NA'?null:+v;
+
+/* ---------- Build areas from the long file ---------- */
+let AREAS={},DEPTS={},PROGS={},YEARS={},SOURCE='';
+function build(rows){
+  const need=['level','faculty','department','unit','target_id','period','years','n_target','rate_target','n_comparator','rate_comparator','gap_pp'];
+  const miss=need.filter(k=>!(k in rows[0]));
+  if(miss.length)throw new Error('This file is missing columns: '+miss.join(', ')+'. Choose equity_gaps_all_levels_long.csv.');
+  const A={};YEARS={};
+  rows.forEach(r=>{
+    const lvl=r.level;let fac=null;
+    if(lvl!=='University'){const fd=FACDEF[lvl==='Faculty'?r.unit:r.faculty];if(!fd||SKIP.has(r.unit))return;fac=fd.code}
+    if(!TGm[r.target_id])return;
+    const key=lvl==='University'?'U':lvl[0]+':'+(lvl==='Faculty'?fac:r.unit);
+    const a=A[key]||(A[key]={key,level:lvl,name:lvl==='Faculty'?FACm[fac].name:lvl==='University'?'Middlesex University':r.unit,fac,dept:lvl==='Programme'&&!SKIP.has(r.department)?r.department:null,raw:{}});
+    const t=a.raw[r.target_id]||(a.raw[r.target_id]={ser:Array.from({length:7},()=>null),baseline:null});
+    if(r.period==='Baseline (4-year pooled)'){t.baseline=num(r.gap_pp);return}
+    const i=PIDX[r.period];if(i===undefined)return;
+    const nT=num(r.n_target),nC=num(r.n_comparator),rT=num(r.rate_target),rC=num(r.rate_comparator);
+    t.ser[i]={nT:nT||0,nC:nC||0,rT,rC,gap:num(r.gap_pp)};
+    if(lvl==='University'){(YEARS[r.target_id]=YEARS[r.target_id]||[])[i]=r.years}
+  });
+  if(!A.U)throw new Error('No university rows were found in this file.');
+  TG.forEach(t=>{t.years=(YEARS[t.id]||[]).slice();for(let i=0;i<7;i++)if(!t.years[i])t.years[i]='Year '+(i+1)});
+  Object.values(A).forEach(a=>{a.m={};TG.forEach(t=>{const r=a.raw[t.id]||{ser:Array.from({length:7},()=>null),baseline:null};a.m[t.id]=metrics(r.ser,r.baseline,t)});delete a.raw});
+  // Drop areas with no results since the baseline (for example discontinued departments)
+  Object.keys(A).forEach(k=>{if(k!=='U'&&TG.every(t=>A[k].m[t.id].gaps.slice(4).every(g=>g==null)))delete A[k]});
+  AREAS=A;
+  DEPTS={};PROGS={};
+  Object.values(A).forEach(a=>{if(a.level==='Department')(DEPTS[a.fac]=DEPTS[a.fac]||[]).push(a.name);if(a.level==='Programme'&&a.dept)(PROGS[a.dept]=PROGS[a.dept]||[]).push(a.name)});
+  Object.values(DEPTS).forEach(l=>l.sort());Object.values(PROGS).forEach(l=>l.sort());
+}
+function metrics(serIn,baseline,t){
+  const ser=serIn.map(d=>d||{nT:0,nC:0,rT:null,rC:null,gap:null});
+  const gaps=ser.map(d=>d.gap);
+  const ci=ser.map(d=>{if(!d.nT||!d.nC||d.rT==null||d.rC==null)return null;const a=d.rT/100,b=d.rC/100;return 196*Math.sqrt(a*(1-a)/d.nT+b*(1-b)/d.nC)});
+  const L=ser[6],latest=gaps[6],h=ci[6];
+  const small=latest==null||L.nT<SMALL||L.nC<SMALL;
+  const ms=t.m[2];
+  const change=latest!=null&&baseline!=null?latest-baseline:null;
+  const status=small?'small':latest<=t.fin?'met':latest<=ms?'track':'behind';
+  const sigAt=ref=>small||h==null?'na':latest-h>ref?'sigBehind':latest+h<ref?'sigAhead':'ns';
+  const dir=change==null||small?'na':change<=-1?'narrow':change>=1?'widen':'stable';
+  return {gaps,ci,baseline,latest,h,small,change,status,sig:sigAt(ms),sigT:sigAt(t.fin),dir,nT:L.nT,nC:L.nC,ser,ms,dist:latest!=null?latest-ms:null};
+}
+const byLevel=l=>Object.values(AREAS).filter(a=>a.level===l).sort((x,y)=>x.name.localeCompare(y.name));
+
+/* ---------- Formatting ---------- */
+const ST={met:{l:'Target met',c:'#2F6E70'},track:{l:'On track',c:'#6A9E9F'},behind:{l:'Behind milestone',c:'#8A4DB6'},small:{l:'Small numbers',c:'#BDB8C6'}};
+const SIG={sigBehind:'Significantly behind',sigAhead:'Significantly ahead',ns:'Could be chance',na:'Too few students'};
+const f1=v=>v==null||isNaN(v)?'–':(+v).toFixed(1);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+const pill=s=>`<span class="pill" style="--c:${ST[s].c}">${ST[s].l}</span>`;
+function chg(m){if(m.change==null)return '<span class="chg flat">–</span>';
+  const v=m.change;if(v<=-1)return `<span class="chg good">▼ ${f1(-v)} narrower</span>`;
+  if(v>=1)return `<span class="chg bad">▲ ${f1(v)} wider</span>`;return `<span class="chg flat">● ${f1(Math.abs(v))} little change</span>`}
+function ev(m){if(m.sig==='na')return `<div class="ev">${SIG.na}<small>n = ${Math.round(m.nT)} vs ${Math.round(m.nC)}</small></div>`;
+  return `<div class="ev">${SIG[m.sig]}<small>±${f1(m.h)} pp margin</small></div>`}
+const tipArea=(a,t,m)=>esc(`<b>${a.name}</b>${a.fac&&a.level!=='Faculty'?' · '+FACm[a.fac].code:''}<br>${t.stage}: ${t.grp} vs ${t.cmp}<br>Latest gap (${t.years[6]}): <b>${f1(m.latest)} pp</b>${m.h!=null?' ±'+f1(m.h):''}<br>2027-28 milestone: ${m.ms} pp · 2028-29 target: ${t.fin} pp<br>Baseline: ${f1(m.baseline)} pp · Change: ${m.change==null?'–':(m.change>0?'+':'')+f1(m.change)} pp<br>Students: ${Math.round(m.nT)} ${t.grp}, ${Math.round(m.nC)} ${t.cmp}<br>${ST[m.status].l} · ${SIG[m.sig]}`);
+
+/* ---------- Small charts ---------- */
+function spark(m,t){
+  const w=150,h=40,p=5,have=m.gaps.filter(v=>v!=null);
+  if(have.length<2)return '<span class="uni">Not enough data</span>';
+  const vals=[...have,...t.m,t.fin];
+  let lo=Math.min(0,...vals),hi=Math.max(...vals);if(hi-lo<4)hi=lo+4;
+  const x=i=>p+i*(w-2*p)/6,y=v=>h-p-(v-lo)/(hi-lo)*(h-2*p);
+  const pts=m.gaps.map((g,i)=>g==null?null:[x(i),y(g)]);
+  let path='';pts.forEach((q,i)=>{if(q)path+=(i&&pts[i-1]?'L':'M')+q[0].toFixed(1)+' '+q[1].toFixed(1)});
+  const fp=pts.filter(Boolean);const area=`M${fp[0][0]} ${h-p} `+fp.map(q=>`L${q[0].toFixed(1)} ${q[1].toFixed(1)}`).join(' ')+` L${fp[fp.length-1][0]} ${h-p}Z`;
+  let s=`<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Gap trend over seven years">`;
+  s+=`<rect x="${x(0)-3}" y="0" width="${x(3)-x(0)+6}" height="${h}" fill="#E6E4EC"/>`;
+  s+=`<path d="${area}" fill="#8A4DB6" fill-opacity=".08"/><path d="${path}" fill="none" stroke="#4A4560" stroke-width="1.6"/>`;
+  [4,5,6].forEach((i,k)=>s+=`<line x1="${x(i)-5}" x2="${x(i)+5}" y1="${y(t.m[k])}" y2="${y(t.m[k])}" stroke="#141122" stroke-width="2"/>`);
+  m.gaps.forEach((g,i)=>{if(g==null)return;const last=i===6;
+    s+=`<circle cx="${x(i)}" cy="${y(g)}" r="${last?4:2}" fill="${last?ST[m.status].c:'#4A4560'}" stroke="#fff" stroke-width="${last?1.5:0}"/>`;
+    s+=`<circle cx="${x(i)}" cy="${y(g)}" r="8" fill="transparent" data-tip="${esc(`<b>${t.years[i]}</b>: gap ${f1(g)} pp`+(i>3?`<br>Milestone ${t.m[i-4]} pp`:'<br>Baseline year'))}"/>`});
+  return s+'</svg>';
+}
+function gapBar(m,t,lo,hi){
+  const w=210,h=26,pl=4,pr=40,X=v=>pl+(clamp(v,lo,hi)-lo)/(hi-lo)*(w-pl-pr);
+  let s=`<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Latest gap ${f1(m.latest)} against milestone ${m.ms}">`;
+  s+=`<line x1="${X(0)}" x2="${X(0)}" y1="2" y2="${h-2}" stroke="#B5B1C2"/>`;
+  if(m.latest!=null){const x0=X(0),x1=X(m.latest);
+    s+=`<rect x="${Math.min(x0,x1)}" y="6" width="${Math.max(1,Math.abs(x1-x0))}" height="14" rx="2" fill="${ST[m.status].c}"/>`;
+    if(m.h!=null&&!m.small){const a=X(m.latest-m.h),b=X(m.latest+m.h);s+=`<path d="M${a} 13H${b}M${a} 9V17M${b} 9V17" stroke="#2A2148" stroke-width="1.2" fill="none"/>`}
+    s+=`<text x="${w-pr+6}" y="17" font-size="12" fill="#2A2148">${f1(m.latest)}</text>`}
+  s+=`<line x1="${X(m.ms)}" x2="${X(m.ms)}" y1="1" y2="${h-1}" stroke="#141122" stroke-width="2.5"/>`;
+  return s+'</svg>';
+}
+
+/* ---------- Target table ---------- */
+function targetTable(a){
+  let lo=0,hi=5;TG.forEach(t=>{const m=a.m[t.id];if(m.latest!=null){lo=Math.min(lo,m.latest-(m.small||m.h==null?0:m.h));hi=Math.max(hi,m.latest+(m.small||m.h==null?0:m.h))}hi=Math.max(hi,t.m[2])});
+  lo=Math.max(lo,-40);hi=Math.min(hi,60)*1.04;
+  const isU=a.key==='U';
+  let s=`<div class="scroll"><table class="tt"><thead><tr><th>Target</th><th>Trend, 7 years</th><th class="num">Baseline</th><th>Latest gap vs 2027-28 milestone</th>${isU?'':'<th class="num">University</th>'}<th>Since baseline</th><th>Is it significant?</th><th>Status</th></tr></thead><tbody>`;
+  TG.forEach(t=>{const m=a.m[t.id],open=state.open===t.id;
+    s+=`<tr class="row${open?' open':''}" tabindex="0" data-open="${t.id}" aria-expanded="${open}" data-tip="${tipArea(a,t,m)}">
+      <td class="tname"><b>${t.id} · ${t.stage}</b><span>${t.grp} vs ${t.cmp}</span></td>
+      <td>${spark(m,t)}</td><td class="num">${f1(m.baseline)}</td>
+      <td>${gapBar(m,t,lo,hi)}</td>${isU?'':`<td class="num uni">${f1(AREAS.U.m[t.id].latest)}</td>`}
+      <td>${chg(m)}</td><td>${ev(m)}</td><td>${pill(m.status)}</td></tr>`;
+    s+=open?`<tr class="detail"><td colspan="${isU?7:8}">${detail(a,t)}</td></tr>`:'<tr hidden></tr>';
+  });
+  s+=`</tbody></table></div><div class="legend" style="margin-top:10px"><span><i class="sw" style="background:${ST.met.c}"></i>Target met</span><span><i class="sw" style="background:${ST.track.c}"></i>On track</span><span><i class="sw" style="background:${ST.behind.c}"></i>Behind milestone</span><span><i class="sw" style="background:${ST.small.c}"></i>Small numbers</span><span><i class="sw tick"></i>Milestone</span><span>├┤ 95% margin of error</span><span>Grey band on trend = baseline years</span></div>`;
+  return s;
+}
+
+/* ---------- Detail panel ---------- */
+function detail(a,t){
+  const m=a.m[t.id];
+  if(m.gaps.every(g=>g==null))return '<p class="empty">No results for this target in this area.</p>';
+  return `<div class="grid2"><div><div class="legend" style="margin-bottom:6px"><b style="letter-spacing:.2em;font-size:12px">RATES BY YEAR</b><span><i class="sw line" style="background:#2B1F52"></i>${t.grp}</span><span><i class="sw line" style="background:#9A95AA"></i>${t.cmp}</span></div>${rates(m,t)}</div>
+  <div><div class="legend" style="margin-bottom:6px"><b style="letter-spacing:.2em;font-size:12px">GAP AGAINST MILESTONES</b><span><i class="sw" style="background:var(--base-bar)"></i>Baseline years</span><span><i class="sw tick"></i>Milestone</span><span>- - 2028-29 target</span></div>${gapYears(m,t)}</div></div>
+  <div class="scroll" style="margin-top:10px">${nTable(m,t)}</div>`;
+}
+function rates(m,t){
+  const w=460,h=210,l=40,r=130,tp=12,b=26;
+  const rT=m.ser.map(d=>d.rT),rC=m.ser.map(d=>d.rC);
+  const all=[...rT,...rC].filter(v=>v!=null);if(!all.length)return '<p class="empty">No rates to show.</p>';
+  let lo=Math.max(0,Math.floor((Math.min(...all)-4)/10)*10),hi=Math.min(100,Math.ceil((Math.max(...all)+2)/10)*10);if(hi-lo<20)lo=Math.max(0,hi-20);
+  const x=i=>l+i*(w-l-r)/6,y=v=>tp+(hi-v)/(hi-lo)*(h-tp-b);
+  let s=`<svg viewBox="0 0 ${w} ${h}" width="100%" style="max-width:${w}px" role="img" aria-label="Rates by year">`;
+  s+=`<rect x="${x(0)-8}" y="${tp}" width="${x(3)-x(0)+16}" height="${h-tp-b}" fill="#ECEBF1"/>`;
+  for(let v=lo;v<=hi;v+=10){s+=`<line x1="${l}" x2="${w-r}" y1="${y(v)}" y2="${y(v)}" stroke="#E2E0E8"/><text x="${l-6}" y="${y(v)+4}" font-size="11" text-anchor="end" fill="#77728A">${v}%</text>`}
+  t.years.forEach((yr,i)=>s+=`<text x="${x(i)}" y="${h-8}" font-size="11" text-anchor="middle" fill="#77728A">${yr}</text>`);
+  [[rT,'#2B1F52',t.grp,'nT'],[rC,'#9A95AA',t.cmp,'nC']].forEach(([arr,col,name,nk])=>{
+    const d=arr.map((v,i)=>v==null?'':`${i&&arr[i-1]!=null?'L':'M'}${x(i)} ${y(v)}`).join('');
+    s+=`<path d="${d}" fill="none" stroke="${col}" stroke-width="2"/>`;
+    arr.forEach((v,i)=>{if(v!=null)s+=`<circle cx="${x(i)}" cy="${y(v)}" r="4" fill="${col}" stroke="#fff" stroke-width="2" data-tip="${esc(`<b>${name}, ${t.years[i]}</b><br>${f1(v)}% of ${Math.round(m.ser[i][nk])} students`)}"/>`});
+    const lv=arr[6];if(lv!=null)s+=`<text x="${x(6)+9}" y="${y(lv)+4}" font-size="12" fill="#2A2148">${esc(name)} ${f1(lv)}%</text>`;
+  });
+  return s+'</svg>';
+}
+function gapYears(m,t){
+  const w=460,h=210,l=36,r=16,tp=14,b=26;
+  const his=[0,...m.gaps.map((g,i)=>g==null?0:g+(m.ci[i]||0)),...t.m,t.fin];
+  const los=m.gaps.map((g,i)=>g==null?0:g-(m.ci[i]||0));
+  let lo=Math.min(0,...los),hi=Math.max(...his)*1.08;lo=Math.floor(lo/5)*5;hi=Math.ceil(hi/5)*5;if(hi<=lo)hi=lo+5;
+  const bw=(w-l-r)/7,x=i=>l+i*bw+bw/2,y=v=>tp+(hi-v)/(hi-lo)*(h-tp-b);
+  let s=`<svg viewBox="0 0 ${w} ${h}" width="100%" style="max-width:${w}px" role="img" aria-label="Gap by year against milestones">`;
+  const step=(hi-lo)>60?20:(hi-lo)>30?10:5;
+  for(let v=lo;v<=hi;v+=step){s+=`<line x1="${l}" x2="${w-r}" y1="${y(v)}" y2="${y(v)}" stroke="${v===0?'#9A95AA':'#E2E0E8'}"/><text x="${l-6}" y="${y(v)+4}" font-size="11" text-anchor="end" fill="#77728A">${v}</text>`}
+  m.gaps.forEach((g,i)=>{s+=`<text x="${x(i)}" y="${h-8}" font-size="11" text-anchor="middle" fill="#77728A">${t.years[i]}</text>`;if(g==null)return;
+    const ms=i>3?t.m[i-4]:null,d=m.ser[i],small=d.nT<SMALL||d.nC<SMALL;
+    const col=i<4?'var(--base-bar)':small?ST.small.c:g<=t.fin?ST.met.c:g<=ms?ST.track.c:ST.behind.c;
+    const y0=y(0),y1=y(g);
+    s+=`<rect x="${x(i)-bw*.3}" y="${Math.min(y0,y1)}" width="${bw*.6}" height="${Math.max(1,Math.abs(y1-y0))}" rx="2" fill="${col}" data-tip="${esc(`<b>${t.years[i]}</b><br>Gap ${f1(g)} pp${m.ci[i]!=null?' ±'+f1(m.ci[i]):''}${ms!=null?`<br>Milestone ${ms} pp`:'<br>Baseline year'}<br>n = ${Math.round(d.nT)} vs ${Math.round(d.nC)}`)}"/>`;
+    if(m.ci[i]!=null){const a=y(g-m.ci[i]),c=y(g+m.ci[i]);s+=`<path d="M${x(i)} ${a}V${c}M${x(i)-4} ${a}H${x(i)+4}M${x(i)-4} ${c}H${x(i)+4}" stroke="#2A2148" stroke-width="1.2" fill="none"/>`}
+    if(ms!=null)s+=`<line x1="${x(i)-bw*.42}" x2="${x(i)+bw*.42}" y1="${y(ms)}" y2="${y(ms)}" stroke="#141122" stroke-width="2.5"/>`;
+  });
+  s+=`<line x1="${x(4)-bw*.5}" x2="${w-r}" y1="${y(t.fin)}" y2="${y(t.fin)}" stroke="#141122" stroke-dasharray="4 3"/>`;
+  return s+'</svg>';
+}
+function nTable(m,t){
+  let s=`<table style="font-size:12px"><thead><tr><th></th>${t.years.map((y,i)=>`<th class="num">${y}${i<4?'':' ★'}</th>`).join('')}</tr></thead><tbody>`;
+  const row=(lab,f)=>`<tr><td>${lab}</td>${m.ser.map((d,i)=>`<td class="num">${f(d,i)}</td>`).join('')}</tr>`;
+  const n=v=>`<span style="${v<SMALL?'color:#8A4DB6;font-weight:700':''}">${Math.round(v)}</span>`;
+  s+=row(`${t.grp}: students`,d=>n(d.nT));
+  s+=row(`${t.grp}: rate`,d=>d.rT==null?'–':f1(d.rT)+'%');
+  s+=row(`${t.cmp}: students`,d=>n(d.nC));
+  s+=row(`${t.cmp}: rate`,d=>d.rC==null?'–':f1(d.rC)+'%');
+  s+=row('<b>Gap (pp)</b>',(d,i)=>`<b>${f1(m.gaps[i])}</b>${m.ci[i]!=null?` <span class="uni">±${f1(m.ci[i])}</span>`:''}`);
+  return s+`</tbody></table><p class="cap" style="margin:6px 0 0">★ Years after baseline, compared with the 2025-26, 2026-27 and 2027-28 milestones. Headcounts below 10 are shown in purple.</p>`;
+}
+
+/* ---------- Heatmap ---------- */
+const BINS=[[-Infinity,-5,'#2F6E70','#fff','5+ pp ahead'],[-5,-2,'#6A9E9F','#fff','2 to 5 ahead'],[-2,-1,'#BCD6D6','#2A2148','1 to 2 ahead'],[-1,1,'#E4E2E8','#2A2148','Within 1 pp'],[1,2,'#DCC6EC','#2A2148','1 to 2 behind'],[2,5,'#A97BCB','#fff','2 to 5 behind'],[5,Infinity,'#6B3596','#fff','5+ pp behind']];
+const bin=v=>BINS.find(b=>v>=b[0]&&v<b[1])||BINS[3];
+function heat(list){
+  if(!list.length)return '<p class="empty">No areas to show.</p>';
+  let s=`<div class="scroll"><table class="heat"><thead><tr><th style="text-align:left">Area</th>${TG.map(t=>`<th>${t.stage}<small>${t.hd}</small></th>`).join('')}</tr></thead><tbody>`;
+  list.forEach(a=>{s+=`<tr><td class="nm"><button data-go="${esc(a.key)}">${esc(a.name)}</button></td>`;
+    TG.forEach(t=>{const m=a.m[t.id];
+      if(m.small){s+=`<td class="c hatch" data-tip="${tipArea(a,t,m)}">${m.latest==null?'–':'n&lt;10'}</td>`;return}
+      const bb=bin(m.dist);s+=`<td class="c" style="background:${bb[2]};color:${bb[3]}" data-tip="${tipArea(a,t,m)}">${f1(m.latest)}${m.sig==='sigBehind'?' !':''}</td>`});
+    s+='</tr>'});
+  s+=`</tbody></table></div><div class="legend" style="margin-top:8px">Latest gap, coloured by distance from the 2027-28 milestone:${BINS.map(b=>`<span><i class="sw" style="background:${b[2]}"></i>${b[4]}</span>`).join('')}<span><i class="sw hatch" style="border:1px solid #ccc"></i>Fewer than 10 students, or no result</span><span><b>!</b> significantly behind</span></div>`;
+  return s;
+}
+
+/* ---------- Tiles ---------- */
+function tiles(a){
+  const ms=TG.map(t=>a.m[t.id]);
+  const ok=ms.filter(m=>m.status==='met'||m.status==='track').length;
+  const nar=ms.filter(m=>m.dir==='narrow').length;
+  const sb=ms.filter(m=>m.sig==='sigBehind').length;
+  const sm=ms.filter(m=>m.small).length;
+  const tile=(l,v,s)=>`<div class="tile"><div class="lab">${l}</div><div class="val">${v}</div><div class="sub">${s}</div></div>`;
+  return `<div class="tiles">${tile('On track or met',ok+' of 8','Latest gap at or below its milestone')}${tile('Gaps narrowed',nar+' of 8','Down 1 pp or more since baseline')}${tile('Significantly behind',sb+' of 8','Behind even allowing for margin of error')}${tile('Small numbers',sm+' of 8','Fewer than 10 students in a group')}</div>`;
+}
+
+/* ---------- Pages ---------- */
+const state={page:'overview',fac:null,dept:null,prog:null,target:'PTS_1',level:'Department',rfac:'',hideSmall:true,open:null,sort:{k:'dist',d:-1},ref:'m'};
+const $=id=>document.getElementById(id);
+const view=$('view');
+
+function areaPage(a,childTitle,children){
+  if(!a)return '<p class="empty">No results for this area.</p>';
+  let s=tiles(a);
+  s+=`<section class="panel"><h3>Target progress</h3><p class="cap">${esc(a.name)} · select a target to see each year's rates, headcounts and margin of error</p>${targetTable(a)}</section>`;
+  if(children)s+=`<section class="panel"><h3>${childTitle}</h3><p class="cap">Latest gap for each target. Select a name to open its view.</p>${heat(children)}</section>`;
+  return s;
+}
+function areaList(level,fac){let l=byLevel(level);if(fac)l=l.filter(a=>a.fac===fac);return l}
+const areaName=a=>`<button data-go="${esc(a.key)}"><span class="chip" style="background:${FACm[a.fac].color}"></span>${esc(a.name)}</button>${a.level!=='Faculty'?`<span class="facname">${esc(a.level==='Programme'&&a.dept?a.dept:FACm[a.fac].name)}</span>`:''}`;
+
+function rankingPage(){
+  const t=TGm[state.target];
+  let list=areaList(state.level,state.rfac);
+  if(!list.length)return noLevel();
+  const hidden=list.filter(a=>a.m[t.id].small).length;
+  if(state.hideSmall)list=list.filter(a=>!a.m[t.id].small);
+  const counts=['met','track','behind','small'].map(k=>[k,areaList(state.level,state.rfac).filter(a=>a.m[t.id].status===k).length]);
+  const maxC=Math.max(1,...counts.map(c=>c[1]));
+  const prog=list.filter(a=>a.m[t.id].change!=null&&a.m[t.id].change<0).sort((x,y)=>x.m[t.id].change-y.m[t.id].change);
+  const maxA=Math.max(1,...prog.map(a=>Math.abs(a.m[t.id].change)));
+  const bar=(v,max,col,sig)=>`<svg width="120" height="16" viewBox="0 0 120 16"><rect x="0" y="3" width="${Math.max(2,Math.abs(v)/max*116)}" height="10" rx="2" fill="${sig===false?'url(#hatchP)':col}" stroke="${sig===false?col:'none'}"/></svg>`;
+  const top=prog.slice(0,10);
+  const behind=list.filter(a=>a.m[t.id].dist!=null&&a.m[t.id].dist>0).sort((x,y)=>y.m[t.id].dist-x.m[t.id].dist);
+  const maxB=Math.max(1,...behind.map(a=>a.m[t.id].dist));
+  let s=`<svg width="0" height="0" style="position:absolute"><defs><pattern id="hatchP" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill="#fff"/><line x1="0" y1="0" x2="0" y2="5" stroke="#8A4DB6" stroke-width="2.5"/></pattern></defs></svg>`;
+  s+=`<div class="grid2">
+   <section class="panel"><h3>Most progress</h3><p class="cap">Largest narrowing of the ${esc(t.stage.toLowerCase())} gap since the baseline (${t.years[0]} to ${t.years[3]})</p>
+   ${top.length?`<table class="rank"><thead><tr><th>#</th><th>${state.level}</th><th class="num">Baseline</th><th class="num">Latest</th><th>Change</th><th></th></tr></thead><tbody>${top.map((a,i)=>{const m=a.m[t.id];return `<tr data-tip="${tipArea(a,t,m)}"><td>${i+1}</td><td class="an">${areaName(a)}</td><td class="num">${f1(m.baseline)}</td><td class="num">${f1(m.latest)}</td><td>${chg(m)}</td><td>${bar(m.change,maxA,'#6A9E9F')}</td></tr>`}).join('')}</tbody></table>`:'<p class="empty">No area has narrowed this gap since the baseline.</p>'}</section>
+   <section class="panel"><h3>Furthest behind</h3><p class="cap">Latest gap above the 2027-28 milestone of ${t.m[2]} pp. Solid bars are significantly behind; hatched bars could be chance.</p>
+   ${behind.length?`<table class="rank"><thead><tr><th>#</th><th>${state.level}</th><th class="num">Latest</th><th class="num">Above milestone</th><th></th></tr></thead><tbody>${behind.slice(0,10).map((a,i)=>{const m=a.m[t.id];return `<tr data-tip="${tipArea(a,t,m)}"><td>${i+1}</td><td class="an">${areaName(a)}</td><td class="num">${f1(m.latest)} <span class="uni">±${f1(m.h)}</span></td><td class="num"><b>+${f1(m.dist)}</b></td><td>${bar(m.dist,maxB,'#8A4DB6',m.sig==='sigBehind')}</td></tr>`}).join('')}</tbody></table>`:'<p class="empty">Every area shown is at or below the milestone.</p>'}</section></div>`;
+  s+=`<section class="panel"><h3>Where areas stand</h3><p class="cap">Number of ${state.level.toLowerCase()}s by status for ${t.id}${state.rfac?' in '+esc(FACm[state.rfac].name):''}</p>
+    <svg viewBox="0 0 640 150" width="100%" style="max-width:640px" role="img" aria-label="Status counts">${counts.map(([k,c],i)=>`<text x="130" y="${i*36+24}" font-size="13" text-anchor="end" fill="#2A2148">${ST[k].l}</text><rect x="140" y="${i*36+8}" width="${Math.max(2,c/maxC*440)}" height="24" rx="2" fill="${ST[k].c}" data-tip="${esc(ST[k].l+': '+c)}"/><text x="${146+c/maxC*440}" y="${i*36+25}" font-size="13" fill="#2A2148">${c}</text>`).join('')}</svg></section>`;
+  s+=`<section class="panel"><h3>All ${state.level.toLowerCase()}s</h3><p class="cap">Select a column heading to sort.${state.hideSmall&&hidden?` ${hidden} with fewer than 10 students are hidden.`:''}</p>${allTable(list,t)}</section>`;
+  return s;
+}
+function allTable(list,t){
+  const cols=[['name','Area'],['baseline','Baseline'],['latest','Latest'],['dist','vs milestone'],['change','Since baseline'],['h','Margin ±'],['n','Students'],['status','Status']];
+  const val=(a,k)=>{const m=a.m[t.id];return k==='name'?a.name:k==='n'?m.nT+m.nC:k==='status'?['met','track','behind','small'].indexOf(m.status):m[k]};
+  const {k,d}=state.sort;
+  const rows=list.slice().sort((x,y)=>{const a=val(x,k),b=val(y,k);if(a==null)return 1;if(b==null)return -1;return (a>b?1:a<b?-1:0)*d});
+  return `<div class="scroll"><table class="rank sortable"><thead><tr>${cols.map(([c,l])=>`<th tabindex="0" data-sort="${c}" ${c===k?`aria-sort="${d>0?'ascending':'descending'}"`:''} class="${c==='name'||c==='status'?'':'num'}">${l}</th>`).join('')}</tr></thead><tbody>${rows.map(a=>{const m=a.m[t.id];return `<tr><td class="an">${areaName(a)}</td><td class="num">${f1(m.baseline)}</td><td class="num">${f1(m.latest)}</td><td class="num">${m.dist==null?'–':(m.dist>0?'+':'')+f1(m.dist)}</td><td>${chg(m)}</td><td class="num">${f1(m.h)}</td><td class="num">${Math.round(m.nT)} / ${Math.round(m.nC)}</td><td>${pill(m.status)}</td></tr>`}).join('')}</tbody></table></div>`;
+}
+
+function mapPage(){
+  const t=TGm[state.target],useT=state.ref==='t',refV=useT?t.fin:t.m[2],refL=useT?'2028-29 target':'2027-28 milestone';
+  let list=areaList(state.level,state.rfac);
+  if(!list.length)return noLevel();
+  list=list.filter(a=>{const m=a.m[t.id];return m.latest!=null&&m.baseline!=null&&!m.small});
+  const pts=list.map(a=>{const m=a.m[t.id];return {a,m,x:refV-m.latest,y:m.baseline-m.latest,sig:useT?m.sigT:m.sig}});
+  const w=760,h=470,l=58,r=20,tp=20,b=48;
+  const xr=Math.max(5,...pts.map(p=>Math.abs(p.x)))*1.12,yr=Math.max(5,...pts.map(p=>Math.abs(p.y)))*1.12;
+  const X=v=>l+(v+xr)/(2*xr)*(w-l-r),Y=v=>tp+(yr-v)/(2*yr)*(h-tp-b);
+  const COL={sigAhead:'#2F6E70',sigBehind:'#8A4DB6',ns:'#A9A4B5'};
+  let s=`<svg viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="Progress map">`;
+  s+=`<rect x="${X(0)}" y="${tp}" width="${w-r-X(0)}" height="${Y(0)-tp}" fill="#6A9E9F" fill-opacity=".1"/><rect x="${l}" y="${Y(0)}" width="${X(0)-l}" height="${h-b-Y(0)}" fill="#8A4DB6" fill-opacity=".08"/>`;
+  const ticks=rng=>{const st=rng>40?20:rng>20?10:rng>8?5:2;const o=[];for(let v=-Math.floor(rng/st)*st;v<=rng;v+=st)o.push(v);return o};
+  ticks(xr).forEach(v=>s+=`<line x1="${X(v)}" x2="${X(v)}" y1="${tp}" y2="${h-b}" stroke="${v===0?'#9A95AA':'#E2E0E8'}" ${v===0?'stroke-dasharray="3 3"':''}/><text x="${X(v)}" y="${h-b+16}" font-size="11" text-anchor="middle" fill="#77728A">${v>0?'+':''}${v}</text>`);
+  ticks(yr).forEach(v=>s+=`<line x1="${l}" x2="${w-r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${v===0?'#9A95AA':'#E2E0E8'}" ${v===0?'stroke-dasharray="3 3"':''}/><text x="${l-8}" y="${Y(v)+4}" font-size="11" text-anchor="end" fill="#77728A">${v>0?'+':''}${v}</text>`);
+  s+=`<text x="${(l+w-r)/2}" y="${h-8}" font-size="12" text-anchor="middle" fill="#4A4560">Latest gap below the ${refL} (pp) · right is better</text>`;
+  s+=`<text transform="translate(14 ${(tp+h-b)/2}) rotate(-90)" font-size="12" text-anchor="middle" fill="#4A4560">Gap narrowed since baseline (pp) · up is better</text>`;
+  s+=`<text x="${w-r-8}" y="${tp+16}" font-size="12" text-anchor="end" fill="#2F6E70" font-weight="600">Ahead and narrowing</text><text x="${l+8}" y="${tp+16}" font-size="12" fill="#4A4560" font-weight="600">Behind, but narrowing</text><text x="${w-r-8}" y="${h-b-10}" font-size="12" text-anchor="end" fill="#4A4560" font-weight="600">Ahead, but widening</text><text x="${l+8}" y="${h-b-10}" font-size="12" fill="#6B3596" font-weight="600">Behind and widening</text>`;
+  const k=state.level==='Faculty'?1.3:state.level==='Department'?2.1:2.6;
+  pts.sort((p,q)=>q.m.nT-p.m.nT).forEach(p=>{const rad=clamp(Math.sqrt(p.m.nT)*k,4,40);
+    s+=`<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="${rad}" fill="${COL[p.sig]}" fill-opacity="${p.sig==='ns'?.75:.88}" stroke="#fff" stroke-width="2" data-tip="${tipArea(p.a,t,p.m)}" data-go="${esc(p.a.key)}" style="cursor:pointer"/>`;
+    if(state.level==='Faculty')s+=`<text x="${X(p.x)}" y="${Y(p.y)+rad+12}" font-size="11" text-anchor="middle" fill="#4A4560" pointer-events="none">${esc(p.a.name.length>26?p.a.name.slice(0,24)+'…':p.a.name)}</text>`});
+  s+='</svg>';
+  const q=(fx,fy)=>pts.filter(p=>fx(p.x)&&fy(p.y)).length;
+  const excl=areaList(state.level,state.rfac).length-pts.length;
+  return `<div class="tiles"><div class="tile"><div class="lab">Ahead and narrowing</div><div class="val">${q(v=>v>=0,v=>v>=0)}</div></div><div class="tile"><div class="lab">Behind, but narrowing</div><div class="val">${q(v=>v<0,v=>v>=0)}</div></div><div class="tile"><div class="lab">Ahead, but widening</div><div class="val">${q(v=>v>=0,v=>v<0)}</div></div><div class="tile"><div class="lab">Behind and widening</div><div class="val">${q(v=>v<0,v=>v<0)}</div></div></div>
+  <section class="panel"><h3>Progress map</h3><p class="cap">${t.id} · ${t.stage}: ${t.grp} vs ${t.cmp}. Bubble area shows the number of ${esc(t.grp)} students in the latest year. Select a bubble to open that area.${excl?` ${excl} ${state.level.toLowerCase()}s with fewer than 10 students in a group, or no baseline, are not shown.`:''}</p>
+  <div class="legend" style="margin-bottom:6px"><span><i class="sw" style="background:${COL.sigAhead};border-radius:50%"></i>Significantly ahead of the ${refL}</span><span><i class="sw" style="background:${COL.ns};border-radius:50%"></i>Could be chance</span><span><i class="sw" style="background:${COL.sigBehind};border-radius:50%"></i>Significantly behind</span></div>${pts.length?s:'<p class="empty">No areas to show.</p>'}</section>`;
+}
+function noLevel(){return `<p class="empty">There are no ${state.level.toLowerCase()} results in this file. If programmes are missing, rerun app_equity_gaps.R (it now groups programmes by coursetitle) and load the new equity_gaps_all_levels_long.csv.</p>`}
+function startPage(){return `<div class="startbox"><h3>Load your results</h3><p>This dashboard reads the long results file written by <code>app_equity_gaps.R</code>. Use <b>Load results file</b> in the sidebar and choose <code>equity_gaps_all_levels_long.csv</code> from the outputs folder.</p><p>The file stays on your computer. Nothing is uploaded.</p></div>`}
+
+/* ---------- Render ---------- */
+const TITLES={overview:['APP EQUITY GAPS 2026','University progress against Access and Participation Plan targets'],faculty:['FACULTY VIEW',''],department:['DEPARTMENT VIEW',''],programme:['PROGRAMME VIEW',''],ranking:['TARGET RANKING','Which areas are making most progress, and which are furthest behind'],map:['PROGRESS MAP','Distance from the milestone against change since the baseline']};
+const SHOW={overview:[],faculty:['fFacW'],department:['fFacW','fDeptW'],programme:['fFacW','fDeptW','fProgW'],ranking:['fTargetW','fLevelW','fFacW','fSmallW'],map:['fTargetW','fLevelW','fRefW','fFacW']};
+const loaded=()=>!!AREAS.U;
+
+function fillSelects(){
+  const rankLike=state.page==='ranking'||state.page==='map';
+  if(!state.fac||!FACm[state.fac])state.fac=FAC[0].code;
+  $('fFac').innerHTML=(rankLike?'<option value="">(All)</option>':'')+FAC.map(f=>`<option value="${esc(f.code)}">${esc(f.name)}</option>`).join('');
+  $('fFac').value=rankLike?state.rfac:state.fac;
+  const depts=DEPTS[state.fac]||[];if(!depts.includes(state.dept))state.dept=depts[0]||null;
+  $('fDept').innerHTML=depts.length?depts.map(d=>`<option>${esc(d)}</option>`).join(''):'<option value="">(none)</option>';$('fDept').value=state.dept||'';
+  const ps=PROGS[state.dept]||[];if(!ps.includes(state.prog))state.prog=ps[0]||null;
+  $('fProg').innerHTML=ps.length?ps.map(p=>`<option>${esc(p)}</option>`).join(''):'<option value="">(none in this file)</option>';$('fProg').value=state.prog||'';
+  $('fTarget').value=state.target;$('fLevel').value=state.level;$('fSmall').checked=state.hideSmall;$('fRef').value=state.ref;
+}
+function render(){
+  fillSelects();
+  document.querySelectorAll('.nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.page===state.page?'page':'false'));
+  ['fTargetW','fLevelW','fRefW','fFacW','fDeptW','fProgW','fSmallW'].forEach(id=>$(id).hidden=!loaded()||!SHOW[state.page].includes(id));
+  $('fHead').hidden=!loaded()||!SHOW[state.page].length;
+  $('srcChip').textContent=loaded()?'OfS individualised data':'No data loaded';
+  let [ti,sub]=TITLES[state.page];
+  if(state.page==='faculty')sub='Progress against APP targets: '+FACm[state.fac].name;
+  if(state.page==='department')sub='Progress against APP targets: '+(state.dept||'no department selected');
+  if(state.page==='programme')sub='Progress against APP targets: '+(state.prog||'no programme selected');
+  $('pTitle').textContent=ti;$('pSub').textContent=sub;
+  if(!loaded()){view.innerHTML=startPage();return}
+  let h='';
+  if(state.page==='overview')h=areaPage(AREAS.U,'Faculty snapshot',byLevel('Faculty'));
+  if(state.page==='faculty')h=areaPage(AREAS['F:'+state.fac],'Department snapshot',byLevel('Department').filter(a=>a.fac===state.fac));
+  if(state.page==='department')h=state.dept?areaPage(AREAS['D:'+state.dept],'Programme snapshot',byLevel('Programme').filter(a=>a.dept===state.dept)):'<p class="empty">No departments in this faculty.</p>';
+  if(state.page==='programme')h=state.prog?areaPage(AREAS['P:'+state.prog]):(state.level='Programme',noLevel());
+  if(state.page==='ranking')h=rankingPage();
+  if(state.page==='map')h=mapPage();
+  view.innerHTML=h;
+}
+function go(page){state.page=page;state.open=null;try{history.replaceState(null,'','#'+page)}catch(e){}render();window.scrollTo(0,0)}
+function goArea(key){const a=AREAS[key];if(!a)return;
+  if(a.level==='University')return go('overview');
+  state.fac=a.fac;
+  if(a.level==='Faculty')return go('faculty');
+  if(a.level==='Department'){state.dept=a.name;return go('department')}
+  state.dept=a.dept;state.prog=a.name;go('programme')}
+
+/* ---------- Events ---------- */
+$('fTarget').innerHTML=TG.map(t=>`<option value="${t.id}">${t.id} · ${t.stage} · ${esc(t.hd)}</option>`).join('');
+document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.page)));
+$('fFac').addEventListener('change',e=>{if(state.page==='ranking'||state.page==='map')state.rfac=e.target.value;else{state.fac=e.target.value;state.dept=null;state.prog=null}state.open=null;render()});
+$('fDept').addEventListener('change',e=>{state.dept=e.target.value;state.prog=null;state.open=null;render()});
+$('fProg').addEventListener('change',e=>{state.prog=e.target.value;state.open=null;render()});
+$('fTarget').addEventListener('change',e=>{state.target=e.target.value;render()});
+$('fLevel').addEventListener('change',e=>{state.level=e.target.value;render()});
+$('fRef').addEventListener('change',e=>{state.ref=e.target.value;render()});
+$('fSmall').addEventListener('change',e=>{state.hideSmall=e.target.checked;render()});
+$('fileIn').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();
+  rd.onload=()=>{try{build(parseCSV(String(rd.result)));SOURCE=f.name;$('srcNote').className='';$('srcNote').textContent='Showing '+f.name+'.';render()}
+    catch(err){$('srcNote').className='err';$('srcNote').textContent=err.message}};
+  rd.onerror=()=>{$('srcNote').className='err';$('srcNote').textContent='That file could not be read. Try saving it again as CSV.'};
+  rd.readAsText(f);e.target.value=''});
+function act(e){
+  const g=e.target.closest('[data-go]');if(g){goArea(g.dataset.go);return true}
+  const s=e.target.closest('[data-sort]');if(s){const k=s.dataset.sort;state.sort=state.sort.k===k?{k,d:-state.sort.d}:{k,d:k==='name'?1:-1};render();return true}
+  const o=e.target.closest('tr[data-open]');if(o){state.open=state.open===o.dataset.open?null:o.dataset.open;render();return true}
+  return false}
+view.addEventListener('click',act);
+view.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('tr[data-open],th[data-sort]')){e.preventDefault();act(e)}});
+const tip=$('tip');
+document.addEventListener('mousemove',e=>{const el=e.target.closest&&e.target.closest('[data-tip]');
+  if(!el){tip.hidden=true;return}
+  tip.innerHTML=el.getAttribute('data-tip');tip.hidden=false;
+  const r=tip.getBoundingClientRect();let x=e.clientX+14,y=e.clientY+14;
+  if(x+r.width>innerWidth-8)x=e.clientX-r.width-14;if(y+r.height>innerHeight-8)y=e.clientY-r.height-14;
+  tip.style.left=Math.max(8,x)+'px';tip.style.top=Math.max(8,y)+'px'});
+$('infoBtn').addEventListener('click',()=>{$('about').hidden=false;$('aboutClose').focus()});
+$('aboutClose').addEventListener('click',()=>{$('about').hidden=true;$('infoBtn').focus()});
+$('about').addEventListener('click',e=>{if(e.target.id==='about')$('about').hidden=true});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')$('about').hidden=true});
+const h0=(location.hash||'').slice(1);if(TITLES[h0])state.page=h0;
+const emb=$('embedded').textContent.trim();
+if(emb&&emb!=='__DATA__'){try{build(parseCSV(emb));$('srcNote').textContent='Showing the results built into this file. Load a newer file to replace them.'}catch(err){$('srcNote').className='err';$('srcNote').textContent=err.message}}
+render();
+</script>
+</body>
+</html>
