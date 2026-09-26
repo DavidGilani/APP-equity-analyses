@@ -62,7 +62,7 @@ clean_names <- function(df) {
   df
 }
 
-if (exists("raw") && is.data.frame(raw) && "programme_title_long" %in% names(raw)) {
+if (exists("raw") && is.data.frame(raw) && "coursetitle" %in% names(raw)) {
   message("Using 'raw' already in memory")
 } else if (file.exists(rds_file)) {
   raw <- readRDS(rds_file)
@@ -81,7 +81,7 @@ chr_cols <- c("level_aggregate_1", "linked_engagement_starting_mode",
               "continuation_outcome_after_1_year", "continuation_outcome_after_4_years",
               "degree_class", "student_domicile", "broad_student_ethnicity",
               "historic_home_imd_quintile_by_nation", "facultyv4", "department",
-              "programme_title_long")
+              "coursetitle")
 missing_cols <- setdiff(c(num_cols, chr_cols), names(raw))
 if (length(missing_cols)) stop("Columns not found: ", paste(missing_cols, collapse = ", "))
 
@@ -115,7 +115,9 @@ base <- raw %>%
       student_domicile == "E" & historic_home_imd_quintile_by_nation %in% c("E3", "E4", "E5") ~ "IMD Q3-5"),
     faculty    = coalesce(facultyv4, "Unknown"),
     department = coalesce(department, "Unknown"),
-    programme  = coalesce(programme_title_long, "Unknown")
+    # Programme = coursetitle. Programme Title Long is only filled in for
+    # collaborative partner courses, so it cannot be used for the whole University.
+    programme  = coalesce(coursetitle, "Unknown")
   )
 
 # Check the outcome codes match the OfS guidance before relying on them
@@ -343,6 +345,15 @@ gaps_long <- bind_rows(
     mutate(level = "Programme", unit = programme)
 ) %>%
   mutate(
+    # 95% margin of error on the gap, from each group's rate and headcount
+    margin_pp = 196 * sqrt((rate_target / 100) * (1 - rate_target / 100) / n_target +
+                           (rate_comparator / 100) * (1 - rate_comparator / 100) / n_comparator),
+    # Is the gap significantly different from that year's milestone?
+    significance = case_when(
+      is.na(milestone) | is.na(gap_pp) | is.na(margin_pp) ~ NA_character_,
+      gap_pp - margin_pp > milestone ~ "Significantly behind",
+      gap_pp + margin_pp < milestone ~ "Significantly ahead",
+      TRUE ~ "Could be chance"),
     small_numbers = !is.na(n_target) & !is.na(n_comparator) &
       (n_target < small_n | n_comparator < small_n) |
       is.na(n_target) | is.na(n_comparator),
@@ -354,10 +365,10 @@ gaps_long <- bind_rows(
   ) %>%
   arrange(target_id, level, faculty, department, unit, period) %>%
   mutate(across(c(n_target, n_comparator), round),
-         across(c(rate_target, rate_comparator, gap_pp), ~ round(.x, 1))) %>%
+         across(c(rate_target, rate_comparator, gap_pp, margin_pp), ~ round(.x, 1))) %>%
   select(level, faculty, department, unit, target_id, stage, target_group_label,
          target_group, comparator_group, period, years,
-         n_target, rate_target, n_comparator, rate_comparator, gap_pp,
+         n_target, rate_target, n_comparator, rate_comparator, gap_pp, margin_pp, significance,
          small_numbers, baseline_university, milestone, met_milestone,
          target_2028_29, met_2028_29_target)
 
