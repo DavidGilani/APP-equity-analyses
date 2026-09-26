@@ -130,6 +130,17 @@ svg text{font-family:var(--font)}
 .startbox p{color:var(--ink2);max-width:60ch}
 .startbox{border:2px dashed var(--grid)}
 body.dragging .startbox,body.dragging .main{outline:3px dashed var(--purple);outline-offset:-6px}
+.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.toolbar .tlab{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink2);margin-right:4px}
+.toolbar button{border:2px solid var(--side);background:var(--bg);color:var(--side);padding:6px 14px;font-size:13px;cursor:pointer;border-radius:2px}
+.toolbar button[aria-pressed="true"]{background:var(--side);color:#fff}
+.toolbar button:focus-visible{outline:3px solid var(--purple);outline-offset:2px}
+.toolbar .tnote{font-size:12px;color:var(--muted);flex-basis:100%}
+td small.yr{display:block;font-size:11px;color:var(--muted);font-weight:400;white-space:nowrap}
+td.val{font-size:15px;font-weight:600}
+.about svg{display:block;margin:8px 0 4px;max-width:100%}
+.about table{font-size:13px;margin:6px 0}
+.about td{padding:3px 8px;border-bottom:1px solid var(--panel-line)}
 </style>
 </head>
 <body>
@@ -149,7 +160,7 @@ body.dragging .startbox,body.dragging .main{outline:3px dashed var(--purple);out
     <div class="filters">
       <div class="field" id="fTargetW"><label for="fTarget">Equity gap target</label><select id="fTarget"></select></div>
       <div class="field" id="fLevelW"><label for="fLevel">Compare</label><select id="fLevel"><option>Faculty</option><option selected>Department</option><option>Programme</option></select></div>
-      <div class="field" id="fRefW"><label for="fRef">Judge against</label><select id="fRef"><option value="m">2027-28 milestone</option><option value="t">2028-29 target</option></select></div>
+      <div class="field" id="fRefW"><label for="fRef">Judge against</label><select id="fRef"><option value="m">2026-27 milestone</option><option value="t">2028-29 target</option></select></div>
       <div class="field" id="fFacW"><label for="fFac">Faculty</label><select id="fFac"></select></div>
       <div class="field" id="fDeptW"><label for="fDept">Department</label><select id="fDept"></select></div>
       <div class="field" id="fProgW"><label for="fProg">Programme</label><select id="fProg"></select></div>
@@ -177,37 +188,46 @@ body.dragging .startbox,body.dragging .main{outline:3px dashed var(--purple);out
     <button class="close" id="aboutClose">Close</button>
     <h2 id="aboutH">About this dashboard</h2>
     <p>Results come from <code>equity_gaps_all_levels_long.csv</code>, produced by <code>app_equity_gaps.R</code> from the OfS individualised student data. The population is full-time, UK-domiciled first degree students registered at Middlesex. Only the four academic faculties are shown.</p>
+    <h3>Reading the trend line</h3>
+    <div id="trendGuide"></div>
     <h3>Equity gap</h3>
-    <p>The comparator group's rate minus the target group's rate, in percentage points. A positive gap means the target group does worse. BTEC entrants are compared with A-level entrants for continuation, completion and attainment, and with all other qualifications for progression.</p>
+    <p>The comparison group's rate minus the target group's rate, in percentage points. A positive gap means the target group does worse. BTEC entrants are compared with A-level entrants for continuation, completion and attainment, and with all other qualifications for progression.</p>
+    <h3>Most recent year or 4-year aggregate</h3>
+    <p><b>Most recent year</b> shows the latest single year for each measure. <b>4-year aggregate</b> combines the latest four years into one figure, as the OfS does. The aggregate is steadier where student numbers are small, so department and programme views open on it. The baseline is always the 4-year aggregate of the four baseline years.</p>
+    <h3>Which milestone?</h3>
+    <p>Results are compared with the <b>2026-27 milestone</b>. The APP baselines use the data available when the plan was written, and each later milestone applies to the data available in that year. This file is the 2026 OfS release, which is the data the University holds during 2026-27.</p>
     <h3>Status</h3>
     <ul>
-      <li><b>Target met</b>: the latest gap is at or below the 2028-29 target.</li>
-      <li><b>On track</b>: the latest gap is at or below the 2027-28 milestone.</li>
-      <li><b>Behind milestone</b>: the latest gap is above the 2027-28 milestone.</li>
-      <li><b>Small numbers</b>: either group has fewer than 10 students in the latest year.</li>
+      <li><b>Target met</b>: the gap is at or below the 2028-29 target.</li>
+      <li><b>On track</b>: the gap is at or below the 2026-27 milestone.</li>
+      <li><b>Behind milestone</b>: the gap is above the 2026-27 milestone.</li>
+      <li><b>Small numbers</b>: either group has fewer than 10 students.</li>
     </ul>
-    <h3>Is the difference significant?</h3>
-    <p>Each gap has a 95% margin of error based on the number of students in each group. If the whole range sits above the milestone, the area is <b>significantly behind</b>. If it sits below, it is <b>significantly ahead</b>. Otherwise the difference could be chance.</p>
-    <p>Tableau calculation: <code>1.96 * SQRT(pT*(1-pT)/nT + pC*(1-pC)/nC) * 100</code>, where p is each group's rate and n its headcount. The R export includes this as <code>margin_pp</code>, with <code>significance</code> alongside it.</p>
-    <h3>Direction of travel</h3>
-    <p>Compares the latest gap with the four-year pooled baseline. A change of 1 percentage point or more is shown as narrowed or widened.</p>
-    <h3>Progress map</h3>
-    <p>Across: how far the latest gap is below the milestone or target, so right is better. Up: how far the gap has narrowed since the baseline, so up is better. Bubble area shows the number of students in the target group. Colour shows whether the difference from the milestone or target is significant.</p>
+    <h3>Is it significant?</h3>
+    <p>Each gap has a 95% margin of error based on the number of students in each group. If the whole range sits above the milestone, the area is <b>significantly behind</b>. If it sits below, it is <b>significantly ahead</b>. Otherwise the difference from the milestone is <b>not significant</b>: with this many students it could have happened by chance.</p>
+    <p>Tableau calculation: <code>1.96 * SQRT(pT*(1-pT)/nT + pC*(1-pC)/nC) * 100</code>, where p is each group's rate and n its headcount.</p>
+    <h3>Student numbers</h3>
+    <p>Tables show the number of students in the target group and in the comparison group separately. For example, 27 BTEC and 16 A-level entrants.</p>
   </div>
 </div>
 <script>
-/* ---------- Targets (agreed APP milestones) ---------- */
+/* ---------- Targets and APP milestones ---------- */
 const SMALL=10;
+const PLAN=['2025-26','2026-27','2027-28','2028-29'];
+const CUR=1;                      // compare with the 2026-27 milestone
+const CURL=PLAN[CUR]+' milestone';
+const MS_AT={5:0,6:1};            // data years that the 2025 and 2026 OfS releases add
 const TG=[
- {id:'PTS_1',stage:'Continuation',grp:'BTEC',cmp:'A-level',hd:'BTEC vs A-level',m:[9,7,5],fin:3.9},
- {id:'PTS_2',stage:'Completion',grp:'Eligible for FSM',cmp:'Not eligible',hd:'Free school meals',m:[4.5,3.5,2.5],fin:1.9},
- {id:'PTS_3',stage:'Completion',grp:'BTEC',cmp:'A-level',hd:'BTEC vs A-level',m:[8.5,7,5.5],fin:3.9},
- {id:'PTS_4',stage:'Attainment',grp:'ABMO',cmp:'White',hd:'Ethnicity',m:[9.5,7.5,6],fin:4.9},
- {id:'PTS_5',stage:'Attainment',grp:'Eligible for FSM',cmp:'Not eligible',hd:'Free school meals',m:[9,7,5],fin:4.5},
- {id:'PTS_6',stage:'Attainment',grp:'IMD Q1-2',cmp:'IMD Q3-5',hd:'Deprivation (IMD)',m:[6,5,4],fin:2.9},
- {id:'PTS_7',stage:'Attainment',grp:'BTEC',cmp:'A-level',hd:'BTEC vs A-level',m:[20,16,12],fin:7.9},
- {id:'PTP_2',stage:'Progression',grp:'BTEC',cmp:'All other quals',hd:'BTEC vs all other',m:[8.5,7.5,6.5],fin:4.9}
+ {id:'PTS_1',stage:'Continuation',grp:'BTEC',cmp:'A-level',hd:'BTEC vs A-level',ms:[9,7,5,3.9]},
+ {id:'PTS_2',stage:'Completion',grp:'Eligible for FSM',cmp:'Not eligible',hd:'Free school meals',ms:[4.5,3.5,2.5,1.9]},
+ {id:'PTS_3',stage:'Completion',grp:'BTEC',cmp:'A-level',hd:'BTEC vs A-level',ms:[8.5,7,5.5,3.9]},
+ {id:'PTS_4',stage:'Attainment',grp:'ABMO',cmp:'White',hd:'Ethnicity',ms:[9.5,7.5,6,4.9]},
+ {id:'PTS_5',stage:'Attainment',grp:'Eligible for FSM',cmp:'Not eligible',hd:'Free school meals',ms:[9,7,5,4.5]},
+ {id:'PTS_6',stage:'Attainment',grp:'IMD Q1-2',cmp:'IMD Q3-5',hd:'Deprivation (IMD)',ms:[6,5,4,2.9]},
+ {id:'PTS_7',stage:'Attainment',grp:'BTEC',cmp:'A-level',hd:'BTEC vs A-level',ms:[20,16,12,7.9]},
+ {id:'PTP_2',stage:'Progression',grp:'BTEC',cmp:'All other quals',hd:'BTEC vs all other',ms:[8.5,7.5,6.5,4.9]}
 ];
+TG.forEach(t=>{t.cur=t.ms[CUR];t.fin=t.ms[3]});
 const TGm=Object.fromEntries(TG.map(t=>[t.id,t]));
 const FACDEF={
  'Arts and Creative Industries':{code:'ACI',name:'Arts and Creative Industries',color:'#D96F83'},
@@ -229,18 +249,19 @@ function parseCSV(text){
     else if(c==='\n'||c==='\r'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(f);f='';if(row.length>1||row[0]!=='')rows.push(row);row=[]}
     else f+=c}
   if(f!==''||row.length){row.push(f);rows.push(row)}
-  const h=rows.shift().map(s=>s.trim());
+  const h=rows.shift().map(s=>s.trim().replace(/^﻿/,''));
   return rows.map(r=>Object.fromEntries(h.map((k,i)=>[k,r[i]])));
 }
 const num=v=>v===undefined||v===''||v==='NA'?null:+v;
 
-/* ---------- Build areas from the long file ---------- */
-let AREAS={},DEPTS={},PROGS={},YEARS={},SOURCE='';
+/* ---------- Build areas ---------- */
+let AREAS={},DEPTS={},PROGS={};
 function build(rows){
+  if(!rows.length)throw new Error('This file is empty.');
   const need=['level','faculty','department','unit','target_id','period','years','n_target','rate_target','n_comparator','rate_comparator','gap_pp'];
   const miss=need.filter(k=>!(k in rows[0]));
   if(miss.length)throw new Error('This file is missing columns: '+miss.join(', ')+'. Choose equity_gaps_all_levels_long.csv.');
-  const A={};YEARS={};
+  const A={},YEARS={};
   rows.forEach(r=>{
     const lvl=r.level;let fac=null;
     if(lvl!=='University'){const fd=FACDEF[lvl==='Faculty'?r.unit:r.faculty];if(!fd||SKIP.has(r.unit))return;fac=fd.code}
@@ -250,96 +271,122 @@ function build(rows){
     const t=a.raw[r.target_id]||(a.raw[r.target_id]={ser:Array.from({length:7},()=>null),baseline:null});
     if(r.period==='Baseline (4-year pooled)'){t.baseline=num(r.gap_pp);return}
     const i=PIDX[r.period];if(i===undefined)return;
-    const nT=num(r.n_target),nC=num(r.n_comparator),rT=num(r.rate_target),rC=num(r.rate_comparator);
-    t.ser[i]={nT:nT||0,nC:nC||0,rT,rC,gap:num(r.gap_pp)};
-    if(lvl==='University'){(YEARS[r.target_id]=YEARS[r.target_id]||[])[i]=r.years}
+    t.ser[i]={nT:num(r.n_target)||0,nC:num(r.n_comparator)||0,rT:num(r.rate_target),rC:num(r.rate_comparator),gap:num(r.gap_pp)};
+    if(lvl==='University')(YEARS[r.target_id]=YEARS[r.target_id]||[])[i]=r.years;
   });
   if(!A.U)throw new Error('No university rows were found in this file.');
   TG.forEach(t=>{t.years=(YEARS[t.id]||[]).slice();for(let i=0;i<7;i++)if(!t.years[i])t.years[i]='Year '+(i+1)});
-  Object.values(A).forEach(a=>{a.m={};TG.forEach(t=>{const r=a.raw[t.id]||{ser:Array.from({length:7},()=>null),baseline:null};a.m[t.id]=metrics(r.ser,r.baseline,t)});delete a.raw});
-  // Drop areas with no results since the baseline (for example discontinued departments)
+  Object.values(A).forEach(a=>{a.m={};TG.forEach(t=>{const r=a.raw[t.id]||{ser:Array(7).fill(null),baseline:null};a.m[t.id]=metrics(r.ser,r.baseline,t)});delete a.raw});
   Object.keys(A).forEach(k=>{if(k!=='U'&&TG.every(t=>A[k].m[t.id].gaps.slice(4).every(g=>g==null)))delete A[k]});
-  AREAS=A;
-  DEPTS={};PROGS={};
+  AREAS=A;DEPTS={};PROGS={};
   Object.values(A).forEach(a=>{if(a.level==='Department')(DEPTS[a.fac]=DEPTS[a.fac]||[]).push(a.name);if(a.level==='Programme'&&a.dept)(PROGS[a.dept]=PROGS[a.dept]||[]).push(a.name)});
   Object.values(DEPTS).forEach(l=>l.sort());Object.values(PROGS).forEach(l=>l.sort());
 }
+const moe=(nT,nC,rT,rC)=>{if(!nT||!nC||rT==null||rC==null)return null;const a=rT/100,b=rC/100;return 196*Math.sqrt(a*(1-a)/nT+b*(1-b)/nC)};
+function judge(o,baseline,t){
+  o.small=o.val==null||o.nT<SMALL||o.nC<SMALL;
+  o.change=o.val!=null&&baseline!=null?o.val-baseline:null;
+  o.status=o.small?'small':o.val<=t.fin?'met':o.val<=t.cur?'track':'behind';
+  const sigAt=ref=>o.small||o.h==null?'na':o.val-o.h>ref?'sigBehind':o.val+o.h<ref?'sigAhead':'ns';
+  o.sig=sigAt(t.cur);o.sigT=sigAt(t.fin);
+  o.dir=o.change==null||o.small?'na':o.change<=-1?'narrow':o.change>=1?'widen':'stable';
+  o.dist=o.val!=null?o.val-t.cur:null;o.baseline=baseline;return o;
+}
 function metrics(serIn,baseline,t){
   const ser=serIn.map(d=>d||{nT:0,nC:0,rT:null,rC:null,gap:null});
-  const gaps=ser.map(d=>d.gap);
-  const ci=ser.map(d=>{if(!d.nT||!d.nC||d.rT==null||d.rC==null)return null;const a=d.rT/100,b=d.rC/100;return 196*Math.sqrt(a*(1-a)/d.nT+b*(1-b)/d.nC)});
-  const L=ser[6],latest=gaps[6],h=ci[6];
-  const small=latest==null||L.nT<SMALL||L.nC<SMALL;
-  const ms=t.m[2];
-  const change=latest!=null&&baseline!=null?latest-baseline:null;
-  const status=small?'small':latest<=t.fin?'met':latest<=ms?'track':'behind';
-  const sigAt=ref=>small||h==null?'na':latest-h>ref?'sigBehind':latest+h<ref?'sigAhead':'ns';
-  const dir=change==null||small?'na':change<=-1?'narrow':change>=1?'widen':'stable';
-  return {gaps,ci,baseline,latest,h,small,change,status,sig:sigAt(ms),sigT:sigAt(t.fin),dir,nT:L.nT,nC:L.nC,ser,ms,dist:latest!=null?latest-ms:null};
+  const gaps=ser.map(d=>d.gap),ci=ser.map(d=>moe(d.nT,d.nC,d.rT,d.rC));
+  const L=ser[6];
+  const latest=judge({val:L.gap,h:ci[6],nT:L.nT,nC:L.nC,rT:L.rT,rC:L.rC,years:t.years[6]},baseline,t);
+  let nT=0,sT=0,nC=0,sC=0;ser.slice(3).forEach(d=>{if(d.rT!=null&&d.nT){nT+=d.nT;sT+=d.nT*d.rT}if(d.rC!=null&&d.nC){nC+=d.nC;sC+=d.nC*d.rC}});
+  const rT=nT?sT/nT:null,rC=nC?sC/nC:null;
+  const agg=judge({val:rT!=null&&rC!=null?rC-rT:null,h:moe(nT,nC,rT,rC),nT,nC,rT,rC,years:t.years[3]+' to '+t.years[6]},baseline,t);
+  return {gaps,ci,ser,baseline,v:{latest,agg}};
 }
 const byLevel=l=>Object.values(AREAS).filter(a=>a.level===l).sort((x,y)=>x.name.localeCompare(y.name));
 
+/* ---------- Which view: most recent year or 4-year aggregate ---------- */
+const state={page:'overview',fac:null,dept:null,prog:null,target:'PTS_1',level:'Department',rfac:'',hideSmall:true,open:null,sort:{k:'dist',d:-1},ref:'m',modes:{}};
+function defMode(){const p=state.page;if(p==='department'||p==='programme')return 'agg';if(p==='ranking'||p==='map')return state.level==='Faculty'?'latest':'agg';return 'latest'}
+const modeKey=()=>state.page==='ranking'||state.page==='map'?state.page+':'+state.level:state.page;
+const mode=()=>state.modes[modeKey()]||defMode();
+const cur=m=>m.v[mode()];
+const modeLabel=()=>mode()==='agg'?'4-year aggregate':'Most recent year';
+function toolbar(){const md=mode();
+  return `<div class="toolbar" role="group" aria-label="Which results to show"><span class="tlab">Show</span><button data-mode="latest" aria-pressed="${md==='latest'}">Most recent year</button><button data-mode="agg" aria-pressed="${md==='agg'}">4-year aggregate</button><span class="tnote">${md==='latest'?'The latest single year for each measure, compared with the baseline and the '+CURL+'.':'The latest four years combined, compared with the baseline and the '+CURL+'. Steadier where student numbers are small.'}</span></div>`}
+
 /* ---------- Formatting ---------- */
 const ST={met:{l:'Target met',c:'#2F6E70'},track:{l:'On track',c:'#6A9E9F'},behind:{l:'Behind milestone',c:'#8A4DB6'},small:{l:'Small numbers',c:'#BDB8C6'}};
-const SIG={sigBehind:'Significantly behind',sigAhead:'Significantly ahead',ns:'Could be chance',na:'Too few students'};
+const SIG={sigBehind:'Significantly behind',sigAhead:'Significantly ahead',ns:'Not significant',na:'Too few students'};
 const f1=v=>v==null||isNaN(v)?'–':(+v).toFixed(1);
+const r0=v=>v==null?'–':Math.round(v);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
 const pill=s=>`<span class="pill" style="--c:${ST[s].c}">${ST[s].l}</span>`;
-function chg(m){if(m.change==null)return '<span class="chg flat">–</span>';
-  const v=m.change;if(v<=-1)return `<span class="chg good">▼ ${f1(-v)} narrower</span>`;
+function chg(o){if(o.change==null)return '<span class="chg flat">–</span>';
+  const v=o.change;if(v<=-1)return `<span class="chg good">▼ ${f1(-v)} narrower</span>`;
   if(v>=1)return `<span class="chg bad">▲ ${f1(v)} wider</span>`;return `<span class="chg flat">● ${f1(Math.abs(v))} little change</span>`}
-function ev(m){if(m.sig==='na')return `<div class="ev">${SIG.na}<small>n = ${Math.round(m.nT)} vs ${Math.round(m.nC)}</small></div>`;
-  return `<div class="ev">${SIG[m.sig]}<small>±${f1(m.h)} pp margin</small></div>`}
-const tipArea=(a,t,m)=>esc(`<b>${a.name}</b>${a.fac&&a.level!=='Faculty'?' · '+FACm[a.fac].code:''}<br>${t.stage}: ${t.grp} vs ${t.cmp}<br>Latest gap (${t.years[6]}): <b>${f1(m.latest)} pp</b>${m.h!=null?' ±'+f1(m.h):''}<br>2027-28 milestone: ${m.ms} pp · 2028-29 target: ${t.fin} pp<br>Baseline: ${f1(m.baseline)} pp · Change: ${m.change==null?'–':(m.change>0?'+':'')+f1(m.change)} pp<br>Students: ${Math.round(m.nT)} ${t.grp}, ${Math.round(m.nC)} ${t.cmp}<br>${ST[m.status].l} · ${SIG[m.sig]}`);
+function ev(o){if(o.sig==='na')return `<div class="ev">${SIG.na}<small>${r0(o.nT)} and ${r0(o.nC)} students</small></div>`;
+  return `<div class="ev">${SIG[o.sig]}<small>±${f1(o.h)} pp margin</small></div>`}
+const tipArea=(a,t,o)=>esc(`<b>${a.name}</b>${a.fac&&a.level!=='Faculty'?' · '+FACm[a.fac].code:''}<br>${t.stage}: ${t.grp} vs ${t.cmp}<br>${modeLabel()} (${o.years}): <b>${f1(o.val)} pp</b>${o.h!=null?' ±'+f1(o.h):''}<br>Baseline: ${f1(o.baseline)} pp · Change: ${o.change==null?'–':(o.change>0?'+':'')+f1(o.change)} pp<br>${CURL}: ${t.cur} pp · 2028-29 target: ${t.fin} pp<br>Students: ${r0(o.nT)} ${t.grp}, ${r0(o.nC)} ${t.cmp}<br>${ST[o.status].l} · ${SIG[o.sig]}`);
 
-/* ---------- Small charts ---------- */
-function spark(m,t){
-  const w=150,h=40,p=5,have=m.gaps.filter(v=>v!=null);
-  if(have.length<2)return '<span class="uni">Not enough data</span>';
-  const vals=[...have,...t.m,t.fin];
-  let lo=Math.min(0,...vals),hi=Math.max(...vals);if(hi-lo<4)hi=lo+4;
-  const x=i=>p+i*(w-2*p)/6,y=v=>h-p-(v-lo)/(hi-lo)*(h-2*p);
-  const pts=m.gaps.map((g,i)=>g==null?null:[x(i),y(g)]);
+/* ---------- Trend line ---------- */
+// Seven data years, then the two plan years still to come. Milestone ticks sit on
+// the 2025 and 2026 OfS releases (2025-26 and 2026-27) and on 2027-28 and 2028-29.
+function sparkSVG(gaps,t,statusCol,w,h,p,hover){
+  const have=gaps.filter(v=>v!=null);
+  const vals=[...have,...t.ms];let lo=Math.min(0,...vals),hi=Math.max(...vals);if(hi-lo<4)hi=lo+4;
+  const x=i=>p+i*(w-2*p)/8,y=v=>h-p-(v-lo)/(hi-lo)*(h-2*p);
+  const pts=gaps.map((g,i)=>g==null?null:[x(i),y(g)]);
   let path='';pts.forEach((q,i)=>{if(q)path+=(i&&pts[i-1]?'L':'M')+q[0].toFixed(1)+' '+q[1].toFixed(1)});
-  const fp=pts.filter(Boolean);const area=`M${fp[0][0]} ${h-p} `+fp.map(q=>`L${q[0].toFixed(1)} ${q[1].toFixed(1)}`).join(' ')+` L${fp[fp.length-1][0]} ${h-p}Z`;
-  let s=`<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Gap trend over seven years">`;
-  s+=`<rect x="${x(0)-3}" y="0" width="${x(3)-x(0)+6}" height="${h}" fill="#E6E4EC"/>`;
-  s+=`<path d="${area}" fill="#8A4DB6" fill-opacity=".08"/><path d="${path}" fill="none" stroke="#4A4560" stroke-width="1.6"/>`;
-  [4,5,6].forEach((i,k)=>s+=`<line x1="${x(i)-5}" x2="${x(i)+5}" y1="${y(t.m[k])}" y2="${y(t.m[k])}" stroke="#141122" stroke-width="2"/>`);
-  m.gaps.forEach((g,i)=>{if(g==null)return;const last=i===6;
-    s+=`<circle cx="${x(i)}" cy="${y(g)}" r="${last?4:2}" fill="${last?ST[m.status].c:'#4A4560'}" stroke="#fff" stroke-width="${last?1.5:0}"/>`;
-    s+=`<circle cx="${x(i)}" cy="${y(g)}" r="8" fill="transparent" data-tip="${esc(`<b>${t.years[i]}</b>: gap ${f1(g)} pp`+(i>3?`<br>Milestone ${t.m[i-4]} pp`:'<br>Baseline year'))}"/>`});
-  return s+'</svg>';
+  const fp=pts.filter(Boolean);
+  let s=`<rect x="${x(0)-3}" y="0" width="${x(3)-x(0)+6}" height="${h}" fill="#E6E4EC"/>`;
+  if(fp.length>1){s+=`<path d="M${fp[0][0]} ${h-p} `+fp.map(q=>`L${q[0].toFixed(1)} ${q[1].toFixed(1)}`).join(' ')+` L${fp[fp.length-1][0]} ${h-p}Z" fill="#8A4DB6" fill-opacity=".08"/>`}
+  s+=`<path d="${path}" fill="none" stroke="#4A4560" stroke-width="1.6"/>`;
+  [5,6,7,8].forEach((i,k)=>s+=`<line x1="${x(i)-5}" x2="${x(i)+5}" y1="${y(t.ms[k])}" y2="${y(t.ms[k])}" stroke="#141122" stroke-width="2"/>`);
+  gaps.forEach((g,i)=>{if(g==null)return;const last=i===6;
+    s+=`<circle cx="${x(i)}" cy="${y(g)}" r="${last?4:2}" fill="${last?statusCol:'#4A4560'}" stroke="#fff" stroke-width="${last?1.5:0}"/>`;
+    if(hover)s+=`<circle cx="${x(i)}" cy="${y(g)}" r="8" fill="transparent" data-tip="${esc(`<b>${t.years[i]}</b>: gap ${f1(g)} pp`+(i<4?'<br>Baseline year':MS_AT[i]!=null?`<br>${PLAN[MS_AT[i]]} milestone ${t.ms[MS_AT[i]]} pp`:''))}"/>`});
+  if(hover)[7,8].forEach((i,k)=>s+=`<rect x="${x(i)-7}" y="0" width="14" height="${h}" fill="transparent" data-tip="${esc(`<b>${PLAN[k+2]}</b> ${k?'target':'milestone'}: ${t.ms[k+2]} pp`)}"/>`);
+  return {s,x,y};
 }
-function gapBar(m,t,lo,hi){
-  const w=210,h=26,pl=4,pr=40,X=v=>pl+(clamp(v,lo,hi)-lo)/(hi-lo)*(w-pl-pr);
-  let s=`<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Latest gap ${f1(m.latest)} against milestone ${m.ms}">`;
-  s+=`<line x1="${X(0)}" x2="${X(0)}" y1="2" y2="${h-2}" stroke="#B5B1C2"/>`;
-  if(m.latest!=null){const x0=X(0),x1=X(m.latest);
-    s+=`<rect x="${Math.min(x0,x1)}" y="6" width="${Math.max(1,Math.abs(x1-x0))}" height="14" rx="2" fill="${ST[m.status].c}"/>`;
-    if(m.h!=null&&!m.small){const a=X(m.latest-m.h),b=X(m.latest+m.h);s+=`<path d="M${a} 13H${b}M${a} 9V17M${b} 9V17" stroke="#2A2148" stroke-width="1.2" fill="none"/>`}
-    s+=`<text x="${w-pr+6}" y="17" font-size="12" fill="#2A2148">${f1(m.latest)}</text>`}
-  s+=`<line x1="${X(m.ms)}" x2="${X(m.ms)}" y1="1" y2="${h-1}" stroke="#141122" stroke-width="2.5"/>`;
-  return s+'</svg>';
+function spark(m,t){
+  if(m.gaps.filter(v=>v!=null).length<2)return '<span class="uni">Not enough data</span>';
+  const w=170,h=40;return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Gap trend and APP milestones">${sparkSVG(m.gaps,t,ST[m.v.latest.status].c,w,h,5,true).s}</svg>`;
+}
+function trendGuide(){
+  const t=TG[0],g=(AREAS.U&&AREAS.U.m.PTS_1.gaps.every(v=>v!=null))?AREAS.U.m.PTS_1.gaps:[10.7,8.9,8.7,13.6,13.1,11.1,9.9];
+  const w=620,h=150,p=14,ox=20,oy=46;
+  const sp=sparkSVG(g,t,ST.behind.c,w-2*ox,h,p,false);
+  const X=i=>ox+sp.x(i),Y=v=>oy+sp.y(v);
+  const note=(x1,y1,x2,y2,txt,anchor='start')=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#77728A"/><text x="${x2+(anchor==='end'?-4:4)}" y="${y2+4}" font-size="12" fill="#2A2148" text-anchor="${anchor}">${txt}</text>`;
+  let s=`<svg viewBox="0 0 ${w} ${oy+h+64}" width="100%" role="img" aria-label="How to read the trend line"><g transform="translate(${ox} ${oy})">${sp.s}</g>`;
+  s+=note(X(1),oy+4,X(1),12,'Grey band: the four baseline years','start');
+  s+=note(X(2),Y(g[2]),X(2)-10,oy+h+22,'Each dot is one year’s gap','start');
+  s+=note(X(6),Y(g[6])+4,X(6)-30,oy+h+44,'Latest year, coloured by its status','start');
+  s+=note(X(7),Y(t.ms[2])-3,w-6,20,'Short black lines: the APP milestone for each year','end');
+  s+=note(X(8),Y(t.ms[3])+2,X(8)-4,oy+h+22,'2028-29 target','end');
+  const lab=[[5,'25-26'],[6,'26-27'],[7,'27-28'],[8,'28-29']];
+  lab.forEach(([i,l])=>s+=`<text x="${X(i)}" y="${oy+h+6}" font-size="10" fill="#77728A" text-anchor="middle">${l}</text>`);
+  s+='</svg>';
+  return s+`<p>The line shows the gap for each of the seven years in the file. The short black lines are the milestones set in the APP for each year to 2028-29: ${t.ms.slice(0,3).join(', ')} and a final target of ${t.fin} pp for continuation. The last two sit beyond today's data and show how far the gap still needs to fall. Hover over a dot or milestone for its value.</p>`;
 }
 
 /* ---------- Target table ---------- */
 function targetTable(a){
-  let lo=0,hi=5;TG.forEach(t=>{const m=a.m[t.id];if(m.latest!=null){lo=Math.min(lo,m.latest-(m.small||m.h==null?0:m.h));hi=Math.max(hi,m.latest+(m.small||m.h==null?0:m.h))}hi=Math.max(hi,t.m[2])});
-  lo=Math.max(lo,-40);hi=Math.min(hi,60)*1.04;
-  const isU=a.key==='U';
-  let s=`<div class="scroll"><table class="tt"><thead><tr><th>Target</th><th>Trend, 7 years</th><th class="num">Baseline</th><th>Latest gap vs 2027-28 milestone</th>${isU?'':'<th class="num">University</th>'}<th>Since baseline</th><th>Is it significant?</th><th>Status</th></tr></thead><tbody>`;
-  TG.forEach(t=>{const m=a.m[t.id],open=state.open===t.id;
-    s+=`<tr class="row${open?' open':''}" tabindex="0" data-open="${t.id}" aria-expanded="${open}" data-tip="${tipArea(a,t,m)}">
+  const isU=a.key==='U',ml=modeLabel();
+  let s=`<div class="scroll"><table class="tt"><thead><tr><th>Target</th><th>Trend to 2028-29</th><th class="num">Baseline<br>(4-year)</th><th class="num">${ml}</th><th>Change since baseline</th><th class="num">${CURL}</th>${isU?'':`<th class="num">University<br>(${ml.toLowerCase()})</th>`}<th>Is it significant?</th><th>Status</th></tr></thead><tbody>`;
+  TG.forEach(t=>{const m=a.m[t.id],o=cur(m),open=state.open===t.id;
+    s+=`<tr class="row${open?' open':''}" tabindex="0" data-open="${t.id}" aria-expanded="${open}" data-tip="${tipArea(a,t,o)}">
       <td class="tname"><b>${t.id} · ${t.stage}</b><span>${t.grp} vs ${t.cmp}</span></td>
-      <td>${spark(m,t)}</td><td class="num">${f1(m.baseline)}</td>
-      <td>${gapBar(m,t,lo,hi)}</td>${isU?'':`<td class="num uni">${f1(AREAS.U.m[t.id].latest)}</td>`}
-      <td>${chg(m)}</td><td>${ev(m)}</td><td>${pill(m.status)}</td></tr>`;
-    s+=open?`<tr class="detail"><td colspan="${isU?7:8}">${detail(a,t)}</td></tr>`:'<tr hidden></tr>';
+      <td>${spark(m,t)}</td>
+      <td class="num">${f1(m.baseline)}<small class="yr">${t.years[0]} to ${t.years[3]}</small></td>
+      <td class="num val">${f1(o.val)}<small class="yr">${o.years}</small></td>
+      <td>${chg(o)}</td><td class="num">${t.cur}</td>
+      ${isU?'':`<td class="num uni">${f1(cur(AREAS.U.m[t.id]).val)}</td>`}
+      <td>${ev(o)}</td><td>${pill(o.status)}</td></tr>`;
+    s+=open?`<tr class="detail"><td colspan="${isU?8:9}">${detail(a,t)}</td></tr>`:'<tr hidden></tr>';
   });
-  s+=`</tbody></table></div><div class="legend" style="margin-top:10px"><span><i class="sw" style="background:${ST.met.c}"></i>Target met</span><span><i class="sw" style="background:${ST.track.c}"></i>On track</span><span><i class="sw" style="background:${ST.behind.c}"></i>Behind milestone</span><span><i class="sw" style="background:${ST.small.c}"></i>Small numbers</span><span><i class="sw tick"></i>Milestone</span><span>├┤ 95% margin of error</span><span>Grey band on trend = baseline years</span></div>`;
-  return s;
+  return s+`</tbody></table></div><p class="cap" style="margin:10px 0 0">Gaps in percentage points. Select a row for each year's rates, headcounts and margin of error. The (i) button explains the trend line.</p>`;
 }
 
 /* ---------- Detail panel ---------- */
@@ -347,7 +394,7 @@ function detail(a,t){
   const m=a.m[t.id];
   if(m.gaps.every(g=>g==null))return '<p class="empty">No results for this target in this area.</p>';
   return `<div class="grid2"><div><div class="legend" style="margin-bottom:6px"><b style="letter-spacing:.2em;font-size:12px">RATES BY YEAR</b><span><i class="sw line" style="background:#2B1F52"></i>${t.grp}</span><span><i class="sw line" style="background:#9A95AA"></i>${t.cmp}</span></div>${rates(m,t)}</div>
-  <div><div class="legend" style="margin-bottom:6px"><b style="letter-spacing:.2em;font-size:12px">GAP AGAINST MILESTONES</b><span><i class="sw" style="background:var(--base-bar)"></i>Baseline years</span><span><i class="sw tick"></i>Milestone</span><span>- - 2028-29 target</span></div>${gapYears(m,t)}</div></div>
+  <div><div class="legend" style="margin-bottom:6px"><b style="letter-spacing:.2em;font-size:12px">GAP AGAINST APP MILESTONES</b><span><i class="sw" style="background:var(--base-bar)"></i>No milestone that year</span><span><i class="sw tick"></i>Milestone</span></div>${gapYears(m,t)}</div></div>
   <div class="scroll" style="margin-top:10px">${nTable(m,t)}</div>`;
 }
 function rates(m,t){
@@ -363,41 +410,42 @@ function rates(m,t){
   [[rT,'#2B1F52',t.grp,'nT'],[rC,'#9A95AA',t.cmp,'nC']].forEach(([arr,col,name,nk])=>{
     const d=arr.map((v,i)=>v==null?'':`${i&&arr[i-1]!=null?'L':'M'}${x(i)} ${y(v)}`).join('');
     s+=`<path d="${d}" fill="none" stroke="${col}" stroke-width="2"/>`;
-    arr.forEach((v,i)=>{if(v!=null)s+=`<circle cx="${x(i)}" cy="${y(v)}" r="4" fill="${col}" stroke="#fff" stroke-width="2" data-tip="${esc(`<b>${name}, ${t.years[i]}</b><br>${f1(v)}% of ${Math.round(m.ser[i][nk])} students`)}"/>`});
+    arr.forEach((v,i)=>{if(v!=null)s+=`<circle cx="${x(i)}" cy="${y(v)}" r="4" fill="${col}" stroke="#fff" stroke-width="2" data-tip="${esc(`<b>${name}, ${t.years[i]}</b><br>${f1(v)}% of ${r0(m.ser[i][nk])} students`)}"/>`});
     const lv=arr[6];if(lv!=null)s+=`<text x="${x(6)+9}" y="${y(lv)+4}" font-size="12" fill="#2A2148">${esc(name)} ${f1(lv)}%</text>`;
   });
   return s+'</svg>';
 }
 function gapYears(m,t){
-  const w=460,h=210,l=36,r=16,tp=14,b=26;
-  const his=[0,...m.gaps.map((g,i)=>g==null?0:g+(m.ci[i]||0)),...t.m,t.fin];
+  const w=460,h=226,l=36,r=10,tp=14,b=42;
+  const his=[0,...m.gaps.map((g,i)=>g==null?0:g+(m.ci[i]||0)),...t.ms];
   const los=m.gaps.map((g,i)=>g==null?0:g-(m.ci[i]||0));
   let lo=Math.min(0,...los),hi=Math.max(...his)*1.08;lo=Math.floor(lo/5)*5;hi=Math.ceil(hi/5)*5;if(hi<=lo)hi=lo+5;
-  const bw=(w-l-r)/7,x=i=>l+i*bw+bw/2,y=v=>tp+(hi-v)/(hi-lo)*(h-tp-b);
-  let s=`<svg viewBox="0 0 ${w} ${h}" width="100%" style="max-width:${w}px" role="img" aria-label="Gap by year against milestones">`;
+  const bw=(w-l-r)/9,x=i=>l+i*bw+bw/2,y=v=>tp+(hi-v)/(hi-lo)*(h-tp-b);
+  let s=`<svg viewBox="0 0 ${w} ${h}" width="100%" style="max-width:${w}px" role="img" aria-label="Gap by year against APP milestones">`;
   const step=(hi-lo)>60?20:(hi-lo)>30?10:5;
   for(let v=lo;v<=hi;v+=step){s+=`<line x1="${l}" x2="${w-r}" y1="${y(v)}" y2="${y(v)}" stroke="${v===0?'#9A95AA':'#E2E0E8'}"/><text x="${l-6}" y="${y(v)+4}" font-size="11" text-anchor="end" fill="#77728A">${v}</text>`}
-  m.gaps.forEach((g,i)=>{s+=`<text x="${x(i)}" y="${h-8}" font-size="11" text-anchor="middle" fill="#77728A">${t.years[i]}</text>`;if(g==null)return;
-    const ms=i>3?t.m[i-4]:null,d=m.ser[i],small=d.nT<SMALL||d.nC<SMALL;
-    const col=i<4?'var(--base-bar)':small?ST.small.c:g<=t.fin?ST.met.c:g<=ms?ST.track.c:ST.behind.c;
+  s+=`<rect x="${x(7)-bw/2}" y="${tp}" width="${bw*2}" height="${h-tp-b}" fill="#F3F2F6"/>`;
+  m.gaps.forEach((g,i)=>{s+=`<text x="${x(i)}" y="${h-b+14}" font-size="10" text-anchor="middle" fill="#77728A">${t.years[i]}</text>`;if(g==null)return;
+    const k=MS_AT[i],ms=k!=null?t.ms[k]:null,d=m.ser[i],small=d.nT<SMALL||d.nC<SMALL;
+    const col=ms==null?'var(--base-bar)':small?ST.small.c:g<=t.fin?ST.met.c:g<=ms?ST.track.c:ST.behind.c;
     const y0=y(0),y1=y(g);
-    s+=`<rect x="${x(i)-bw*.3}" y="${Math.min(y0,y1)}" width="${bw*.6}" height="${Math.max(1,Math.abs(y1-y0))}" rx="2" fill="${col}" data-tip="${esc(`<b>${t.years[i]}</b><br>Gap ${f1(g)} pp${m.ci[i]!=null?' ±'+f1(m.ci[i]):''}${ms!=null?`<br>Milestone ${ms} pp`:'<br>Baseline year'}<br>n = ${Math.round(d.nT)} vs ${Math.round(d.nC)}`)}"/>`;
+    s+=`<rect x="${x(i)-bw*.3}" y="${Math.min(y0,y1)}" width="${bw*.6}" height="${Math.max(1,Math.abs(y1-y0))}" rx="2" fill="${col}" data-tip="${esc(`<b>${t.years[i]}</b><br>Gap ${f1(g)} pp${m.ci[i]!=null?' ±'+f1(m.ci[i]):''}${ms!=null?`<br>${PLAN[k]} milestone ${ms} pp`:i<4?'<br>Baseline year':'<br>Before the plan began'}<br>${r0(d.nT)} ${t.grp}, ${r0(d.nC)} ${t.cmp}`)}"/>`;
     if(m.ci[i]!=null){const a=y(g-m.ci[i]),c=y(g+m.ci[i]);s+=`<path d="M${x(i)} ${a}V${c}M${x(i)-4} ${a}H${x(i)+4}M${x(i)-4} ${c}H${x(i)+4}" stroke="#2A2148" stroke-width="1.2" fill="none"/>`}
-    if(ms!=null)s+=`<line x1="${x(i)-bw*.42}" x2="${x(i)+bw*.42}" y1="${y(ms)}" y2="${y(ms)}" stroke="#141122" stroke-width="2.5"/>`;
   });
-  s+=`<line x1="${x(4)-bw*.5}" x2="${w-r}" y1="${y(t.fin)}" y2="${y(t.fin)}" stroke="#141122" stroke-dasharray="4 3"/>`;
+  [5,6,7,8].forEach((i,k)=>{s+=`<line x1="${x(i)-bw*.42}" x2="${x(i)+bw*.42}" y1="${y(t.ms[k])}" y2="${y(t.ms[k])}" stroke="#141122" stroke-width="2.5" data-tip="${esc(`<b>${PLAN[k]}</b> ${k===3?'target':'milestone'}: ${t.ms[k]} pp`)}"/><text x="${x(i)}" y="${h-b+28}" font-size="10" text-anchor="middle" fill="#2A2148" font-weight="600">${PLAN[k]}</text>`});
+  s+=`<text x="${l}" y="${h-b+28}" font-size="10" fill="#77728A">APP year</text>`;
   return s+'</svg>';
 }
 function nTable(m,t){
-  let s=`<table style="font-size:12px"><thead><tr><th></th>${t.years.map((y,i)=>`<th class="num">${y}${i<4?'':' ★'}</th>`).join('')}</tr></thead><tbody>`;
+  let s=`<table style="font-size:12px"><thead><tr><th></th>${t.years.map((y,i)=>`<th class="num">${y}${MS_AT[i]!=null?' ★':''}</th>`).join('')}</tr></thead><tbody>`;
   const row=(lab,f)=>`<tr><td>${lab}</td>${m.ser.map((d,i)=>`<td class="num">${f(d,i)}</td>`).join('')}</tr>`;
-  const n=v=>`<span style="${v<SMALL?'color:#8A4DB6;font-weight:700':''}">${Math.round(v)}</span>`;
+  const n=v=>`<span style="${v<SMALL?'color:#8A4DB6;font-weight:700':''}">${r0(v)}</span>`;
   s+=row(`${t.grp}: students`,d=>n(d.nT));
   s+=row(`${t.grp}: rate`,d=>d.rT==null?'–':f1(d.rT)+'%');
   s+=row(`${t.cmp}: students`,d=>n(d.nC));
   s+=row(`${t.cmp}: rate`,d=>d.rC==null?'–':f1(d.rC)+'%');
   s+=row('<b>Gap (pp)</b>',(d,i)=>`<b>${f1(m.gaps[i])}</b>${m.ci[i]!=null?` <span class="uni">±${f1(m.ci[i])}</span>`:''}`);
-  return s+`</tbody></table><p class="cap" style="margin:6px 0 0">★ Years after baseline, compared with the 2025-26, 2026-27 and 2027-28 milestones. Headcounts below 10 are shown in purple.</p>`;
+  return s+`</tbody></table><p class="cap" style="margin:6px 0 0">★ Years compared with an APP milestone: ${t.years[5]} with 2025-26 and ${t.years[6]} with 2026-27. Headcounts below 10 are shown in purple.</p>`;
 }
 
 /* ---------- Heatmap ---------- */
@@ -407,35 +455,28 @@ function heat(list){
   if(!list.length)return '<p class="empty">No areas to show.</p>';
   let s=`<div class="scroll"><table class="heat"><thead><tr><th style="text-align:left">Area</th>${TG.map(t=>`<th>${t.stage}<small>${t.hd}</small></th>`).join('')}</tr></thead><tbody>`;
   list.forEach(a=>{s+=`<tr><td class="nm"><button data-go="${esc(a.key)}">${esc(a.name)}</button></td>`;
-    TG.forEach(t=>{const m=a.m[t.id];
-      if(m.small){s+=`<td class="c hatch" data-tip="${tipArea(a,t,m)}">${m.latest==null?'–':'n&lt;10'}</td>`;return}
-      const bb=bin(m.dist);s+=`<td class="c" style="background:${bb[2]};color:${bb[3]}" data-tip="${tipArea(a,t,m)}">${f1(m.latest)}${m.sig==='sigBehind'?' !':''}</td>`});
+    TG.forEach(t=>{const o=cur(a.m[t.id]);
+      if(o.small){s+=`<td class="c hatch" data-tip="${tipArea(a,t,o)}">${o.val==null?'–':'n&lt;10'}</td>`;return}
+      const bb=bin(o.dist);s+=`<td class="c" style="background:${bb[2]};color:${bb[3]}" data-tip="${tipArea(a,t,o)}">${f1(o.val)}${o.sig==='sigBehind'?' !':''}</td>`});
     s+='</tr>'});
-  s+=`</tbody></table></div><div class="legend" style="margin-top:8px">Latest gap, coloured by distance from the 2027-28 milestone:${BINS.map(b=>`<span><i class="sw" style="background:${b[2]}"></i>${b[4]}</span>`).join('')}<span><i class="sw hatch" style="border:1px solid #ccc"></i>Fewer than 10 students, or no result</span><span><b>!</b> significantly behind</span></div>`;
-  return s;
+  return s+`</tbody></table></div><div class="legend" style="margin-top:8px">${modeLabel()} gap, coloured by distance from the ${CURL}:${BINS.map(b=>`<span><i class="sw" style="background:${b[2]}"></i>${b[4]}</span>`).join('')}<span><i class="sw hatch" style="border:1px solid #ccc"></i>Fewer than 10 students, or no result</span><span><b>!</b> significantly behind</span></div>`;
 }
 
 /* ---------- Tiles ---------- */
 function tiles(a){
-  const ms=TG.map(t=>a.m[t.id]);
-  const ok=ms.filter(m=>m.status==='met'||m.status==='track').length;
-  const nar=ms.filter(m=>m.dir==='narrow').length;
-  const sb=ms.filter(m=>m.sig==='sigBehind').length;
-  const sm=ms.filter(m=>m.small).length;
+  const os=TG.map(t=>cur(a.m[t.id]));
   const tile=(l,v,s)=>`<div class="tile"><div class="lab">${l}</div><div class="val">${v}</div><div class="sub">${s}</div></div>`;
-  return `<div class="tiles">${tile('On track or met',ok+' of 8','Latest gap at or below its milestone')}${tile('Gaps narrowed',nar+' of 8','Down 1 pp or more since baseline')}${tile('Significantly behind',sb+' of 8','Behind even allowing for margin of error')}${tile('Small numbers',sm+' of 8','Fewer than 10 students in a group')}</div>`;
+  return `<div class="tiles">${tile('On track or met',os.filter(o=>o.status==='met'||o.status==='track').length+' of 8','At or below the '+CURL)}${tile('Gaps narrowed',os.filter(o=>o.dir==='narrow').length+' of 8','Down 1 pp or more since baseline')}${tile('Significantly behind',os.filter(o=>o.sig==='sigBehind').length+' of 8','Behind even allowing for margin of error')}${tile('Small numbers',os.filter(o=>o.small).length+' of 8','Fewer than 10 students in a group')}</div>`;
 }
 
 /* ---------- Pages ---------- */
-const state={page:'overview',fac:null,dept:null,prog:null,target:'PTS_1',level:'Department',rfac:'',hideSmall:true,open:null,sort:{k:'dist',d:-1},ref:'m'};
 const $=id=>document.getElementById(id);
 const view=$('view');
-
 function areaPage(a,childTitle,children){
   if(!a)return '<p class="empty">No results for this area.</p>';
-  let s=tiles(a);
-  s+=`<section class="panel"><h3>Target progress</h3><p class="cap">${esc(a.name)} · select a target to see each year's rates, headcounts and margin of error</p>${targetTable(a)}</section>`;
-  if(children)s+=`<section class="panel"><h3>${childTitle}</h3><p class="cap">Latest gap for each target. Select a name to open its view.</p>${heat(children)}</section>`;
+  let s=toolbar()+tiles(a);
+  s+=`<section class="panel"><h3>Target progress</h3><p class="cap">${esc(a.name)} · ${modeLabel().toLowerCase()} compared with the 4-year baseline</p>${targetTable(a)}</section>`;
+  if(children)s+=`<section class="panel"><h3>${childTitle}</h3><p class="cap">${modeLabel()} gap for each target. Select a name to open its view.</p>${heat(children)}</section>`;
   return s;
 }
 function areaList(level,fac){let l=byLevel(level);if(fac)l=l.filter(a=>a.fac===fac);return l}
@@ -443,43 +484,42 @@ const areaName=a=>`<button data-go="${esc(a.key)}"><span class="chip" style="bac
 
 function rankingPage(){
   const t=TGm[state.target];
-  let list=areaList(state.level,state.rfac);
-  if(!list.length)return noLevel();
-  const hidden=list.filter(a=>a.m[t.id].small).length;
-  if(state.hideSmall)list=list.filter(a=>!a.m[t.id].small);
-  const counts=['met','track','behind','small'].map(k=>[k,areaList(state.level,state.rfac).filter(a=>a.m[t.id].status===k).length]);
+  let all=areaList(state.level,state.rfac);
+  if(!all.length)return noLevel();
+  let list=all;const hidden=list.filter(a=>cur(a.m[t.id]).small).length;
+  if(state.hideSmall)list=list.filter(a=>!cur(a.m[t.id]).small);
+  const O=a=>cur(a.m[t.id]);
+  const counts=['met','track','behind','small'].map(k=>[k,all.filter(a=>O(a).status===k).length]);
   const maxC=Math.max(1,...counts.map(c=>c[1]));
-  const prog=list.filter(a=>a.m[t.id].change!=null&&a.m[t.id].change<0).sort((x,y)=>x.m[t.id].change-y.m[t.id].change);
-  const maxA=Math.max(1,...prog.map(a=>Math.abs(a.m[t.id].change)));
+  const prog=list.filter(a=>O(a).change!=null&&O(a).change<0).sort((x,y)=>O(x).change-O(y).change);
+  const maxA=Math.max(1,...prog.map(a=>Math.abs(O(a).change)));
   const bar=(v,max,col,sig)=>`<svg width="120" height="16" viewBox="0 0 120 16"><rect x="0" y="3" width="${Math.max(2,Math.abs(v)/max*116)}" height="10" rx="2" fill="${sig===false?'url(#hatchP)':col}" stroke="${sig===false?col:'none'}"/></svg>`;
-  const top=prog.slice(0,10);
-  const behind=list.filter(a=>a.m[t.id].dist!=null&&a.m[t.id].dist>0).sort((x,y)=>y.m[t.id].dist-x.m[t.id].dist);
-  const maxB=Math.max(1,...behind.map(a=>a.m[t.id].dist));
-  let s=`<svg width="0" height="0" style="position:absolute"><defs><pattern id="hatchP" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill="#fff"/><line x1="0" y1="0" x2="0" y2="5" stroke="#8A4DB6" stroke-width="2.5"/></pattern></defs></svg>`;
+  const behind=list.filter(a=>O(a).dist!=null&&O(a).dist>0).sort((x,y)=>O(y).dist-O(x).dist);
+  const maxB=Math.max(1,...behind.map(a=>O(a).dist));
+  let s=toolbar()+`<svg width="0" height="0" style="position:absolute"><defs><pattern id="hatchP" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill="#fff"/><line x1="0" y1="0" x2="0" y2="5" stroke="#8A4DB6" stroke-width="2.5"/></pattern></defs></svg>`;
   s+=`<div class="grid2">
    <section class="panel"><h3>Most progress</h3><p class="cap">Largest narrowing of the ${esc(t.stage.toLowerCase())} gap since the baseline (${t.years[0]} to ${t.years[3]})</p>
-   ${top.length?`<table class="rank"><thead><tr><th>#</th><th>${state.level}</th><th class="num">Baseline</th><th class="num">Latest</th><th>Change</th><th></th></tr></thead><tbody>${top.map((a,i)=>{const m=a.m[t.id];return `<tr data-tip="${tipArea(a,t,m)}"><td>${i+1}</td><td class="an">${areaName(a)}</td><td class="num">${f1(m.baseline)}</td><td class="num">${f1(m.latest)}</td><td>${chg(m)}</td><td>${bar(m.change,maxA,'#6A9E9F')}</td></tr>`}).join('')}</tbody></table>`:'<p class="empty">No area has narrowed this gap since the baseline.</p>'}</section>
-   <section class="panel"><h3>Furthest behind</h3><p class="cap">Latest gap above the 2027-28 milestone of ${t.m[2]} pp. Solid bars are significantly behind; hatched bars could be chance.</p>
-   ${behind.length?`<table class="rank"><thead><tr><th>#</th><th>${state.level}</th><th class="num">Latest</th><th class="num">Above milestone</th><th></th></tr></thead><tbody>${behind.slice(0,10).map((a,i)=>{const m=a.m[t.id];return `<tr data-tip="${tipArea(a,t,m)}"><td>${i+1}</td><td class="an">${areaName(a)}</td><td class="num">${f1(m.latest)} <span class="uni">±${f1(m.h)}</span></td><td class="num"><b>+${f1(m.dist)}</b></td><td>${bar(m.dist,maxB,'#8A4DB6',m.sig==='sigBehind')}</td></tr>`}).join('')}</tbody></table>`:'<p class="empty">Every area shown is at or below the milestone.</p>'}</section></div>`;
+   ${prog.length?`<table class="rank"><thead><tr><th>#</th><th>${state.level}</th><th class="num">Baseline</th><th class="num">${modeLabel()}</th><th>Change</th><th></th></tr></thead><tbody>${prog.slice(0,10).map((a,i)=>{const o=O(a);return `<tr data-tip="${tipArea(a,t,o)}"><td>${i+1}</td><td class="an">${areaName(a)}</td><td class="num">${f1(o.baseline)}</td><td class="num">${f1(o.val)}</td><td>${chg(o)}</td><td>${bar(o.change,maxA,'#6A9E9F')}</td></tr>`}).join('')}</tbody></table>`:'<p class="empty">No area has narrowed this gap since the baseline.</p>'}</section>
+   <section class="panel"><h3>Furthest behind</h3><p class="cap">Gap above the ${CURL} of ${t.cur} pp. Solid bars are significantly behind; hatched bars are not significant.</p>
+   ${behind.length?`<table class="rank"><thead><tr><th>#</th><th>${state.level}</th><th class="num">${modeLabel()}</th><th class="num">Above milestone</th><th></th></tr></thead><tbody>${behind.slice(0,10).map((a,i)=>{const o=O(a);return `<tr data-tip="${tipArea(a,t,o)}"><td>${i+1}</td><td class="an">${areaName(a)}</td><td class="num">${f1(o.val)} <span class="uni">±${f1(o.h)}</span></td><td class="num"><b>+${f1(o.dist)}</b></td><td>${bar(o.dist,maxB,'#8A4DB6',o.sig==='sigBehind')}</td></tr>`}).join('')}</tbody></table>`:'<p class="empty">Every area shown is at or below the milestone.</p>'}</section></div>`;
   s+=`<section class="panel"><h3>Where areas stand</h3><p class="cap">Number of ${state.level.toLowerCase()}s by status for ${t.id}${state.rfac?' in '+esc(FACm[state.rfac].name):''}</p>
     <svg viewBox="0 0 640 150" width="100%" style="max-width:640px" role="img" aria-label="Status counts">${counts.map(([k,c],i)=>`<text x="130" y="${i*36+24}" font-size="13" text-anchor="end" fill="#2A2148">${ST[k].l}</text><rect x="140" y="${i*36+8}" width="${Math.max(2,c/maxC*440)}" height="24" rx="2" fill="${ST[k].c}" data-tip="${esc(ST[k].l+': '+c)}"/><text x="${146+c/maxC*440}" y="${i*36+25}" font-size="13" fill="#2A2148">${c}</text>`).join('')}</svg></section>`;
-  s+=`<section class="panel"><h3>All ${state.level.toLowerCase()}s</h3><p class="cap">Select a column heading to sort.${state.hideSmall&&hidden?` ${hidden} with fewer than 10 students are hidden.`:''}</p>${allTable(list,t)}</section>`;
+  s+=`<section class="panel"><h3>All ${state.level.toLowerCase()}s</h3><p class="cap">Select a column heading to sort.${state.hideSmall&&hidden?` ${hidden} with fewer than 10 students in a group ${hidden===1?'is':'are'} hidden.`:''}</p>${allTable(list,t)}</section>`;
   return s;
 }
 function allTable(list,t){
-  const cols=[['name','Area'],['baseline','Baseline'],['latest','Latest'],['dist','vs milestone'],['change','Since baseline'],['h','Margin ±'],['n','Students'],['status','Status']];
-  const val=(a,k)=>{const m=a.m[t.id];return k==='name'?a.name:k==='n'?m.nT+m.nC:k==='status'?['met','track','behind','small'].indexOf(m.status):m[k]};
+  const cols=[['name','Area'],['baseline','Baseline'],['val',modeLabel()],['dist','vs '+CURL],['change','Since baseline'],['h','Margin ±'],['nT',t.grp+' students'],['nC',t.cmp+' students'],['status','Status']];
+  const val=(a,k)=>{const o=cur(a.m[t.id]);return k==='name'?a.name:k==='status'?['met','track','behind','small'].indexOf(o.status):o[k]};
   const {k,d}=state.sort;
   const rows=list.slice().sort((x,y)=>{const a=val(x,k),b=val(y,k);if(a==null)return 1;if(b==null)return -1;return (a>b?1:a<b?-1:0)*d});
-  return `<div class="scroll"><table class="rank sortable"><thead><tr>${cols.map(([c,l])=>`<th tabindex="0" data-sort="${c}" ${c===k?`aria-sort="${d>0?'ascending':'descending'}"`:''} class="${c==='name'||c==='status'?'':'num'}">${l}</th>`).join('')}</tr></thead><tbody>${rows.map(a=>{const m=a.m[t.id];return `<tr><td class="an">${areaName(a)}</td><td class="num">${f1(m.baseline)}</td><td class="num">${f1(m.latest)}</td><td class="num">${m.dist==null?'–':(m.dist>0?'+':'')+f1(m.dist)}</td><td>${chg(m)}</td><td class="num">${f1(m.h)}</td><td class="num">${Math.round(m.nT)} / ${Math.round(m.nC)}</td><td>${pill(m.status)}</td></tr>`}).join('')}</tbody></table></div>`;
+  return `<div class="scroll"><table class="rank sortable"><thead><tr>${cols.map(([c,l])=>`<th tabindex="0" data-sort="${c}" ${c===k?`aria-sort="${d>0?'ascending':'descending'}"`:''} class="${c==='name'||c==='status'?'':'num'}">${esc(l)}</th>`).join('')}</tr></thead><tbody>${rows.map(a=>{const o=cur(a.m[t.id]);return `<tr><td class="an">${areaName(a)}</td><td class="num">${f1(o.baseline)}</td><td class="num">${f1(o.val)}</td><td class="num">${o.dist==null?'–':(o.dist>0?'+':'')+f1(o.dist)}</td><td>${chg(o)}</td><td class="num">${f1(o.h)}</td><td class="num">${r0(o.nT)}</td><td class="num">${r0(o.nC)}</td><td>${pill(o.status)}</td></tr>`}).join('')}</tbody></table></div>`;
 }
 
 function mapPage(){
-  const t=TGm[state.target],useT=state.ref==='t',refV=useT?t.fin:t.m[2],refL=useT?'2028-29 target':'2027-28 milestone';
-  let list=areaList(state.level,state.rfac);
-  if(!list.length)return noLevel();
-  list=list.filter(a=>{const m=a.m[t.id];return m.latest!=null&&m.baseline!=null&&!m.small});
-  const pts=list.map(a=>{const m=a.m[t.id];return {a,m,x:refV-m.latest,y:m.baseline-m.latest,sig:useT?m.sigT:m.sig}});
+  const t=TGm[state.target],useT=state.ref==='t',refV=useT?t.fin:t.cur,refL=useT?'2028-29 target':CURL;
+  const all=areaList(state.level,state.rfac);
+  if(!all.length)return noLevel();
+  const pts=all.map(a=>({a,o:cur(a.m[t.id])})).filter(p=>p.o.val!=null&&p.o.baseline!=null&&!p.o.small).map(p=>({...p,x:refV-p.o.val,y:p.o.baseline-p.o.val,sig:useT?p.o.sigT:p.o.sig}));
   const w=760,h=470,l=58,r=20,tp=20,b=48;
   const xr=Math.max(5,...pts.map(p=>Math.abs(p.x)))*1.12,yr=Math.max(5,...pts.map(p=>Math.abs(p.y)))*1.12;
   const X=v=>l+(v+xr)/(2*xr)*(w-l-r),Y=v=>tp+(yr-v)/(2*yr)*(h-tp-b);
@@ -489,28 +529,27 @@ function mapPage(){
   const ticks=rng=>{const st=rng>40?20:rng>20?10:rng>8?5:2;const o=[];for(let v=-Math.floor(rng/st)*st;v<=rng;v+=st)o.push(v);return o};
   ticks(xr).forEach(v=>s+=`<line x1="${X(v)}" x2="${X(v)}" y1="${tp}" y2="${h-b}" stroke="${v===0?'#9A95AA':'#E2E0E8'}" ${v===0?'stroke-dasharray="3 3"':''}/><text x="${X(v)}" y="${h-b+16}" font-size="11" text-anchor="middle" fill="#77728A">${v>0?'+':''}${v}</text>`);
   ticks(yr).forEach(v=>s+=`<line x1="${l}" x2="${w-r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${v===0?'#9A95AA':'#E2E0E8'}" ${v===0?'stroke-dasharray="3 3"':''}/><text x="${l-8}" y="${Y(v)+4}" font-size="11" text-anchor="end" fill="#77728A">${v>0?'+':''}${v}</text>`);
-  s+=`<text x="${(l+w-r)/2}" y="${h-8}" font-size="12" text-anchor="middle" fill="#4A4560">Latest gap below the ${refL} (pp) · right is better</text>`;
+  s+=`<text x="${(l+w-r)/2}" y="${h-8}" font-size="12" text-anchor="middle" fill="#4A4560">Gap below the ${refL} (pp) · right is better</text>`;
   s+=`<text transform="translate(14 ${(tp+h-b)/2}) rotate(-90)" font-size="12" text-anchor="middle" fill="#4A4560">Gap narrowed since baseline (pp) · up is better</text>`;
   s+=`<text x="${w-r-8}" y="${tp+16}" font-size="12" text-anchor="end" fill="#2F6E70" font-weight="600">Ahead and narrowing</text><text x="${l+8}" y="${tp+16}" font-size="12" fill="#4A4560" font-weight="600">Behind, but narrowing</text><text x="${w-r-8}" y="${h-b-10}" font-size="12" text-anchor="end" fill="#4A4560" font-weight="600">Ahead, but widening</text><text x="${l+8}" y="${h-b-10}" font-size="12" fill="#6B3596" font-weight="600">Behind and widening</text>`;
   const k=state.level==='Faculty'?1.3:state.level==='Department'?2.1:2.6;
-  pts.sort((p,q)=>q.m.nT-p.m.nT).forEach(p=>{const rad=clamp(Math.sqrt(p.m.nT)*k,4,40);
-    s+=`<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="${rad}" fill="${COL[p.sig]}" fill-opacity="${p.sig==='ns'?.75:.88}" stroke="#fff" stroke-width="2" data-tip="${tipArea(p.a,t,p.m)}" data-go="${esc(p.a.key)}" style="cursor:pointer"/>`;
-    if(state.level==='Faculty')s+=`<text x="${X(p.x)}" y="${Y(p.y)+rad+12}" font-size="11" text-anchor="middle" fill="#4A4560" pointer-events="none">${esc(p.a.name.length>26?p.a.name.slice(0,24)+'…':p.a.name)}</text>`});
+  pts.sort((p,q)=>q.o.nT-p.o.nT).forEach(p=>{const rad=clamp(Math.sqrt(p.o.nT)*k,4,40);
+    s+=`<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="${rad}" fill="${COL[p.sig]}" fill-opacity="${p.sig==='ns'?.75:.88}" stroke="#fff" stroke-width="2" data-tip="${tipArea(p.a,t,p.o)}" data-go="${esc(p.a.key)}" style="cursor:pointer"/>`;
+    if(state.level==='Faculty')s+=`<text x="${X(p.x)}" y="${Y(p.y)+rad+12}" font-size="11" text-anchor="middle" fill="#4A4560" pointer-events="none">${esc(p.a.name)}</text>`});
   s+='</svg>';
   const q=(fx,fy)=>pts.filter(p=>fx(p.x)&&fy(p.y)).length;
-  const excl=areaList(state.level,state.rfac).length-pts.length;
-  return `<div class="tiles"><div class="tile"><div class="lab">Ahead and narrowing</div><div class="val">${q(v=>v>=0,v=>v>=0)}</div></div><div class="tile"><div class="lab">Behind, but narrowing</div><div class="val">${q(v=>v<0,v=>v>=0)}</div></div><div class="tile"><div class="lab">Ahead, but widening</div><div class="val">${q(v=>v>=0,v=>v<0)}</div></div><div class="tile"><div class="lab">Behind and widening</div><div class="val">${q(v=>v<0,v=>v<0)}</div></div></div>
-  <section class="panel"><h3>Progress map</h3><p class="cap">${t.id} · ${t.stage}: ${t.grp} vs ${t.cmp}. Bubble area shows the number of ${esc(t.grp)} students in the latest year. Select a bubble to open that area.${excl?` ${excl} ${state.level.toLowerCase()}s with fewer than 10 students in a group, or no baseline, are not shown.`:''}</p>
-  <div class="legend" style="margin-bottom:6px"><span><i class="sw" style="background:${COL.sigAhead};border-radius:50%"></i>Significantly ahead of the ${refL}</span><span><i class="sw" style="background:${COL.ns};border-radius:50%"></i>Could be chance</span><span><i class="sw" style="background:${COL.sigBehind};border-radius:50%"></i>Significantly behind</span></div>${pts.length?s:'<p class="empty">No areas to show.</p>'}</section>`;
+  const excl=all.length-pts.length;
+  return toolbar()+`<div class="tiles"><div class="tile"><div class="lab">Ahead and narrowing</div><div class="val">${q(v=>v>=0,v=>v>=0)}</div></div><div class="tile"><div class="lab">Behind, but narrowing</div><div class="val">${q(v=>v<0,v=>v>=0)}</div></div><div class="tile"><div class="lab">Ahead, but widening</div><div class="val">${q(v=>v>=0,v=>v<0)}</div></div><div class="tile"><div class="lab">Behind and widening</div><div class="val">${q(v=>v<0,v=>v<0)}</div></div></div>
+  <section class="panel"><h3>Progress map</h3><p class="cap">${t.id} · ${t.stage}: ${t.grp} vs ${t.cmp}, ${modeLabel().toLowerCase()}. Bubble area shows the number of ${esc(t.grp)} students. Select a bubble to open that area.${excl?` ${excl} ${state.level.toLowerCase()}s with fewer than 10 students in a group, or no baseline, are not shown.`:''}</p>
+  <div class="legend" style="margin-bottom:6px"><span><i class="sw" style="background:${COL.sigAhead};border-radius:50%"></i>Significantly ahead of the ${refL}</span><span><i class="sw" style="background:${COL.ns};border-radius:50%"></i>Not significant</span><span><i class="sw" style="background:${COL.sigBehind};border-radius:50%"></i>Significantly behind</span></div>${pts.length?s:'<p class="empty">No areas to show.</p>'}</section>`;
 }
-function noLevel(){return `<p class="empty">There are no ${state.level.toLowerCase()} results in this file. If programmes are missing, rerun app_equity_gaps.R (it now groups programmes by coursetitle) and load the new equity_gaps_all_levels_long.csv.</p>`}
-function startPage(err){return `<div class="startbox" id="dropZone"><h3>Load your results</h3><p>This dashboard holds no data of its own. It fills in when you give it the long results file written by <code>app_equity_gaps.R</code>.</p><p>Drag <code>equity_gaps_all_levels_long.csv</code> onto this page, or use <b>Load results file</b> in the sidebar.</p><p>The file is read in your browser and stays on your computer. Nothing is uploaded. Reopening the page clears it, so load the file again each time.</p>${err?`<p style="color:#6B3596;font-weight:600">${esc(err)}</p>`:''}</div>`}
+function noLevel(){return `<p class="empty">There are no ${state.level.toLowerCase()} results in this file. If programmes are missing, rerun app_equity_gaps.R (it groups programmes by coursetitle) and load the new equity_gaps_all_levels_long.csv.</p>`}
+function startPage(err){return `<div class="startbox"><h3>Load your results</h3><p>This dashboard holds no data of its own. It fills in when you give it the long results file written by <code>app_equity_gaps.R</code>.</p><p>Drag <code>equity_gaps_all_levels_long.csv</code> onto this page, or use <b>Load results file</b> in the sidebar.</p><p>The file is read in your browser and stays on your computer. Nothing is uploaded. Reopening the page clears it, so load the file again each time.</p>${err?`<p style="color:#6B3596;font-weight:600">${esc(err)}</p>`:''}</div>`}
 
 /* ---------- Render ---------- */
 const TITLES={overview:['APP EQUITY GAPS 2026','University progress against Access and Participation Plan targets'],faculty:['FACULTY VIEW',''],department:['DEPARTMENT VIEW',''],programme:['PROGRAMME VIEW',''],ranking:['TARGET RANKING','Which areas are making most progress, and which are furthest behind'],map:['PROGRESS MAP','Distance from the milestone against change since the baseline']};
 const SHOW={overview:[],faculty:['fFacW'],department:['fFacW','fDeptW'],programme:['fFacW','fDeptW','fProgW'],ranking:['fTargetW','fLevelW','fFacW','fSmallW'],map:['fTargetW','fLevelW','fRefW','fFacW']};
 const loaded=()=>!!AREAS.U;
-
 function fillSelects(){
   const rankLike=state.page==='ranking'||state.page==='map';
   if(!state.fac||!FACm[state.fac])state.fac=FAC[0].code;
@@ -533,12 +572,13 @@ function render(){
   if(state.page==='department')sub='Progress against APP targets: '+(state.dept||'no department selected');
   if(state.page==='programme')sub='Progress against APP targets: '+(state.prog||'no programme selected');
   $('pTitle').textContent=ti;$('pSub').textContent=sub;
+  $('trendGuide').innerHTML=trendGuide();
   if(!loaded()){view.innerHTML=startPage();return}
   let h='';
   if(state.page==='overview')h=areaPage(AREAS.U,'Faculty snapshot',byLevel('Faculty'));
   if(state.page==='faculty')h=areaPage(AREAS['F:'+state.fac],'Department snapshot',byLevel('Department').filter(a=>a.fac===state.fac));
   if(state.page==='department')h=state.dept?areaPage(AREAS['D:'+state.dept],'Programme snapshot',byLevel('Programme').filter(a=>a.dept===state.dept)):'<p class="empty">No departments in this faculty.</p>';
-  if(state.page==='programme')h=state.prog?areaPage(AREAS['P:'+state.prog]):(state.level='Programme',noLevel());
+  if(state.page==='programme')h=state.prog?areaPage(AREAS['P:'+state.prog]):`<p class="empty">There are no programme results in this file. Rerun app_equity_gaps.R (it groups programmes by coursetitle) and load the new equity_gaps_all_levels_long.csv.</p>`;
   if(state.page==='ranking')h=rankingPage();
   if(state.page==='map')h=mapPage();
   view.innerHTML=h;
@@ -562,16 +602,16 @@ $('fLevel').addEventListener('change',e=>{state.level=e.target.value;render()});
 $('fRef').addEventListener('change',e=>{state.ref=e.target.value;render()});
 $('fSmall').addEventListener('change',e=>{state.hideSmall=e.target.checked;render()});
 function loadFile(f){if(!f)return;const rd=new FileReader();
-  rd.onload=()=>{try{build(parseCSV(String(rd.result)));SOURCE=f.name;$('srcNote').className='';$('srcNote').textContent='Showing '+f.name+'. Load another file to replace it.';state.open=null;render()}
+  rd.onload=()=>{try{build(parseCSV(String(rd.result)));$('srcNote').className='';$('srcNote').textContent='Showing '+f.name+'. Load another file to replace it.';state.open=null;render()}
     catch(err){$('srcNote').className='err';$('srcNote').textContent=err.message;if(!loaded())view.innerHTML=startPage(err.message)}};
   rd.onerror=()=>{$('srcNote').className='err';$('srcNote').textContent='That file could not be read. Try saving it again as CSV.'};
   rd.readAsText(f)}
 $('fileIn').addEventListener('change',e=>{loadFile(e.target.files[0]);e.target.value=''});
-// Drag and drop the CSV anywhere on the page
 ['dragenter','dragover'].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();document.body.classList.add('dragging')}));
-['dragleave','drop'].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();if(ev==='drop'||e.target===document.documentElement||!e.relatedTarget)document.body.classList.remove('dragging')}));
+['dragleave','drop'].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();if(ev==='drop'||!e.relatedTarget)document.body.classList.remove('dragging')}));
 document.addEventListener('drop',e=>loadFile(e.dataTransfer&&e.dataTransfer.files[0]));
 function act(e){
+  const md=e.target.closest('[data-mode]');if(md){state.modes[modeKey()]=md.dataset.mode;render();return true}
   const g=e.target.closest('[data-go]');if(g){goArea(g.dataset.go);return true}
   const s=e.target.closest('[data-sort]');if(s){const k=s.dataset.sort;state.sort=state.sort.k===k?{k,d:-state.sort.d}:{k,d:k==='name'?1:-1};render();return true}
   const o=e.target.closest('tr[data-open]');if(o){state.open=state.open===o.dataset.open?null:o.dataset.open;render();return true}
