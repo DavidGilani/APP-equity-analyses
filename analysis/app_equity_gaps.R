@@ -3,8 +3,8 @@
 #
 # Purpose
 #   1. Rebuild the eight APP success and progression target gaps from the OfS
-#      individualised file, and check them against the "APP Equity Gap Table"
-#      workbook (1st Deg FT UG sheet)
+#      individualised file, and check them against the agreed reference
+#      figures
 #   2. Break every gap down by faculty, department and programme
 #   3. Export CSVs for a summary sheet: gaps, headcounts, small-number flags
 #      and whether each area is meeting the APP milestones
@@ -80,7 +80,7 @@ num_cols <- c("registering_ukprn", "app_exclusion_reason", "entrant_exclusion",
 chr_cols <- c("level_aggregate_1", "linked_engagement_starting_mode",
               "continuation_outcome_after_1_year", "continuation_outcome_after_4_years",
               "degree_class", "student_domicile", "broad_student_ethnicity",
-              "home_imd_quintile_by_nation", "facultyv4", "department",
+              "historic_home_imd_quintile_by_nation", "facultyv4", "department",
               "programme_title_long")
 missing_cols <- setdiff(c(num_cols, chr_cols), names(raw))
 if (length(missing_cols)) stop("Columns not found: ", paste(missing_cols, collapse = ", "))
@@ -107,9 +107,12 @@ base <- raw %>%
     split_ethnicity = case_when(
       student_domicile %in% c("E", "N", "S", "W") & broad_student_ethnicity %in% c("A", "B", "M", "O") ~ "ABMO",
       student_domicile %in% c("E", "N", "S", "W") & broad_student_ethnicity == "W" ~ "White"),
-    # IMD: English quintiles, 1 is most deprived
-    split_imd = case_when(home_imd_quintile_by_nation %in% c("E1", "E2") ~ "IMD Q1-2",
-                          home_imd_quintile_by_nation %in% c("E3", "E4", "E5") ~ "IMD Q3-5"),
+    # IMD 2019 (the OfS "historic" field), English-domiciled students. The APP
+    # targets were set on IMD 2019; home_imd_quintile_by_nation is IMD 2025.
+    # Quintile 1 is most deprived.
+    split_imd = case_when(
+      student_domicile == "E" & historic_home_imd_quintile_by_nation %in% c("E1", "E2") ~ "IMD Q1-2",
+      student_domicile == "E" & historic_home_imd_quintile_by_nation %in% c("E3", "E4", "E5") ~ "IMD Q3-5"),
     faculty    = coalesce(facultyv4, "Unknown"),
     department = coalesce(department, "Unknown"),
     programme  = coalesce(programme_title_long, "Unknown")
@@ -151,23 +154,34 @@ build_stages <- function(d, levels_keep) {
 # ---- 4. Target definitions ------------------------------------------------------------
 # Gap = comparator rate minus target group rate, in percentage points.
 # A positive gap means the target group does worse.
-# Milestones are from the APP (Tables 5d and 5e). The first year after the
-# baseline is compared with the 2025-26 milestone, the second with 2026-27,
-# and the third with 2027-28.
-# wb_yr and wb_after are the workbook figures, used only for the check.
+#
+# Comparators: BTEC is compared with A-level entrants for continuation,
+# completion and attainment, and with all other qualifications for progression.
+#
+# baseline = the agreed four-year pooled university baseline.
+# Milestones: the BTEC targets (PTS_1, PTS_3, PTS_7, PTP_2) use the milestones
+# revised for these comparators; the others are as published in the APP.
+# The first year after the baseline is compared with the 2025-26 milestone, the
+# second with 2026-27, and the third with 2027-28. "Below 4pp" is entered as 3.9.
+#
+# ref_yr and ref_after are the agreed reference figures for the check in
+# section 6 (NA where there is no agreed figure). Sources: the detailed
+# workbook for FSM, ethnicity and IMD; the BTEC analyses workbook and Board
+# Appendix for the BTEC baseline years; your APP tracking table for the BTEC
+# years after baseline.
 targets <- tribble(
   ~target_id, ~stage, ~target_group_label, ~split, ~target_group, ~comparator_group,
-  ~baseline_years, ~after_years, ~app_baseline, ~m_2025_26, ~m_2026_27, ~m_2027_28, ~m_2028_29,
-  ~wb_yr, ~wb_after,
+  ~baseline_years, ~after_years, ~baseline, ~m_2025_26, ~m_2026_27, ~m_2027_28, ~m_2028_29,
+  ~ref_yr, ~ref_after,
   "PTS_1", "Continuation", "BTEC vs A-level", "split_btec_alevel", "BTEC", "A-level",
-  2017:2020, 2021:2023, 5.9, 5, 4, 3, 1.9,
-  c(8.3, 4.25, 4.42, 7.9), c(13.09, 11.08, 9.93),
+  2017:2020, 2021:2023, 10.7, 9.0, 7.0, 5.0, 3.9,
+  c(10.65, 8.89, 8.74, 13.58), c(13.09, 11.08, 9.93),
   "PTS_2", "Completion", "FSM eligible vs not eligible", "split_fsm", "Eligible", "Not eligible",
-  2014:2017, 2018:2020, 5.3, 4.5, 3.5, 2.5, 1.9,
+  2014:2017, 2018:2020, 5.4, 4.5, 3.5, 2.5, 1.9,
   c(4.17, 6.65, 5.98, 3.72), c(3.25, 9.52, 1.93),
   "PTS_3", "Completion", "BTEC vs A-level", "split_btec_alevel", "BTEC", "A-level",
-  2014:2017, 2018:2020, 7.9, 6.5, 5, 4, 2.9,
-  c(6.59, 7.8, 9.86, 6.54), c(10.4, 10.7, 15.5),
+  2014:2017, 2018:2020, 10.1, 8.5, 7.0, 5.5, 3.9,
+  c(9.2, 10.8, 12.1, 7.4), c(10.4, 10.7, 15.5),
   "PTS_4", "Attainment", "ABMO vs White", "split_ethnicity", "ABMO", "White",
   2018:2021, 2022:2024, 11.4, 9.5, 7.5, 6, 4.9,
   c(12.04, 12.98, 8.93, 12.32), c(11.8, 18.7, 12.8),
@@ -178,20 +192,15 @@ targets <- tribble(
   2018:2021, 2022:2024, 6.9, 6, 5, 4, 2.9,
   c(9.52, 3.92, 4.66, 8.63), c(12.2, 9.5, 7.8),
   "PTS_7", "Attainment", "BTEC vs A-level", "split_btec_alevel", "BTEC", "A-level",
-  2018:2021, 2022:2024, 14.9, 12, 9, 6, 4.9,
-  c(17.66, 12.59, 13.74, 14.37), c(26.7, 22.6, 19.5),
+  2018:2021, 2022:2024, 23.6, 20.0, 16.0, 12.0, 7.9,
+  c(27.9, 21.1, 18.1, 25.5), c(26.2, 23.1, 19.2),
   "PTP_2", "Progression", "BTEC vs all other qualifications", "split_btec_other", "BTEC", "All other qualifications",
   2017:2020, 2021:2023, 10.4, 8.5, 7.5, 6.5, 4.9,
-  c(6.88, 8.45, 13.05, 10.45), c(8.2, 11.1, 11.1),
-  # The workbook progression figures compare BTEC with A-level. This row is a
-  # check only, so we can see which comparator the workbook used.
-  "PTP_2 (A-level check)", "Progression", "BTEC vs A-level (check only)", "split_btec_alevel", "BTEC", "A-level",
-  2017:2020, 2021:2023, 10.4, 8.5, 7.5, 6.5, 4.9,
-  c(6.88, 8.45, 13.05, 10.45), c(8.2, 11.1, 11.1)
+  c(NA, NA, NA, NA), c(10.5, 12.3, 14.0)
 )
 # tribble stores the year vectors as list columns only if wrapped; make sure
 targets <- targets %>%
-  mutate(across(c(baseline_years, after_years, wb_yr, wb_after), as.list))
+  mutate(across(c(baseline_years, after_years, ref_yr, ref_after), as.list))
 
 year_label <- function(y) paste0(y, "/", substr(y + 1, 3, 4))
 
@@ -246,7 +255,7 @@ calc_gaps <- function(stages, t, unit_vars) {
     mutate(target_id = t$target_id, stage = t$stage,
            target_group_label = t$target_group_label,
            target_group = t$target_group, comparator_group = t$comparator_group,
-           app_baseline = t$app_baseline,
+           baseline_university = t$baseline,
            milestone = case_when(period == "1 year after baseline"  ~ t$m_2025_26,
                                  period == "2 years after baseline" ~ t$m_2026_27,
                                  period == "3 years after baseline" ~ t$m_2027_28),
@@ -257,54 +266,54 @@ run_targets <- function(stages, unit_vars) {
   map_dfr(seq_len(nrow(targets)), ~ calc_gaps(stages, targets[.x, ], unit_vars))
 }
 
-# ---- 6. University-level check against the workbook ---------------------------------------
+# ---- 6. University-level check against the agreed reference figures ----------------------
 period_order <- c("YR1", "YR2", "YR3", "YR4", "Baseline (4-year pooled)",
                   "Baseline (average of YR1 to YR4 gaps)",
                   "1 year after baseline", "2 years after baseline", "3 years after baseline")
 
-workbook_values <- targets %>%
+reference_values <- targets %>%
   transmute(target_id,
-            values = map2(wb_yr, wb_after, ~ tibble(
+            values = map2(ref_yr, ref_after, ~ tibble(
               period = c(paste0("YR", 1:4), "1 year after baseline",
                          "2 years after baseline", "3 years after baseline"),
-              workbook_gap_pp = c(.x, .y)))) %>%
+              reference_gap_pp = c(.x, .y)))) %>%
   unnest(values)
 
 university_check <- imap_dfr(level_options, function(lv, lv_name) {
   run_targets(build_stages(base, lv), character(0)) %>%
     mutate(level_option = lv_name)
 }) %>%
-  left_join(workbook_values, by = c("target_id", "period")) %>%
-  mutate(difference_pp = round(gap_pp - workbook_gap_pp, 2),
+  left_join(reference_values, by = c("target_id", "period")) %>%
+  mutate(difference_pp = round(gap_pp - reference_gap_pp, 2),
          period = factor(period, levels = period_order)) %>%
   arrange(level_option, target_id, period) %>%
   mutate(across(c(n_target, n_comparator), round),
          across(c(rate_target, rate_comparator, gap_pp), ~ round(.x, 2))) %>%
   select(level_option, target_id, target_group_label, period, years,
          n_target, rate_target, n_comparator, rate_comparator,
-         gap_pp, workbook_gap_pp, difference_pp, app_baseline)
+         gap_pp, reference_gap_pp, difference_pp, baseline_university)
 
-cat("\nUniversity-level check against the workbook\n")
+cat("\nUniversity-level check against the agreed reference figures\n")
 print(university_check, n = Inf, width = Inf)
 
 # Quick summary: how close is each target, for each level option?
 check_summary <- university_check %>%
-  filter(!is.na(workbook_gap_pp)) %>%
+  filter(!is.na(reference_gap_pp)) %>%
   group_by(level_option, target_id) %>%
   summarise(max_abs_difference_pp = max(abs(difference_pp), na.rm = TRUE),
             after_years_max_diff  = max(abs(difference_pp[grepl("after", period)]), na.rm = TRUE),
             .groups = "drop")
-cat("\nLargest difference from the workbook, by target\n")
+cat("\nLargest difference from the reference figures, by target\n")
 print(check_summary, n = Inf)
 
 write_csv(university_check, file.path(out_dir, "equity_gaps_university_check.csv"))
 write_csv(check_summary,    file.path(out_dir, "equity_gaps_check_summary.csv"))
 
 # =============================================================================
-# STOP HERE until the university-level gaps match the workbook.
-# The "after" years should match closely, as they did for continuation. The
-# YR1 to YR4 figures in the workbook may come from an earlier OfS data release
-# and may not match exactly.
+# STOP HERE until the university-level gaps match the reference figures.
+# Every gap should be within about 0.2 percentage points of the reference.
+# Small differences in the baseline years come from rounded headcounts in
+# earlier OfS dashboard releases.
 # =============================================================================
 
 # ---- 7. Faculty, department and programme breakdowns ----------------------------------------
@@ -349,7 +358,7 @@ gaps_long <- bind_rows(
   select(level, faculty, department, unit, target_id, stage, target_group_label,
          target_group, comparator_group, period, years,
          n_target, rate_target, n_comparator, rate_comparator, gap_pp,
-         small_numbers, app_baseline, milestone, met_milestone,
+         small_numbers, baseline_university, milestone, met_milestone,
          target_2028_29, met_2028_29_target)
 
 # ---- 8. Summary: one row per area and target -----------------------------------------------
@@ -363,14 +372,14 @@ gaps_summary <- gaps_long %>%
                        "2 years after baseline", "3 years after baseline")) %>%
   select(level, faculty, department, unit, target_id, stage, target_group_label,
          period, gap_pp, n_target, n_comparator, small_numbers,
-         milestone, target_2028_29, app_baseline) %>%
+         milestone, target_2028_29, baseline_university) %>%
   mutate(period = recode(as.character(period),
                          "Baseline (4-year pooled)" = "baseline",
                          "1 year after baseline"    = "after_1",
                          "2 years after baseline"   = "after_2",
                          "3 years after baseline"   = "after_3")) %>%
   group_by(level, faculty, department, unit, target_id, stage, target_group_label,
-           app_baseline, target_2028_29) %>%
+           baseline_university, target_2028_29) %>%
   summarise(
     gap_baseline = gap_pp[period == "baseline"][1],
     gap_after_1  = gap_pp[period == "after_1"][1],
