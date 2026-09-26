@@ -128,6 +128,8 @@ svg text{font-family:var(--font)}
 .startbox{background:var(--panel);border:1px solid var(--panel-line);padding:28px;max-width:640px}
 .startbox h3{margin:0 0 8px;letter-spacing:.25em;text-transform:uppercase;font-size:14px}
 .startbox p{color:var(--ink2);max-width:60ch}
+.startbox{border:2px dashed var(--grid)}
+body.dragging .startbox,body.dragging .main{outline:3px dashed var(--purple);outline-offset:-6px}
 </style>
 </head>
 <body>
@@ -157,7 +159,7 @@ svg text{font-family:var(--font)}
     <div class="load">
       <input type="file" id="fileIn" accept=".csv,text/csv">
       <label class="btn" for="fileIn">Load results file</label>
-      <small id="srcNote">Choose equity_gaps_all_levels_long.csv from the R outputs folder.</small>
+      <small id="srcNote">Choose or drop equity_gaps_all_levels_long.csv from the R outputs folder.</small>
     </div>
   </aside>
   <main class="main">
@@ -193,7 +195,6 @@ svg text{font-family:var(--font)}
     <p>Across: how far the latest gap is below the milestone or target, so right is better. Up: how far the gap has narrowed since the baseline, so up is better. Bubble area shows the number of students in the target group. Colour shows whether the difference from the milestone or target is significant.</p>
   </div>
 </div>
-<script type="text/csv" id="embedded">__DATA__</script>
 <script>
 /* ---------- Targets (agreed APP milestones) ---------- */
 const SMALL=10;
@@ -503,7 +504,7 @@ function mapPage(){
   <div class="legend" style="margin-bottom:6px"><span><i class="sw" style="background:${COL.sigAhead};border-radius:50%"></i>Significantly ahead of the ${refL}</span><span><i class="sw" style="background:${COL.ns};border-radius:50%"></i>Could be chance</span><span><i class="sw" style="background:${COL.sigBehind};border-radius:50%"></i>Significantly behind</span></div>${pts.length?s:'<p class="empty">No areas to show.</p>'}</section>`;
 }
 function noLevel(){return `<p class="empty">There are no ${state.level.toLowerCase()} results in this file. If programmes are missing, rerun app_equity_gaps.R (it now groups programmes by coursetitle) and load the new equity_gaps_all_levels_long.csv.</p>`}
-function startPage(){return `<div class="startbox"><h3>Load your results</h3><p>This dashboard reads the long results file written by <code>app_equity_gaps.R</code>. Use <b>Load results file</b> in the sidebar and choose <code>equity_gaps_all_levels_long.csv</code> from the outputs folder.</p><p>The file stays on your computer. Nothing is uploaded.</p></div>`}
+function startPage(err){return `<div class="startbox" id="dropZone"><h3>Load your results</h3><p>This dashboard holds no data of its own. It fills in when you give it the long results file written by <code>app_equity_gaps.R</code>.</p><p>Drag <code>equity_gaps_all_levels_long.csv</code> onto this page, or use <b>Load results file</b> in the sidebar.</p><p>The file is read in your browser and stays on your computer. Nothing is uploaded. Reopening the page clears it, so load the file again each time.</p>${err?`<p style="color:#6B3596;font-weight:600">${esc(err)}</p>`:''}</div>`}
 
 /* ---------- Render ---------- */
 const TITLES={overview:['APP EQUITY GAPS 2026','University progress against Access and Participation Plan targets'],faculty:['FACULTY VIEW',''],department:['DEPARTMENT VIEW',''],programme:['PROGRAMME VIEW',''],ranking:['TARGET RANKING','Which areas are making most progress, and which are furthest behind'],map:['PROGRESS MAP','Distance from the milestone against change since the baseline']};
@@ -560,11 +561,16 @@ $('fTarget').addEventListener('change',e=>{state.target=e.target.value;render()}
 $('fLevel').addEventListener('change',e=>{state.level=e.target.value;render()});
 $('fRef').addEventListener('change',e=>{state.ref=e.target.value;render()});
 $('fSmall').addEventListener('change',e=>{state.hideSmall=e.target.checked;render()});
-$('fileIn').addEventListener('change',e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();
-  rd.onload=()=>{try{build(parseCSV(String(rd.result)));SOURCE=f.name;$('srcNote').className='';$('srcNote').textContent='Showing '+f.name+'.';render()}
-    catch(err){$('srcNote').className='err';$('srcNote').textContent=err.message}};
+function loadFile(f){if(!f)return;const rd=new FileReader();
+  rd.onload=()=>{try{build(parseCSV(String(rd.result)));SOURCE=f.name;$('srcNote').className='';$('srcNote').textContent='Showing '+f.name+'. Load another file to replace it.';state.open=null;render()}
+    catch(err){$('srcNote').className='err';$('srcNote').textContent=err.message;if(!loaded())view.innerHTML=startPage(err.message)}};
   rd.onerror=()=>{$('srcNote').className='err';$('srcNote').textContent='That file could not be read. Try saving it again as CSV.'};
-  rd.readAsText(f);e.target.value=''});
+  rd.readAsText(f)}
+$('fileIn').addEventListener('change',e=>{loadFile(e.target.files[0]);e.target.value=''});
+// Drag and drop the CSV anywhere on the page
+['dragenter','dragover'].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();document.body.classList.add('dragging')}));
+['dragleave','drop'].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();if(ev==='drop'||e.target===document.documentElement||!e.relatedTarget)document.body.classList.remove('dragging')}));
+document.addEventListener('drop',e=>loadFile(e.dataTransfer&&e.dataTransfer.files[0]));
 function act(e){
   const g=e.target.closest('[data-go]');if(g){goArea(g.dataset.go);return true}
   const s=e.target.closest('[data-sort]');if(s){const k=s.dataset.sort;state.sort=state.sort.k===k?{k,d:-state.sort.d}:{k,d:k==='name'?1:-1};render();return true}
@@ -584,8 +590,6 @@ $('aboutClose').addEventListener('click',()=>{$('about').hidden=true;$('infoBtn'
 $('about').addEventListener('click',e=>{if(e.target.id==='about')$('about').hidden=true});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')$('about').hidden=true});
 const h0=(location.hash||'').slice(1);if(TITLES[h0])state.page=h0;
-const emb=$('embedded').textContent.trim();
-if(emb&&emb!=='__DATA__'){try{build(parseCSV(emb));$('srcNote').textContent='Showing the results built into this file. Load a newer file to replace them.'}catch(err){$('srcNote').className='err';$('srcNote').textContent=err.message}}
 render();
 </script>
 </body>
