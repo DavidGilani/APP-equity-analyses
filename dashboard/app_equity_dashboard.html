@@ -141,6 +141,13 @@ td.val{font-size:15px;font-weight:600}
 .about svg{display:block;margin:8px 0 4px;max-width:100%}
 .about table{font-size:13px;margin:6px 0}
 .about td{padding:3px 8px;border-bottom:1px solid var(--panel-line)}
+.summary{background:var(--bg);border:1px solid var(--panel-line);border-left:4px solid var(--side);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.summary p{margin:0;max-width:95ch;line-height:1.55;color:var(--ink)}
+.summary .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn2{border:2px solid var(--side);background:var(--side);color:#fff;padding:6px 14px;font-size:13px;cursor:pointer;border-radius:2px}
+.btn2.ghost{background:var(--bg);color:var(--side)}
+.btn2:focus-visible{outline:3px solid var(--purple);outline-offset:2px}
+.copied{font-size:12px;color:var(--teal-dk)}
 </style>
 </head>
 <body>
@@ -308,7 +315,7 @@ function metrics(serIn,baseline,t){
 const byLevel=l=>Object.values(AREAS).filter(a=>a.level===l).sort((x,y)=>x.name.localeCompare(y.name));
 
 /* ---------- Which view: most recent year or 4-year aggregate ---------- */
-const state={page:'overview',fac:null,dept:null,prog:null,target:'PTS_1',level:'Department',rfac:'',hideSmall:true,open:null,sort:{k:'dist',d:-1},ref:'m',modes:{}};
+const state={page:'overview',fac:null,dept:null,prog:null,target:'PTS_1',level:'Department',rfac:'',hideSmall:true,open:null,sort:{k:'dist',d:-1},ref:'m',modes:{},summary:{}};
 function defMode(){const p=state.page;if(p==='department'||p==='programme')return 'agg';if(p==='ranking'||p==='map')return state.level==='Faculty'?'latest':'agg';return 'latest'}
 const modeKey=()=>state.page==='ranking'||state.page==='map'?state.page+':'+state.level:state.page;
 const mode=()=>state.modes[modeKey()]||defMode();
@@ -480,12 +487,84 @@ function tiles(a){
   return `<div class="tiles">${tile('On track or met',os.filter(o=>o.status==='met'||o.status==='track').length+' of 8','At or below the '+CURL)}${tile('Gaps narrowed',os.filter(o=>o.dir==='narrow').length+' of 8','Down 1 pp or more since baseline')}${tile('Significantly behind',os.filter(o=>o.sig==='sigBehind').length+' of 8','Behind even allowing for margin of error')}${tile('Small numbers',os.filter(o=>o.small).length+' of 8','Fewer than 10 students in a group')}</div>`;
 }
 
+/* ---------- Written summary ---------- */
+// Built from fixed rules so the page never sends data anywhere.
+const PHRASE={PTS_1:'BTEC continuation',PTS_2:'free school meals completion',PTS_3:'BTEC completion',PTS_4:'ABMO attainment',PTS_5:'free school meals attainment',PTS_6:'IMD quintile 1 and 2 attainment',PTS_7:'BTEC attainment',PTP_2:'BTEC progression'};
+const listJoin=a=>a.length<2?(a[0]||''):a.slice(0,-1).join(', ')+' and '+a[a.length-1];
+const cap1=s=>s.charAt(0).toUpperCase()+s.slice(1);
+const plural=(n,one,many)=>n===1?one:many;
+function summaryText(a){
+  const md=mode(),isAgg=md==='agg';
+  const rows=TG.map(t=>({t,o:cur(a.m[t.id]),u:a.key==='U'?null:cur(AREAS.U.m[t.id])}));
+  const rep=rows.filter(r=>!r.o.small),small=rows.filter(r=>r.o.small);
+  const name=a.key==='U'?'The University':a.name;
+  const lab=r=>PHRASE[r.t.id];
+  const withNums=r=>`${lab(r)} (${f1(r.o.val)} pp${r.o.val<0?', in favour of the target group,':''} against a milestone of ${r.t.cur} pp)`;
+  const out=[];
+  const basis=isAgg?'Combining the latest four years of data for each measure':'Using the most recent year of data for each measure';
+  if(!rep.length){
+    return `${basis}, there are too few students in ${a.key==='U'?'the University':name} to report on any of the eight APP equity gap targets. Every target has fewer than ${SMALL} students in at least one of the groups being compared.${isAgg?'':' The 4-year aggregate may give enough students to report on some of them.'}`;
+  }
+  const ok=rep.filter(r=>r.o.status==='met'||r.o.status==='track');
+  const met=rep.filter(r=>r.o.status==='met');
+  const behind=rep.filter(r=>r.o.status==='behind');
+  const sigB=behind.filter(r=>r.o.sig==='sigBehind'),nsB=behind.filter(r=>r.o.sig!=='sigBehind');
+  const sigA=ok.filter(r=>r.o.sig==='sigAhead');
+  out.push(`${basis}, ${a.key==='U'?'the University':name} is at or below the 2026-27 milestone for ${ok.length} of the ${rep.length} APP equity gap ${plural(rep.length,'target','targets')} with enough students to report.`.replace(/^([a-z])/,m=>m.toUpperCase()));
+  if(ok.length){
+    let s=`${ok.length===1?'This is':'These are'} ${listJoin(ok.map(withNums))}.`;
+    if(met.length)s+=` ${cap1(listJoin(met.map(lab)))} ${plural(met.length,'has','have')} already reached the 2028-29 target.`;
+    if(sigA.length)s+=` The result for ${listJoin(sigA.map(lab))} is significantly better than the milestone, so it is unlikely to be down to chance.`;
+    else s+=` ${ok.length===1?'This result is':'These results are'} not significantly different from the milestone, so ${ok.length===1?'it':'they'} could still move either way.`;
+    out.push(s);
+  }
+  if(behind.length){
+    let s=`The gap is above the milestone for ${listJoin(behind.map(withNums))}.`;
+    if(sigB.length&&nsB.length)s+=` For ${listJoin(sigB.map(lab))}, the difference is larger than the margin of error, so ${plural(sigB.length,'this is','these are')} the clearest ${plural(sigB.length,'priority','priorities')}. For ${listJoin(nsB.map(lab))}, the difference is within the margin of error, so ${plural(nsB.length,'it','they')} should be monitored rather than treated as confirmed.`;
+    else if(sigB.length)s+=` In ${sigB.length===1?'this case':'each case'} the difference is larger than the margin of error, so ${sigB.length===1?'it is unlikely':'they are unlikely'} to be down to chance.`;
+    else s+=` In ${behind.length===1?'this case':'each case'} the difference is within the margin of error, so ${behind.length===1?'it':'they'} should be monitored rather than treated as confirmed.`;
+    out.push(s);
+  }
+  const nar=rep.filter(r=>r.o.dir==='narrow').sort((x,y)=>x.o.change-y.o.change);
+  const wid=rep.filter(r=>r.o.dir==='widen').sort((x,y)=>y.o.change-x.o.change);
+  if(nar.length||wid.length){
+    const d=r=>`${lab(r)} (${r.o.change<0?'down':'up'} ${f1(Math.abs(r.o.change))} pp)`;
+    let s='Compared with the 4-year baseline, ';
+    if(nar.length)s+=`the gap has narrowed for ${listJoin(nar.map(d))}`;
+    if(nar.length&&wid.length)s+=` and widened for ${listJoin(wid.map(d))}.`;
+    else if(wid.length)s+=`the gap has widened for ${listJoin(wid.map(d))}.`;
+    else s+='.';
+    out.push(s);
+  }else out.push('None of the gaps has moved by more than 1 percentage point since the 4-year baseline.');
+  if(a.key!=='U'){
+    const better=rep.filter(r=>r.u&&r.u.val!=null&&r.o.val<=r.u.val-2),worse=rep.filter(r=>r.u&&r.u.val!=null&&r.o.val>=r.u.val+2);
+    const c=r=>`${lab(r)} (${f1(r.o.val)} pp against ${f1(r.u.val)} pp)`;
+    if(better.length||worse.length){
+      let s='Compared with the University as a whole, ';
+      if(better.length)s+=`the gap is at least 2 percentage points smaller for ${listJoin(better.map(c))}`;
+      if(better.length&&worse.length)s+=`, and at least 2 points larger for ${listJoin(worse.map(c))}.`;
+      else if(worse.length)s+=`the gap is at least 2 percentage points larger for ${listJoin(worse.map(c))}.`;
+      else s+='.';
+      out.push(s);
+    }
+  }
+  if(small.length)out.push(`There are too few students to report on ${listJoin(small.map(lab))}.`);
+  if(!isAgg&&a.key!=='U'&&rep.filter(r=>r.o.sig==='ns').length>=rep.length/2)out.push('Single-year figures for an area of this size move a lot from year to year, so the 4-year aggregate gives a steadier picture.');
+  if(isAgg)out.push(`The 4-year aggregate covers ${TG[0].years[3]} to ${TG[0].years[6]} for continuation and the equivalent four years for the other measures.`);
+  return out.join(' ');
+}
+function summaryPanel(a){
+  const key=a.key,open=state.summary[key];
+  if(!open)return `<section class="summary"><div class="row"><button class="btn2" data-summary="${esc(key)}">Write summary</button><span class="tnote" style="font-size:12px;color:var(--muted)">A paragraph on progress against the APP targets, based on the ${modeLabel().toLowerCase()}.</span></div></section>`;
+  return `<section class="summary" aria-live="polite"><h3 style="margin:0;font-size:13px;letter-spacing:.3em;text-transform:uppercase">Summary · ${modeLabel().toLowerCase()}</h3><p id="sumText">${esc(summaryText(a))}</p><div class="row"><button class="btn2" id="copySum">Copy text</button><button class="btn2 ghost" data-summary="${esc(key)}">Hide summary</button><span class="copied" id="copyNote" aria-live="polite"></span></div></section>`;
+}
+
 /* ---------- Pages ---------- */
 const $=id=>document.getElementById(id);
 const view=$('view');
 function areaPage(a,childTitle,children){
   if(!a)return '<p class="empty">No results for this area.</p>';
-  let s=toolbar()+tiles(a);
+  let s=toolbar()+summaryPanel(a)+tiles(a);
   s+=`<section class="panel"><h3>Target progress</h3><p class="cap">${esc(a.name)} · ${modeLabel().toLowerCase()} compared with the 4-year baseline</p>${targetTable(a)}</section>`;
   if(children)s+=`<section class="panel"><h3>${childTitle}</h3><p class="cap">${modeLabel()} gap for each target. Select a name to open its view.</p>${heat(children)}</section>`;
   return s;
@@ -623,6 +702,10 @@ $('fileIn').addEventListener('change',e=>{loadFile(e.target.files[0]);e.target.v
 ['dragleave','drop'].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();if(ev==='drop'||!e.relatedTarget)document.body.classList.remove('dragging')}));
 document.addEventListener('drop',e=>loadFile(e.dataTransfer&&e.dataTransfer.files[0]));
 function act(e){
+  const sm=e.target.closest('[data-summary]');if(sm){const k=sm.dataset.summary;state.summary[k]=!state.summary[k];render();return true}
+  if(e.target.closest('#copySum')){const txt=$('sumText').textContent,note=$('copyNote');
+    const sel=()=>{const r=document.createRange();r.selectNodeContents($('sumText'));const w=getSelection();w.removeAllRanges();w.addRange(r);note.textContent='Text selected. Press Ctrl+C to copy.'};
+    try{navigator.clipboard.writeText(txt).then(()=>{note.textContent='Copied.'},sel)}catch(err){sel()}return true}
   const md=e.target.closest('[data-mode]');if(md){state.modes[modeKey()]=md.dataset.mode;render();return true}
   const g=e.target.closest('[data-go]');if(g){goArea(g.dataset.go);return true}
   const s=e.target.closest('[data-sort]');if(s){const k=s.dataset.sort;state.sort=state.sort.k===k?{k,d:-state.sort.d}:{k,d:k==='name'?1:-1};render();return true}
