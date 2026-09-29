@@ -203,8 +203,11 @@ td.val{font-size:15px;font-weight:600}
       <li><b>Behind milestone</b>: the gap is above the 2026-27 milestone.</li>
       <li><b>Small numbers</b>: either group has fewer than 10 students.</li>
     </ul>
-    <h3>Is it significant?</h3>
-    <p>Each gap has a 95% margin of error based on the number of students in each group. If the whole range sits above the milestone, the area is <b>significantly behind</b>. If it sits below, it is <b>significantly ahead</b>. Otherwise the difference from the milestone is <b>not significant</b>: with this many students it could have happened by chance.</p>
+    <h3>Is the gap to the milestone significant?</h3>
+    <p>This asks whether the distance between an area's gap and the 2026-27 milestone is bigger than chance would produce, given how many students are involved.</p>
+    <p>Each gap has a 95% margin of error, worked out from the size of each group and its rate. If the gap minus its margin is still above the milestone, the area is <b>significantly behind</b>. If the gap plus its margin is still below the milestone, it is <b>significantly ahead</b>. Otherwise the difference from the milestone is <b>not significant</b>.</p>
+    <p id="sigEx"></p>
+    <p>Status and significance answer different questions. Status says which side of the milestone the gap falls. Significance says whether that difference is large enough to be confident about. A small department can be on track and still not significant.</p>
     <p>Tableau calculation: <code>1.96 * SQRT(pT*(1-pT)/nT + pC*(1-pC)/nC) * 100</code>, where p is each group's rate and n its headcount.</p>
     <h3>Student numbers</h3>
     <p>Tables show the number of students in the target group and in the comparison group separately. For example, 27 BTEC and 16 A-level entrants.</p>
@@ -325,8 +328,9 @@ const pill=s=>`<span class="pill" style="--c:${ST[s].c}">${ST[s].l}</span>`;
 function chg(o){if(o.change==null)return '<span class="chg flat">–</span>';
   const v=o.change;if(v<=-1)return `<span class="chg good">▼ ${f1(-v)} narrower</span>`;
   if(v>=1)return `<span class="chg bad">▲ ${f1(v)} wider</span>`;return `<span class="chg flat">● ${f1(Math.abs(v))} little change</span>`}
-function ev(o){if(o.sig==='na')return `<div class="ev">${SIG.na}<small>${r0(o.nT)} and ${r0(o.nC)} students</small></div>`;
-  return `<div class="ev">${SIG[o.sig]}<small>±${f1(o.h)} pp margin</small></div>`}
+function ev(o,t,ref){ref=ref==null?t.cur:ref;if(o.sig==='na')return `<div class="ev">${SIG.na}<small>${r0(o.nT)} ${esc(t.grp)} and ${r0(o.nC)} ${esc(t.cmp)} students</small></div>`;
+  const d=o.val-ref,side=d>0?'above':'below';
+  return `<div class="ev"><b>${SIG[o.sig]}</b><small>${f1(Math.abs(d))} pp ${side} the ${ref} pp milestone; margin of error ±${f1(o.h)} pp</small></div>`}
 const tipArea=(a,t,o)=>esc(`<b>${a.name}</b>${a.fac&&a.level!=='Faculty'?' · '+FACm[a.fac].code:''}<br>${t.stage}: ${t.grp} vs ${t.cmp}<br>${modeLabel()} (${o.years}): <b>${f1(o.val)} pp</b>${o.h!=null?' ±'+f1(o.h):''}<br>Baseline: ${f1(o.baseline)} pp · Change: ${o.change==null?'–':(o.change>0?'+':'')+f1(o.change)} pp<br>${CURL}: ${t.cur} pp · 2028-29 target: ${t.fin} pp<br>Students: ${r0(o.nT)} ${t.grp}, ${r0(o.nC)} ${t.cmp}<br>${ST[o.status].l} · ${SIG[o.sig]}`);
 
 /* ---------- Trend line ---------- */
@@ -371,20 +375,27 @@ function trendGuide(){
   return s+`<p>The line shows the gap for each of the seven years in the file. The short black lines are the milestones set in the APP for each year to 2028-29: ${t.ms.slice(0,3).join(', ')} and a final target of ${t.fin} pp for continuation. The last two sit beyond today's data and show how far the gap still needs to fall. Hover over a dot or milestone for its value.</p>`;
 }
 
+function sigExample(){
+  if(!AREAS.U)return 'Load a results file to see a worked example from your data.';
+  const t=TGm.PTS_1,L=AREAS.U.m.PTS_1.v.latest,G=AREAS.U.m.PTS_1.v.agg;
+  if(L.val==null||L.h==null)return '';
+  const d=L.val-t.cur,side=d>0?'above':'below';
+  let s=`For example, the University's most recent continuation gap is ${f1(L.val)} pp, ${f1(Math.abs(d))} pp ${side} the milestone of ${t.cur} pp. With ${r0(L.nT)} BTEC and ${r0(L.nC)} A-level entrants, the margin of error is ±${f1(L.h)} pp, so the difference is ${SIG[L.sig].toLowerCase()}.`;
+  if(G.val!=null&&G.h!=null)s+=` Over the 4-year aggregate the gap is ${f1(G.val)} pp with a margin of ±${f1(G.h)} pp, because more students are included, so the same comparison is ${SIG[G.sig].toLowerCase()}.`;
+  return s;
+}
 /* ---------- Target table ---------- */
 function targetTable(a){
-  const isU=a.key==='U',ml=modeLabel();
-  let s=`<div class="scroll"><table class="tt"><thead><tr><th>Target</th><th>Trend to 2028-29</th><th class="num">Baseline<br>(4-year)</th><th class="num">${ml}</th><th>Change since baseline</th><th class="num">${CURL}</th>${isU?'':`<th class="num">University<br>(${ml.toLowerCase()})</th>`}<th>Is it significant?</th><th>Status</th></tr></thead><tbody>`;
+  const ml=modeLabel();
+  let s=`<div class="scroll"><table class="tt"><thead><tr><th>Target</th><th>Trend to 2028-29</th><th class="num">Baseline<br>(4-year)</th><th class="num">${ml}</th><th>Change since baseline</th><th>Status against the<br>${CURL}</th><th>Is the gap to the milestone significant?</th></tr></thead><tbody>`;
   TG.forEach(t=>{const m=a.m[t.id],o=cur(m),open=state.open===t.id;
     s+=`<tr class="row${open?' open':''}" tabindex="0" data-open="${t.id}" aria-expanded="${open}" data-tip="${tipArea(a,t,o)}">
       <td class="tname"><b>${t.id} · ${t.stage}</b><span>${t.grp} vs ${t.cmp}</span></td>
       <td>${spark(m,t)}</td>
       <td class="num">${f1(m.baseline)}<small class="yr">${t.years[0]} to ${t.years[3]}</small></td>
       <td class="num val">${f1(o.val)}<small class="yr">${o.years}</small></td>
-      <td>${chg(o)}</td><td class="num">${t.cur}</td>
-      ${isU?'':`<td class="num uni">${f1(cur(AREAS.U.m[t.id]).val)}</td>`}
-      <td>${ev(o)}</td><td>${pill(o.status)}</td></tr>`;
-    s+=open?`<tr class="detail"><td colspan="${isU?8:9}">${detail(a,t)}</td></tr>`:'<tr hidden></tr>';
+      <td>${chg(o)}</td><td>${pill(o.status)}</td><td>${ev(o,t)}</td></tr>`;
+    s+=open?`<tr class="detail"><td colspan="7">${detail(a,t)}</td></tr>`:'<tr hidden></tr>';
   });
   return s+`</tbody></table></div><p class="cap" style="margin:10px 0 0">Gaps in percentage points. Select a row for each year's rates, headcounts and margin of error. The (i) button explains the trend line.</p>`;
 }
@@ -573,6 +584,7 @@ function render(){
   if(state.page==='programme')sub='Progress against APP targets: '+(state.prog||'no programme selected');
   $('pTitle').textContent=ti;$('pSub').textContent=sub;
   $('trendGuide').innerHTML=trendGuide();
+  $('sigEx').textContent=sigExample();
   if(!loaded()){view.innerHTML=startPage();return}
   let h='';
   if(state.page==='overview')h=areaPage(AREAS.U,'Faculty snapshot',byLevel('Faculty'));
