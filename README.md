@@ -64,6 +64,17 @@ and per category value). Each shows representation vs the population across ever
 demographic, with a two-proportion z-test at the 95% level and a "Biggest gaps"
 view. Groups under 10 students are suppressed and not tested.
 
+### PDF summary report
+
+Once the comparison is built, **Download PDF report** (top right) produces a
+summary report for all groups or just the one on screen. It has a cover page
+explaining how to read the results, then for each group: headline figures, the
+key findings written out (significant under- and over-representation ordered by
+the size of the gap, and larger groups in line with the population), the biggest
+gaps chart and a chart for every demographic. It opens the browser's print
+window; choose "Save as PDF" as the destination. Charts stay as sharp vector
+graphics and the report is built entirely in the browser, like everything else.
+
 ### Refreshing the built-in baseline
 
 Edit `student_dashboard_data.js`. Each dimension under `POPULATION` is a list of

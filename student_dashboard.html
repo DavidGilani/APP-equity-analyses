@@ -39,7 +39,37 @@
   .drop .tag.req{color:#fff;background:var(--ink)}
   .drop input[type=file]{display:none}
   .drop .loadedname{color:var(--users);font-weight:600;font-size:13px;margin-top:8px}
-  .results-top{display:flex;justify-content:flex-end;margin:2px 0 8px}
+  .results-top{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:10px;margin:2px 0 8px}
+  .rep-scope{font-size:12.5px;color:var(--ink-soft);display:inline-flex;align-items:center;gap:6px}
+  .rep-scope select{font:inherit;font-size:13px;padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
+
+  /* printable report: hidden on screen, the only thing shown when printing */
+  #report{display:none}
+  .rep-cover h1{font-size:28px;margin:0 0 6px}
+  .rep-meta{font-size:12.5px;color:var(--ink-soft);margin:2px 0}
+  .rep-box{border:1px solid var(--line);border-radius:10px;padding:12px 16px;margin:14px 0;font-size:12.5px}
+  .rep-box h3,.rep-group h3{font-family:Georgia,serif;font-weight:600;font-size:15px;margin:0 0 6px}
+  .rep-box ul,.rep-group ul{margin:4px 0 8px 18px;padding:0}
+  .rep-box li,.rep-group li{margin:2px 0;font-size:12.5px}
+  .rep-group h2{font-family:Georgia,serif;font-weight:600;font-size:21px;margin:0 0 2px}
+  .rep-stats{display:flex;gap:10px;margin:10px 0}
+  .rep-stats div{border:1px solid var(--line);border-radius:8px;padding:8px 12px;font-size:11.5px;color:var(--ink-soft)}
+  .rep-stats b{display:block;font-family:Georgia,serif;font-size:18px;color:var(--ink)}
+  .rep-chart{margin:14px 0 6px}
+  .rep-chart h4{font-size:13px;margin:0 0 2px}
+  .rep-chart p{font-size:11px;color:var(--ink-soft);margin:0 0 4px}
+  .rep-none{font-size:12.5px;color:var(--ink-soft);font-style:italic}
+  @media print{
+    @page{size:A4;margin:14mm}
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    body{background:#fff}
+    .wrap,.tooltip{display:none!important}
+    #report{display:block!important}
+    #report svg{min-width:0!important;width:100%;height:auto}
+    .rep-group{break-before:page}
+    .rep-chart,.rep-box,.rep-stats{break-inside:avoid}
+    .rep-group h2,.rep-chart h4{break-after:avoid}
+  }
   .filestrip{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:14px 0 4px;font-size:13.5px}
   .filestrip .pill{background:var(--users-soft);color:var(--users);border:1px solid var(--users);
     border-radius:999px;padding:5px 12px;font-weight:600}
@@ -203,6 +233,13 @@
   <!-- results -->
   <div id="results" class="hidden">
     <div class="results-top">
+      <label class="rep-scope">Report covers
+        <select id="reportScope">
+          <option value="all">all groups</option>
+          <option value="current">this group only</option>
+        </select>
+      </label>
+      <button class="btn-ghost" id="btnReport" title="Opens your browser's print window. Choose 'Save as PDF' as the destination.">Download PDF report</button>
       <button class="btn-solid" id="btnNewComparison">Start a new comparison</button>
     </div>
     <div class="filestrip" id="fileStrip"></div>
@@ -248,6 +285,7 @@
   <footer id="footer"></footer>
 </div>
 <div class="tooltip" id="tooltip"></div>
+<div id="report" aria-hidden="true"></div>
 
 <script>
 (function(){
@@ -325,14 +363,14 @@
   }
 
   // ---- dumbbell + table renderers -----------------------------------------
-  function renderChart(rows,popLabel,userLabel){
+  function renderChart(rows,popLabel,userLabel,target){
     var chartRows=rows.filter(function(r){return !r.smallSample && !r.zero;});
     var excluded=rows.filter(function(r){return r.smallSample;});
     var maxLabelLen=chartRows.reduce(function(m,r){return Math.max(m,(r.category||'').length);},0);
     var leftPad=Math.max(190, Math.min(340, maxLabelLen*7+20));
     var rowH=42,rightPad=190,topPad=20,markerR=7;
     var width=880, plotW=width-leftPad-rightPad;
-    var svg=document.getElementById('dumbbell');svg.textContent='';
+    var svg=target||document.getElementById('dumbbell');svg.textContent='';
     if(chartRows.length===0){
       svg.setAttribute('viewBox','0 0 860 80');pinChartWidth(svg,860);
       var msg=svgEl('text',{x:20,y:44,'class':'value-label'});
@@ -783,6 +821,109 @@
     if(MODE==='join') base='Demographics and the population denominator come from your uploaded population file ('+esc(POP.total.toLocaleString())+' students). Groups under '+MIN+' students are suppressed and not tested. Significance is a two-proportion z-test at the 95% level. Files are read in your browser and never uploaded.';
     document.getElementById('footer').textContent=base;
   }
+
+  // ==========================================================================
+  //  PDF report (built into #report, then printed; "Save as PDF" makes the file)
+  // ==========================================================================
+  // "Not known"-type categories are real rows in the charts, but are left out of
+  // the "in line with the population" summary because they say little on their own.
+  var NOISE=/not known|not given|not available|refused|prefer not|unknown/i;
+
+  function sortedRows(rows){
+    return rows.slice().sort(function(x,y){
+      if(!!x.smallSample!==!!y.smallSample) return x.smallSample?1:-1;
+      return (y.uPct||0)-(x.uPct||0);});
+  }
+  function groupFindings(A){
+    var under=[],over=[],inline=[];
+    DIMS.forEach(function(dim){
+      var a=A.dims[dim]; if(!a||!a.rows) return;
+      a.rows.forEach(function(r){
+        if(r.smallSample||r.zero) return;
+        var item={dim:dim,r:r,gap:Math.abs(r.uPct-r.pPct)};
+        if(r.significant) (r.uPct<r.pPct?under:over).push(item);
+        else if(r.pPct>=5 && !NOISE.test(r.category)) inline.push(item);
+      });
+    });
+    var byGap=function(a,b){return b.gap-a.gap;};
+    under.sort(byGap);over.sort(byGap);
+    inline.sort(function(a,b){return b.r.pPct-a.r.pPct;});
+    return {under:under,over:over,inline:inline.slice(0,8)};
+  }
+  function findingLine(it){
+    var r=it.r;
+    return '<li><strong>'+esc(r.category)+'</strong> ('+esc(it.dim)+'): '+r.uPct+'% vs '+r.pPct+'%'+
+      (r.ratio!=null?' (ratio '+r.ratio+')':'')+'</li>';
+  }
+  function listOrNone(items,none){
+    return items.length?'<ul>'+items.map(findingLine).join('')+'</ul>':'<p class="rep-none">'+none+'</p>';
+  }
+  function reportChart(host,title,note,rows,userLabel){
+    var box=document.createElement('div');box.className='rep-chart';
+    box.innerHTML='<h4>'+esc(title)+'</h4>'+(note?'<p>'+esc(note)+'</p>':'');
+    var svg=document.createElementNS(NS,'svg');
+    box.appendChild(svg);host.appendChild(box);
+    renderChart(sortedRows(rows),'Student population',userLabel,svg);
+  }
+
+  function buildReport(scope){
+    var host=document.getElementById('report');host.innerHTML='';
+    var keys=scope==='current'?[state.marker]:MARKERS.map(function(m){return m.key;});
+    var popName=(POP.source==='file'&&POPCSV)?POPCSV.fileName:'the built-in 2025/26 baseline';
+    var dateStr=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+
+    var cover=document.createElement('section');cover.className='rep-cover';
+    cover.innerHTML=
+      '<h1>Student cohort comparison report</h1>'+
+      '<p class="rep-meta">Generated '+esc(dateStr)+'</p>'+
+      '<p class="rep-meta">Cohort file: '+esc(COHORTCSV.fileName)+' ('+COHORTCSV.rows.length.toLocaleString()+' students)</p>'+
+      '<p class="rep-meta">Compared with: '+esc(popName)+' ('+POP.total.toLocaleString()+' students)</p>'+
+      '<p class="rep-meta">Groups in this report: '+keys.map(function(k){return esc(ANALYSIS[k].label);}).join(', ')+'</p>'+
+      '<div class="rep-box"><h3>How to read this report</h3><ul>'+
+        '<li>Each chart compares the share of a group (green dot) with the share of the whole student population (grey dot).</li>'+
+        '<li>The ratio is the group share divided by the population share. Above 1 means over-represented, below 1 means under-represented.</li>'+
+        '<li>Differences marked * and highlighted are statistically significant at the 95% level (two-proportion z-test).</li>'+
+        '<li>Categories with fewer than '+MIN+' students in a group are suppressed and not tested, to protect small numbers.</li>'+
+        (MODE==='join'&&NOTFOUND>0?'<li>'+NOTFOUND.toLocaleString()+' students in the cohort file were not found in the population file by ID and are excluded from the breakdowns.</li>':'')+
+        (MODE==='baseline'?'<li>Population figures come from the built-in baseline, so cohort labels had to match its categories exactly. Any unmatched values are excluded.</li>':'')+
+      '</ul></div>';
+    host.appendChild(cover);
+
+    keys.forEach(function(key){
+      var A=ANALYSIS[key];
+      var userLabel=key==='ALL'?'Your cohort':A.label;
+      var f=groupFindings(A);
+      var sec=document.createElement('section');sec.className='rep-group';
+      sec.innerHTML=
+        '<h2>'+esc(A.label)+'</h2>'+
+        '<div class="rep-stats">'+
+          '<div><b>'+A.total.toLocaleString()+'</b>students</div>'+
+          '<div><b>'+(POP.total?Math.round(1000*A.total/POP.total)/10+'%':'-')+'</b>of the population</div>'+
+          '<div><b>'+(f.under.length+f.over.length)+'</b>significant gaps</div>'+
+        '</div>'+
+        '<div class="rep-box"><h3>Key findings</h3>'+
+          '<p><strong>Under-represented</strong> (significant, largest gap first)</p>'+
+          listOrNone(f.under,'No groups are significantly under-represented.')+
+          '<p><strong>Over-represented</strong> (significant, largest gap first)</p>'+
+          listOrNone(f.over,'No groups are significantly over-represented.')+
+          '<p><strong>In line with the population</strong> (no significant difference, larger groups shown)</p>'+
+          listOrNone(f.inline,'None of the larger groups sit in line with the population.')+
+        '</div>';
+      host.appendChild(sec);
+      if(A.gaps&&A.gaps.length)
+        reportChart(sec,'Biggest gaps','Significant differences across every breakdown, largest first.',A.gaps,userLabel);
+      DIMS.forEach(function(dim){
+        var a=A.dims[dim]; if(!a||!a.rows) return;
+        reportChart(sec,'By '+dim,a.blanks?(a.blanks.toLocaleString()+' with no value recorded are excluded.'):'',a.rows,userLabel);
+      });
+    });
+  }
+
+  document.getElementById('btnReport').addEventListener('click',function(){
+    buildReport(document.getElementById('reportScope').value);
+    window.print();
+  });
+  window.addEventListener('afterprint',function(){document.getElementById('report').innerHTML='';});
 
   // ---- events --------------------------------------------------------------
   document.getElementById('btnChart').addEventListener('click',function(){setView('chart');});
