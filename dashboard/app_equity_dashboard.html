@@ -215,15 +215,17 @@ table.fixed.narrow{min-width:560px}
     <h3>Status</h3>
     <ul>
       <li><b>Target met</b>: the gap is at or below the 2028-29 target.</li>
-      <li><b>On track</b>: the gap is at or below the 2026-27 milestone.</li>
-      <li><b>Behind milestone</b>: the gap is above the 2026-27 milestone.</li>
+      <li><b>Significantly ahead of milestone</b>: the gap is below the 2026-27 milestone by more than its margin of error.</li>
+      <li><b>On track</b>: the gap is at or below the 2026-27 milestone, but within the margin of error.</li>
+      <li><b>Behind milestone</b>: the gap is above the 2026-27 milestone, but within the margin of error.</li>
+      <li><b>Significantly behind milestone</b>: the gap is above the 2026-27 milestone by more than its margin of error.</li>
       <li><b>Small numbers</b>: either group has fewer than 10 students.</li>
     </ul>
     <h3>Is the gap to the milestone significant?</h3>
     <p>This asks whether the distance between an area's gap and the 2026-27 milestone is bigger than chance would produce, given how many students are involved.</p>
     <p>Each gap has a 95% margin of error, worked out from the size of each group and its rate. If the gap minus its margin is still above the milestone, the area is <b>significantly behind</b>. If the gap plus its margin is still below the milestone, it is <b>significantly ahead</b>. Otherwise the difference from the milestone is <b>not significant</b>.</p>
     <p id="sigEx"></p>
-    <p>Status and significance answer different questions. Status says which side of the milestone the gap falls. Significance says whether that difference is large enough to be confident about. A small department can be on track and still not significant.</p>
+    <p>The status combines both questions: which side of the milestone the gap falls, and whether the difference is larger than the margin of error. The line under each status shows the distance from the milestone and the margin, so the judgement can be checked.</p>
     <p>Tableau calculation: <code>1.96 * SQRT(pT*(1-pT)/nT + pC*(1-pC)/nC) * 100</code>, where p is each group's rate and n its headcount.</p>
     <h3>Student numbers</h3>
     <p>Tables show the number of students in the target group and in the comparison group separately. For example, 27 BTEC and 16 A-level entrants.</p>
@@ -309,7 +311,10 @@ function judge(o,baseline,t){
   const sigAt=ref=>o.small||o.h==null?'na':o.val-o.h>ref?'sigBehind':o.val+o.h<ref?'sigAhead':'ns';
   o.sig=sigAt(t.cur);o.sigT=sigAt(t.fin);
   o.dir=o.change==null||o.small?'na':o.change<=-1?'narrow':o.change>=1?'widen':'stable';
-  o.dist=o.val!=null?o.val-t.cur:null;o.baseline=baseline;return o;
+  o.dist=o.val!=null?o.val-t.cur:null;o.baseline=baseline;
+  // One status that combines the side of the milestone with significance
+  o.cstat=o.small?'small':o.status==='met'?'met':o.status==='track'?(o.sig==='sigAhead'?'ahead':'track'):(o.sig==='sigBehind'?'sigbehind':'behind');
+  return o;
 }
 function metrics(serIn,baseline,t){
   const ser=serIn.map(d=>d||{nT:0,nC:0,rT:null,rC:null,gap:null});
@@ -334,7 +339,8 @@ function toolbar(){const md=mode();
   return `<div class="toolbar" role="group" aria-label="Which results to show"><span class="tlab">Show</span><button data-mode="latest" aria-pressed="${md==='latest'}">Most recent year</button><button data-mode="agg" aria-pressed="${md==='agg'}">4-year aggregate</button><span class="tnote">${md==='latest'?'The latest single year for each measure, compared with the baseline and the '+CURL+'.':'The latest four years combined, compared with the baseline and the '+CURL+'. Steadier where student numbers are small.'}</span></div>`}
 
 /* ---------- Formatting ---------- */
-const ST={met:{l:'Target met',c:'#2F6E70'},track:{l:'On track',c:'#6A9E9F'},behind:{l:'Behind milestone',c:'#8A4DB6'},small:{l:'Small numbers',c:'#BDB8C6'}};
+const ST={met:{l:'Target met',c:'#2F6E70'},ahead:{l:'Significantly ahead of milestone',c:'#4F8C8D'},track:{l:'On track',c:'#8FBABA'},behind:{l:'Behind milestone',c:'#B48ED3'},sigbehind:{l:'Significantly behind milestone',c:'#6B3596'},small:{l:'Small numbers',c:'#BDB8C6'}};
+const CORDER=['met','ahead','track','behind','sigbehind','small'];
 const SIG={sigBehind:'Significantly behind',sigAhead:'Significantly ahead',ns:'Not significant',na:'Too few students'};
 const f1=v=>v==null||isNaN(v)?'–':(+v).toFixed(1);
 const r0=v=>v==null?'–':Math.round(v);
@@ -344,10 +350,10 @@ const pill=s=>`<span class="pill" style="--c:${ST[s].c}">${ST[s].l}</span>`;
 function chg(o){if(o.change==null)return '<span class="chg flat">–</span>';
   const v=o.change;if(v<=-1)return `<span class="chg good">▼ ${f1(-v)} narrower</span>`;
   if(v>=1)return `<span class="chg bad">▲ ${f1(v)} wider</span>`;return `<span class="chg flat">● ${f1(Math.abs(v))} little change</span>`}
-function ev(o,t,ref){ref=ref==null?t.cur:ref;if(o.sig==='na')return `<div class="ev">${SIG.na}<small>${r0(o.nT)} ${esc(t.grp)} and ${r0(o.nC)} ${esc(t.cmp)} students</small></div>`;
+function ev(o,t,ref){ref=ref==null?t.cur:ref;if(o.sig==='na')return `<small class="yr" style="white-space:normal">${o.val==null?'No result':`${r0(o.nT)} ${esc(t.grp)} and ${r0(o.nC)} ${esc(t.cmp)} students`}</small>`;
   const d=o.val-ref,side=d>0?'above':'below';
-  return `<div class="ev"><b>${SIG[o.sig]}</b><small>${f1(Math.abs(d))} pp ${side} the ${ref} pp milestone; margin of error ±${f1(o.h)} pp</small></div>`}
-const tipArea=(a,t,o)=>esc(`<b>${a.name}</b>${a.fac&&a.level!=='Faculty'?' · '+FACm[a.fac].code:''}<br>${t.stage}: ${t.grp} vs ${t.cmp}<br>${modeLabel()} (${o.years}): <b>${f1(o.val)} pp</b>${o.h!=null?' ±'+f1(o.h):''}<br>Baseline: ${f1(o.baseline)} pp · Change: ${o.change==null?'–':(o.change>0?'+':'')+f1(o.change)} pp<br>${CURL}: ${t.cur} pp · 2028-29 target: ${t.fin} pp<br>Students: ${r0(o.nT)} ${t.grp}, ${r0(o.nC)} ${t.cmp}<br>${ST[o.status].l} · ${SIG[o.sig]}`);
+  return `<small class="yr" style="white-space:normal">${f1(Math.abs(d))} pp ${side} the ${ref} pp milestone, margin of error ±${f1(o.h)} pp</small>`}
+const tipArea=(a,t,o)=>esc(`<b>${a.name}</b>${a.fac&&a.level!=='Faculty'?' · '+FACm[a.fac].code:''}<br>${t.stage}: ${t.grp} vs ${t.cmp}<br>${modeLabel()} (${o.years}): <b>${f1(o.val)} pp</b>${o.h!=null?' ±'+f1(o.h):''}<br>Baseline: ${f1(o.baseline)} pp · Change: ${o.change==null?'–':(o.change>0?'+':'')+f1(o.change)} pp<br>${CURL}: ${t.cur} pp · 2028-29 target: ${t.fin} pp<br>Students: ${r0(o.nT)} ${t.grp}, ${r0(o.nC)} ${t.cmp}<br><b>${ST[o.cstat].l}</b>`);
 
 /* ---------- Trend line ---------- */
 // Seven data years, then the two plan years still to come. Milestone ticks sit on
@@ -371,12 +377,12 @@ function sparkSVG(gaps,t,statusCol,w,h,p,hover){
 }
 function spark(m,t){
   if(m.gaps.filter(v=>v!=null).length<2)return '<span class="uni">Not enough data</span>';
-  const w=150,h=40;return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Gap trend and APP milestones">${sparkSVG(m.gaps,t,ST[m.v.latest.status].c,w,h,5,true).s}</svg>`;
+  const w=150,h=40;return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Gap trend and APP milestones">${sparkSVG(m.gaps,t,ST[m.v.latest.cstat].c,w,h,5,true).s}</svg>`;
 }
 function trendGuide(){
   const t=TG[0],g=(AREAS.U&&AREAS.U.m.PTS_1.gaps.every(v=>v!=null))?AREAS.U.m.PTS_1.gaps:[10.7,8.9,8.7,13.6,13.1,11.1,9.9];
   const w=620,h=150,p=14,ox=20,oy=46;
-  const sp=sparkSVG(g,t,ST.behind.c,w-2*ox,h,p,false);
+  const sp=sparkSVG(g,t,ST.sigbehind.c,w-2*ox,h,p,false);
   const X=i=>ox+sp.x(i),Y=v=>oy+sp.y(v);
   const note=(x1,y1,x2,y2,txt,anchor='start')=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#77728A"/><text x="${x2+(anchor==='end'?-4:4)}" y="${y2+4}" font-size="12" fill="#2A2148" text-anchor="${anchor}">${txt}</text>`;
   let s=`<svg viewBox="0 0 ${w} ${oy+h+64}" width="100%" role="img" aria-label="How to read the trend line"><g transform="translate(${ox} ${oy})">${sp.s}</g>`;
@@ -403,15 +409,15 @@ function sigExample(){
 /* ---------- Target table ---------- */
 function targetTable(a){
   const ml=modeLabel();
-  let s=`<div class="scroll"><table class="tt fixed"><colgroup><col style="width:18%"><col style="width:16%"><col style="width:10%"><col style="width:10%"><col style="width:13%"><col style="width:14%"><col style="width:19%"></colgroup><thead><tr><th>Target</th><th>Trend to 2028-29</th><th class="ctr">Baseline<br>(4-year)</th><th class="ctr">${ml}</th><th class="ctr">Change since baseline</th><th class="ctr">Status against the<br>${CURL}</th><th>Is the gap to the milestone significant?</th></tr></thead><tbody>`;
+  let s=`<div class="scroll"><table class="tt fixed"><colgroup><col style="width:19%"><col style="width:17%"><col style="width:12%"><col style="width:12%"><col style="width:15%"><col style="width:25%"></colgroup><thead><tr><th>Target</th><th>Trend to 2028-29</th><th class="ctr">Baseline<br>(4-year)</th><th class="ctr">${ml}</th><th class="ctr">Change since baseline</th><th class="ctr">Status against the<br>${CURL}</th></tr></thead><tbody>`;
   TG.forEach(t=>{const m=a.m[t.id],o=cur(m),open=state.open===t.id;
     s+=`<tr class="row${open?' open':''}" tabindex="0" data-open="${t.id}" aria-expanded="${open}" data-tip="${tipArea(a,t,o)}">
       <td class="tname"><b>${t.id} · ${t.stage}</b><span>${t.grp} vs ${t.cmp}</span></td>
       <td>${spark(m,t)}</td>
       <td class="ctr">${f1(m.baseline)}<small class="yr">${t.years[0]} to ${t.years[3]}</small></td>
       <td class="ctr val">${f1(o.val)}<small class="yr">${o.years}</small></td>
-      <td class="ctr">${chg(o)}</td><td class="ctr">${pill(o.status)}</td><td>${ev(o,t)}</td></tr>`;
-    s+=open?`<tr class="detail"><td colspan="7">${detail(a,t)}</td></tr>`:'<tr hidden></tr>';
+      <td class="ctr">${chg(o)}</td><td class="ctr">${pill(o.cstat)}${ev(o,t)}</td></tr>`;
+    s+=open?`<tr class="detail"><td colspan="6">${detail(a,t)}</td></tr>`:'<tr hidden></tr>';
   });
   return s+`</tbody></table></div><p class="cap" style="margin:10px 0 0">Gaps in percentage points. Select a row for each year's rates, headcounts and margin of error. The (i) button explains the trend line.</p>`;
 }
@@ -588,7 +594,7 @@ function rankingPage(){
   let list=all;const hidden=list.filter(a=>cur(a.m[t.id]).small).length;
   if(state.hideSmall)list=list.filter(a=>!cur(a.m[t.id]).small);
   const O=a=>cur(a.m[t.id]);
-  const counts=['met','track','behind','small'].map(k=>[k,all.filter(a=>O(a).status===k).length]);
+  const counts=CORDER.map(k=>[k,all.filter(a=>O(a).cstat===k).length]);
   const maxC=Math.max(1,...counts.map(c=>c[1]));
   const prog=list.filter(a=>O(a).change!=null&&O(a).change<0).sort((x,y)=>O(x).change-O(y).change);
   const maxA=Math.max(1,...prog.map(a=>Math.abs(O(a).change)));
@@ -602,16 +608,16 @@ function rankingPage(){
    <section class="panel"><h3>Furthest behind</h3><p class="cap">Gap above the ${CURL} of ${t.cur} pp. Solid bars are significantly behind; hatched bars are not significant.</p>
    ${behind.length?`<div class="scroll"><table class="rank fixed narrow"><colgroup><col style="width:7%"><col style="width:37%"><col style="width:19%"><col style="width:17%"><col style="width:20%"></colgroup><thead><tr><th>#</th><th>${state.level}</th><th class="ctr">${modeLabel()}</th><th class="ctr">Above milestone</th><th></th></tr></thead><tbody>${behind.slice(0,10).map((a,i)=>{const o=O(a);return `<tr data-tip="${tipArea(a,t,o)}"><td>${i+1}</td><td class="an">${areaName(a)}</td><td class="ctr">${f1(o.val)} <span class="uni">±${f1(o.h)}</span></td><td class="ctr"><b>+${f1(o.dist)}</b></td><td>${bar(o.dist,maxB,'#8A4DB6',o.sig==='sigBehind')}</td></tr>`}).join('')}</tbody></table></div>`:'<p class="empty">Every area shown is at or below the milestone.</p>'}</section></div>`;
   s+=`<section class="panel"><h3>Where areas stand</h3><p class="cap">Number of ${state.level.toLowerCase()}s by status for ${t.id}${state.rfac?' in '+esc(FACm[state.rfac].name):''}</p>
-    <svg viewBox="0 0 640 150" width="100%" style="max-width:640px" role="img" aria-label="Status counts">${counts.map(([k,c],i)=>`<text x="130" y="${i*36+24}" font-size="13" text-anchor="end" fill="#2A2148">${ST[k].l}</text><rect x="140" y="${i*36+8}" width="${Math.max(2,c/maxC*440)}" height="24" rx="2" fill="${ST[k].c}" data-tip="${esc(ST[k].l+': '+c)}"/><text x="${146+c/maxC*440}" y="${i*36+25}" font-size="13" fill="#2A2148">${c}</text>`).join('')}</svg></section>`;
+    <svg viewBox="0 0 720 220" width="100%" style="max-width:720px" role="img" aria-label="Status counts">${counts.map(([k,c],i)=>`<text x="220" y="${i*36+24}" font-size="13" text-anchor="end" fill="#2A2148">${ST[k].l}</text><rect x="230" y="${i*36+8}" width="${Math.max(2,c/maxC*440)}" height="24" rx="2" fill="${ST[k].c}" data-tip="${esc(ST[k].l+': '+c)}"/><text x="${236+c/maxC*440}" y="${i*36+25}" font-size="13" fill="#2A2148">${c}</text>`).join('')}</svg></section>`;
   s+=`<section class="panel"><h3>All ${state.level.toLowerCase()}s</h3><p class="cap">Select a column heading to sort.${state.hideSmall&&hidden?` ${hidden} with fewer than 10 students in a group ${hidden===1?'is':'are'} hidden.`:''}</p>${allTable(list,t)}</section>`;
   return s;
 }
 function allTable(list,t){
   const cols=[['name','Area'],['baseline','Baseline'],['val',modeLabel()],['dist','vs '+CURL],['change','Since baseline'],['h','Margin ±'],['nT',t.grp+' students'],['nC',t.cmp+' students'],['status','Status']];
-  const val=(a,k)=>{const o=cur(a.m[t.id]);return k==='name'?a.name:k==='status'?['met','track','behind','small'].indexOf(o.status):o[k]};
+  const val=(a,k)=>{const o=cur(a.m[t.id]);return k==='name'?a.name:k==='status'?CORDER.indexOf(o.cstat):o[k]};
   const {k,d}=state.sort;
   const rows=list.slice().sort((x,y)=>{const a=val(x,k),b=val(y,k);if(a==null)return 1;if(b==null)return -1;return (a>b?1:a<b?-1:0)*d});
-  return `<div class="scroll"><table class="rank sortable fixed"><colgroup><col style="width:20%"><col style="width:8%"><col style="width:9%"><col style="width:10%"><col style="width:13%"><col style="width:8%"><col style="width:8%"><col style="width:8%"><col style="width:16%"></colgroup><thead><tr>${cols.map(([c,l])=>`<th tabindex="0" data-sort="${c}" ${c===k?`aria-sort="${d>0?'ascending':'descending'}"`:''} class="${c==='name'?'':'ctr'}">${esc(l)}</th>`).join('')}</tr></thead><tbody>${rows.map(a=>{const o=cur(a.m[t.id]);return `<tr><td class="an">${areaName(a)}</td><td class="ctr">${f1(o.baseline)}</td><td class="ctr">${f1(o.val)}</td><td class="ctr">${o.dist==null?'–':(o.dist>0?'+':'')+f1(o.dist)}</td><td class="ctr">${chg(o)}</td><td class="ctr">${f1(o.h)}</td><td class="ctr">${r0(o.nT)}</td><td class="ctr">${r0(o.nC)}</td><td class="ctr">${pill(o.status)}</td></tr>`}).join('')}</tbody></table></div>`;
+  return `<div class="scroll"><table class="rank sortable fixed"><colgroup><col style="width:20%"><col style="width:8%"><col style="width:9%"><col style="width:10%"><col style="width:13%"><col style="width:8%"><col style="width:8%"><col style="width:8%"><col style="width:16%"></colgroup><thead><tr>${cols.map(([c,l])=>`<th tabindex="0" data-sort="${c}" ${c===k?`aria-sort="${d>0?'ascending':'descending'}"`:''} class="${c==='name'?'':'ctr'}">${esc(l)}</th>`).join('')}</tr></thead><tbody>${rows.map(a=>{const o=cur(a.m[t.id]);return `<tr><td class="an">${areaName(a)}</td><td class="ctr">${f1(o.baseline)}</td><td class="ctr">${f1(o.val)}</td><td class="ctr">${o.dist==null?'–':(o.dist>0?'+':'')+f1(o.dist)}</td><td class="ctr">${chg(o)}</td><td class="ctr">${f1(o.h)}</td><td class="ctr">${r0(o.nT)}</td><td class="ctr">${r0(o.nC)}</td><td class="ctr">${pill(o.cstat)}</td></tr>`}).join('')}</tbody></table></div>`;
 }
 
 function mapPage(){
