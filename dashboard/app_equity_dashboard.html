@@ -4,6 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>APP Equity Gaps</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;600;700&display=swap">
@@ -63,7 +65,7 @@ td{padding:6px 8px;vertical-align:middle}
 .tname b{display:block;font-size:13px}
 .tname span{font-size:12px;color:var(--muted)}
 .num{text-align:right}
-.pill{display:inline-flex;align-items:center;gap:6px;padding:2px 9px 2px 7px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;background:color-mix(in srgb,var(--c) 22%,#fff);color:var(--ink);border:1px solid var(--c)}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:2px 9px 2px 7px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;color:var(--ink);border:1px solid var(--c)}
 .pill::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--c)}
 .chg{white-space:nowrap;font-weight:600}
 .chg.good{color:var(--teal-dk)} .chg.bad{color:var(--purple-dk)} .chg.flat{color:var(--muted)}
@@ -156,7 +158,16 @@ table.fixed.narrow{min-width:560px}
 .fixed .ev{white-space:normal}
 .fixed .ctr{text-align:center}
 .fixed .chg{white-space:normal}
-.fixed .pill{white-space:nowrap}
+.fixed .pill{white-space:normal;text-align:center;max-width:100%}
+.panel{position:relative}
+.exp{position:absolute;top:10px;right:10px;z-index:5}
+.expbtn{width:30px;height:30px;border:1px solid var(--panel-line);background:var(--bg);border-radius:3px;cursor:pointer;display:grid;place-items:center;color:var(--ink2)}
+.expbtn:hover{border-color:var(--side);color:var(--side)}
+.expbtn:focus-visible{outline:3px solid var(--purple);outline-offset:2px}
+.expmenu{position:absolute;right:0;top:34px;background:var(--bg);border:1px solid var(--panel-line);box-shadow:0 4px 14px rgba(30,20,60,.18);display:flex;flex-direction:column;min-width:190px}
+.expmenu button{all:unset;cursor:pointer;padding:8px 12px;font-size:13px;color:var(--ink)}
+.expmenu button:hover,.expmenu button:focus-visible{background:var(--panel)}
+.expmenu small{padding:6px 12px;font-size:11px;color:var(--muted)}
 </style>
 </head>
 <body>
@@ -346,7 +357,9 @@ const f1=v=>v==null||isNaN(v)?'–':(+v).toFixed(1);
 const r0=v=>v==null?'–':Math.round(v);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
-const pill=s=>`<span class="pill" style="--c:${ST[s].c}">${ST[s].l}</span>`;
+// Pale pill background mixed in code (the image export cannot read CSS color-mix)
+const tint=(hex,f)=>{const n=parseInt(hex.slice(1),16),c=[n>>16,n>>8&255,n&255].map(v=>Math.round(v*f+255*(1-f)));return `rgb(${c.join(",")})`};
+const pill=s=>`<span class="pill" style="--c:${ST[s].c};background:${tint(ST[s].c,.22)}">${ST[s].l}</span>`;
 function chg(o){if(o.change==null)return '<span class="chg flat">–</span>';
   const v=o.change;if(v<=-1)return `<span class="chg good">▼ ${f1(-v)} narrower</span>`;
   if(v>=1)return `<span class="chg bad">▲ ${f1(v)} wider</span>`;return `<span class="chg flat">● ${f1(Math.abs(v))} little change</span>`}
@@ -617,7 +630,7 @@ function allTable(list,t){
   const val=(a,k)=>{const o=cur(a.m[t.id]);return k==='name'?a.name:k==='status'?CORDER.indexOf(o.cstat):o[k]};
   const {k,d}=state.sort;
   const rows=list.slice().sort((x,y)=>{const a=val(x,k),b=val(y,k);if(a==null)return 1;if(b==null)return -1;return (a>b?1:a<b?-1:0)*d});
-  return `<div class="scroll"><table class="rank sortable fixed"><colgroup><col style="width:20%"><col style="width:8%"><col style="width:9%"><col style="width:10%"><col style="width:13%"><col style="width:8%"><col style="width:8%"><col style="width:8%"><col style="width:16%"></colgroup><thead><tr>${cols.map(([c,l])=>`<th tabindex="0" data-sort="${c}" ${c===k?`aria-sort="${d>0?'ascending':'descending'}"`:''} class="${c==='name'?'':'ctr'}">${esc(l)}</th>`).join('')}</tr></thead><tbody>${rows.map(a=>{const o=cur(a.m[t.id]);return `<tr><td class="an">${areaName(a)}</td><td class="ctr">${f1(o.baseline)}</td><td class="ctr">${f1(o.val)}</td><td class="ctr">${o.dist==null?'–':(o.dist>0?'+':'')+f1(o.dist)}</td><td class="ctr">${chg(o)}</td><td class="ctr">${f1(o.h)}</td><td class="ctr">${r0(o.nT)}</td><td class="ctr">${r0(o.nC)}</td><td class="ctr">${pill(o.cstat)}</td></tr>`}).join('')}</tbody></table></div>`;
+  return `<div class="scroll"><table class="rank sortable fixed"><colgroup><col style="width:18%"><col style="width:7%"><col style="width:9%"><col style="width:9%"><col style="width:12%"><col style="width:7%"><col style="width:8%"><col style="width:8%"><col style="width:22%"></colgroup><thead><tr>${cols.map(([c,l])=>`<th tabindex="0" data-sort="${c}" ${c===k?`aria-sort="${d>0?'ascending':'descending'}"`:''} class="${c==='name'?'':'ctr'}">${esc(l)}</th>`).join('')}</tr></thead><tbody>${rows.map(a=>{const o=cur(a.m[t.id]);return `<tr><td class="an">${areaName(a)}</td><td class="ctr">${f1(o.baseline)}</td><td class="ctr">${f1(o.val)}</td><td class="ctr">${o.dist==null?'–':(o.dist>0?'+':'')+f1(o.dist)}</td><td class="ctr">${chg(o)}</td><td class="ctr">${f1(o.h)}</td><td class="ctr">${r0(o.nT)}</td><td class="ctr">${r0(o.nC)}</td><td class="ctr">${pill(o.cstat)}</td></tr>`}).join('')}</tbody></table></div>`;
 }
 
 function mapPage(){
@@ -650,6 +663,53 @@ function mapPage(){
 }
 function noLevel(){return `<p class="empty">There are no ${state.level.toLowerCase()} results in this file. If programmes are missing, rerun app_equity_gaps.R (it groups programmes by coursetitle) and load the new equity_gaps_all_levels_long.csv.</p>`}
 function startPage(err){return `<div class="startbox"><h3>Load your results</h3><p>This dashboard holds no data of its own. It fills in when you give it the long results file written by <code>app_equity_gaps.R</code>.</p><p>Drag <code>equity_gaps_all_levels_long.csv</code> onto this page, or use <b>Load results file</b> in the sidebar.</p><p>The file is read in your browser and stays on your computer. Nothing is uploaded. Reopening the page clears it, so load the file again each time.</p>${err?`<p style="color:#6B3596;font-weight:600">${esc(err)}</p>`:''}</div>`}
+
+/* ---------- Download a panel as an image or PDF ---------- */
+const ICON='<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 12.5v1h11v-1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+function exportContext(){
+  const t=TGm[state.target];
+  if(state.page==='ranking'||state.page==='map')return `${t.id} · ${t.stage}: ${t.grp} vs ${t.cmp} · ${modeLabel()} by ${state.level.toLowerCase()}${state.rfac?' · '+FACm[state.rfac].name:''}`;
+  const nm=state.page==='overview'?'Middlesex University':state.page==='faculty'?FACm[state.fac].name:state.page==='department'?state.dept:state.prog;
+  return `${nm} · ${modeLabel()}`;
+}
+function addExportButtons(){
+  view.querySelectorAll('section.panel').forEach(p=>{const d=document.createElement('div');d.className='exp';d.setAttribute('data-html2canvas-ignore','');
+    d.innerHTML=`<button class="expbtn" aria-label="Download this panel" title="Download as image or PDF">${ICON}</button><div class="expmenu" hidden><button data-exp="png">Download image (PNG)</button><button data-exp="pdf">Download PDF</button><small class="expnote"></small></div>`;p.appendChild(d)});
+}
+const slug=s=>s.replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,90);
+async function exportPanel(panel,fmt,note){
+  if(!window.html2canvas||(fmt==='pdf'&&!window.jspdf)){note.textContent='Downloads need an internet connection to load. Check you are online and reopen the page.';return}
+  note.textContent='Preparing…';
+  const title=(panel.querySelector('h3')||{}).textContent||'';
+  const head=exportContext();
+  const widest=Math.max(panel.scrollWidth,...[...panel.querySelectorAll('table')].map(t=>t.scrollWidth+34));
+  const wrap=document.createElement('div');
+  wrap.style.cssText=`position:fixed;left:-20000px;top:0;width:${widest+48}px;background:#fff;padding:24px;font-family:${getComputedStyle(document.body).fontFamily}`;
+  const date=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  wrap.innerHTML=`<div style="margin-bottom:14px;border-left:5px solid #2B1F52;padding-left:12px"><div style="font-size:20px;font-weight:700;color:#2A2148">${esc(head)}</div><div style="font-size:13px;color:#4A4560;margin-top:3px">${esc(title.charAt(0)+title.slice(1).toLowerCase())} · APP equity gaps · OfS individualised data · ${date}</div></div>`;
+  const c=panel.cloneNode(true);c.querySelectorAll('[data-html2canvas-ignore]').forEach(e=>e.remove());
+  c.querySelectorAll('.scroll').forEach(e=>{e.style.overflow='visible'});c.style.width=widest+'px';
+  wrap.appendChild(c);document.body.appendChild(wrap);
+  try{
+    const cv=await html2canvas(wrap,{scale:2,backgroundColor:'#ffffff',logging:false});
+    const name=slug(head+' '+title);
+    if(fmt==='png'){const a=document.createElement('a');a.href=cv.toDataURL('image/png');a.download=name+'.png';document.body.appendChild(a);a.click();a.remove()}
+    else{
+      const {jsPDF}=window.jspdf;const land=cv.width>cv.height*0.9;
+      const pdf=new jsPDF({orientation:land?'landscape':'portrait',unit:'pt',format:'a4'});
+      const m=24,pw=pdf.internal.pageSize.getWidth()-2*m,ph=pdf.internal.pageSize.getHeight()-2*m,sc=pw/cv.width,slice=Math.floor(ph/sc);
+      for(let y=0,pg=0;y<cv.height;y+=slice,pg++){
+        const h=Math.min(slice,cv.height-y),part=document.createElement('canvas');part.width=cv.width;part.height=h;
+        part.getContext('2d').drawImage(cv,0,y,cv.width,h,0,0,cv.width,h);
+        if(pg)pdf.addPage();pdf.addImage(part.toDataURL('image/png'),'PNG',m,m,pw,h*sc);
+      }
+      pdf.save(name+'.pdf');
+    }
+    note.textContent='Downloaded.';
+    setTimeout(()=>{const m=note.closest('.expmenu');if(m){m.hidden=true;note.textContent=''}},1500);
+  }catch(err){note.textContent='The download did not work: '+err.message}
+  finally{wrap.remove()}
+}
 
 /* ---------- Render ---------- */
 const TITLES={overview:['APP EQUITY GAPS 2026','University progress against Access and Participation Plan targets'],faculty:['FACULTY VIEW',''],department:['DEPARTMENT VIEW',''],programme:['PROGRAMME VIEW',''],ranking:['TARGET RANKING','Which areas are making most progress, and which are furthest behind'],map:['PROGRESS MAP','Distance from the milestone against change since the baseline']};
@@ -688,6 +748,7 @@ function render(){
   if(state.page==='ranking')h=rankingPage();
   if(state.page==='map')h=mapPage();
   view.innerHTML=h;
+  addExportButtons();
 }
 function go(page){state.page=page;state.open=null;try{history.replaceState(null,'','#'+page)}catch(e){}render();window.scrollTo(0,0)}
 function goArea(key){const a=AREAS[key];if(!a)return;
@@ -717,6 +778,8 @@ $('fileIn').addEventListener('change',e=>{loadFile(e.target.files[0]);e.target.v
 ['dragleave','drop'].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();if(ev==='drop'||!e.relatedTarget)document.body.classList.remove('dragging')}));
 document.addEventListener('drop',e=>loadFile(e.dataTransfer&&e.dataTransfer.files[0]));
 function act(e){
+  const eb=e.target.closest('.expbtn');if(eb){const m=eb.nextElementSibling;view.querySelectorAll('.expmenu').forEach(x=>{if(x!==m)x.hidden=true});m.hidden=!m.hidden;return true}
+  const ex=e.target.closest('[data-exp]');if(ex){const menu=ex.closest('.expmenu');exportPanel(ex.closest('section.panel'),ex.dataset.exp,menu.querySelector('.expnote'));return true}
   const sm=e.target.closest('[data-summary]');if(sm){const k=sm.dataset.summary;state.summary[k]=!state.summary[k];render();return true}
   if(e.target.closest('#copySum')){const txt=$('sumText').textContent,note=$('copyNote');
     const sel=()=>{const r=document.createRange();r.selectNodeContents($('sumText'));const w=getSelection();w.removeAllRanges();w.addRange(r);note.textContent='Text selected. Press Ctrl+C to copy.'};
@@ -738,7 +801,9 @@ document.addEventListener('mousemove',e=>{const el=e.target.closest&&e.target.cl
 $('infoBtn').addEventListener('click',()=>{$('about').hidden=false;$('aboutClose').focus()});
 $('aboutClose').addEventListener('click',()=>{$('about').hidden=true;$('infoBtn').focus()});
 $('about').addEventListener('click',e=>{if(e.target.id==='about')$('about').hidden=true});
-document.addEventListener('keydown',e=>{if(e.key==='Escape')$('about').hidden=true});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){$('about').hidden=true;view.querySelectorAll('.expmenu').forEach(m=>m.hidden=true)}});
+// Close any open download menu when clicking elsewhere
+document.addEventListener('click',e=>{if(!e.target.closest('.exp'))view.querySelectorAll('.expmenu').forEach(m=>m.hidden=true)});
 const h0=(location.hash||'').slice(1);if(TITLES[h0])state.page=h0;
 render();
 </script>
