@@ -168,6 +168,9 @@ table.fixed.narrow{min-width:560px}
 .expmenu button{all:unset;cursor:pointer;padding:8px 12px;font-size:13px;color:var(--ink)}
 .expmenu button:hover,.expmenu button:focus-visible{background:var(--panel)}
 .expmenu small{padding:6px 12px;font-size:11px;color:var(--muted)}
+.heat.scan td.grp{font-weight:700;font-size:12px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink2);padding:10px 2px 2px}
+.heat.scan td.c{position:relative;min-width:84px}
+.apptag{position:absolute;top:2px;right:3px;font-size:9px;font-weight:700;letter-spacing:.05em;background:#fff;color:#2B1F52;border:1px solid #2B1F52;border-radius:2px;padding:0 3px;line-height:1.4}
 </style>
 </head>
 <body>
@@ -180,7 +183,8 @@ table.fixed.narrow{min-width:560px}
       <button data-page="faculty">Faculty</button>
       <button data-page="department">Department</button>
       <button data-page="programme">Programme</button>
-      <button data-page="ranking">Target ranking</button>
+      <button data-page="ranking">Target by area</button>
+      <button data-page="scan">Other equity gaps</button>
       <button data-page="map">Progress map</button>
     </nav>
     <h2 id="fHead">Filters</h2>
@@ -191,11 +195,14 @@ table.fixed.narrow{min-width:560px}
       <div class="field" id="fFacW"><label for="fFac">Faculty</label><select id="fFac"></select></div>
       <div class="field" id="fDeptW"><label for="fDept">Department</label><select id="fDept"></select></div>
       <div class="field" id="fProgW"><label for="fProg">Programme</label><select id="fProg"></select></div>
+      <div class="field" id="fScanAreaW"><label for="fScanArea">Area</label><select id="fScanArea"></select></div>
+      <div class="field" id="fScanStageW"><label for="fScanStage">Stage (gaps to monitor)</label><select id="fScanStage"><option value="all">All stages</option><option>Continuation</option><option>Completion</option><option>Attainment</option><option>Progression</option></select></div>
+      <label class="check" id="fScanAppW"><input type="checkbox" id="fScanApp" checked> Include gaps that are already APP targets</label>
       <label class="check" id="fSmallW"><input type="checkbox" id="fSmall" checked> Hide areas where either group has fewer than 10 students</label>
     </div>
     <h2>Data</h2>
     <div class="load">
-      <input type="file" id="fileIn" accept=".csv,text/csv">
+      <input type="file" id="fileIn" accept=".csv,text/csv" multiple>
       <label class="btn" for="fileIn">Load results file</label>
       <small id="srcNote">Choose or drop equity_gaps_all_levels_long.csv from the R outputs folder.</small>
     </div>
@@ -238,6 +245,16 @@ table.fixed.narrow{min-width:560px}
     <p id="sigEx"></p>
     <p>The status combines both questions: which side of the milestone the gap falls, and whether the difference is larger than the margin of error. The line under each status shows the distance from the milestone and the margin, so the judgement can be checked.</p>
     <p>Tableau calculation: <code>1.96 * SQRT(pT*(1-pT)/nT + pC*(1-pC)/nC) * 100</code>, where p is each group's rate and n its headcount.</p>
+    <h3>Other equity gaps</h3>
+    <p>This page reads <code>equity_gaps_scan.csv</code> and compares every demographic group in the OfS file with its comparison group, at each lifecycle stage. It looks beyond the APP targets, so new or growing gaps can be researched before the next plan is written.</p>
+    <ul>
+      <li><b>Monitor closely</b>: a significant gap of 6 pp or more over the latest four years.</li>
+      <li><b>Monitor</b>: a significant gap of 3 to 6 pp.</li>
+      <li><b>Small but significant gap</b>: significant, but under 3 pp.</li>
+      <li><b>No significant gap</b>: within the margin of error.</li>
+      <li><b>Too few students</b>: fewer than 20 students in either group over the four years.</li>
+    </ul>
+    <p>These thresholds are set at the top of section 10 of the R script and can be changed. The OfS file does not include care experience, estrangement, caring responsibilities, commuting, parental higher education, refugee status or Gypsy, Roma and Traveller communities, so those groups are not covered.</p>
     <h3>Student numbers</h3>
     <p>Tables show the number of students in the target group and in the comparison group separately. For example, 27 BTEC and 16 A-level entrants.</p>
   </div>
@@ -340,7 +357,7 @@ function metrics(serIn,baseline,t){
 const byLevel=l=>Object.values(AREAS).filter(a=>a.level===l).sort((x,y)=>x.name.localeCompare(y.name));
 
 /* ---------- Which view: most recent year or 4-year aggregate ---------- */
-const state={page:'overview',fac:null,dept:null,prog:null,target:'PTS_1',level:'Department',rfac:'',hideSmall:true,open:null,sort:{k:'dist',d:-1},ref:'m',modes:{},summary:{}};
+const state={page:'overview',fac:null,dept:null,prog:null,target:'PTS_1',level:'Department',rfac:'',hideSmall:true,open:null,sort:{k:'name',d:1},scanArea:'U',scanStage:'all',scanApp:true,ref:'m',modes:{},summary:{}};
 function defMode(){const p=state.page;if(p==='department'||p==='programme')return 'agg';if(p==='ranking'||p==='map')return state.level==='Faculty'?'latest':'agg';return 'latest'}
 const modeKey=()=>state.page==='ranking'||state.page==='map'?state.page+':'+state.level:state.page;
 const mode=()=>state.modes[modeKey()]||defMode();
@@ -615,11 +632,6 @@ function rankingPage(){
   const behind=list.filter(a=>O(a).dist!=null&&O(a).dist>0).sort((x,y)=>O(y).dist-O(x).dist);
   const maxB=Math.max(1,...behind.map(a=>O(a).dist));
   let s=toolbar()+`<svg width="0" height="0" style="position:absolute"><defs><pattern id="hatchP" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill="#fff"/><line x1="0" y1="0" x2="0" y2="5" stroke="#8A4DB6" stroke-width="2.5"/></pattern></defs></svg>`;
-  s+=`<div class="grid2">
-   <section class="panel"><h3>Most progress</h3><p class="cap">Largest narrowing of the ${esc(t.stage.toLowerCase())} gap since the baseline (${t.years[0]} to ${t.years[3]})</p>
-   ${prog.length?`<div class="scroll"><table class="rank fixed narrow"><colgroup><col style="width:7%"><col style="width:30%"><col style="width:13%"><col style="width:14%"><col style="width:21%"><col style="width:15%"></colgroup><thead><tr><th>#</th><th>${state.level}</th><th class="ctr">Baseline</th><th class="ctr">${modeLabel()}</th><th class="ctr">Change</th><th></th></tr></thead><tbody>${prog.slice(0,10).map((a,i)=>{const o=O(a);return `<tr data-tip="${tipArea(a,t,o)}"><td>${i+1}</td><td class="an">${areaName(a)}</td><td class="ctr">${f1(o.baseline)}</td><td class="ctr">${f1(o.val)}</td><td class="ctr">${chg(o)}</td><td>${bar(o.change,maxA,'#6A9E9F')}</td></tr>`}).join('')}</tbody></table></div>`:'<p class="empty">No area has narrowed this gap since the baseline.</p>'}</section>
-   <section class="panel"><h3>Furthest behind</h3><p class="cap">Gap above the ${CURL} of ${t.cur} pp. Solid bars are significantly behind; hatched bars are not significant.</p>
-   ${behind.length?`<div class="scroll"><table class="rank fixed narrow"><colgroup><col style="width:7%"><col style="width:37%"><col style="width:19%"><col style="width:17%"><col style="width:20%"></colgroup><thead><tr><th>#</th><th>${state.level}</th><th class="ctr">${modeLabel()}</th><th class="ctr">Above milestone</th><th></th></tr></thead><tbody>${behind.slice(0,10).map((a,i)=>{const o=O(a);return `<tr data-tip="${tipArea(a,t,o)}"><td>${i+1}</td><td class="an">${areaName(a)}</td><td class="ctr">${f1(o.val)} <span class="uni">±${f1(o.h)}</span></td><td class="ctr"><b>+${f1(o.dist)}</b></td><td>${bar(o.dist,maxB,'#8A4DB6',o.sig==='sigBehind')}</td></tr>`}).join('')}</tbody></table></div>`:'<p class="empty">Every area shown is at or below the milestone.</p>'}</section></div>`;
   s+=`<section class="panel"><h3>Where areas stand</h3><p class="cap">Number of ${state.level.toLowerCase()}s by status for ${t.id}${state.rfac?' in '+esc(FACm[state.rfac].name):''}</p>
     <svg viewBox="0 0 720 220" width="100%" style="max-width:720px" role="img" aria-label="Status counts">${counts.map(([k,c],i)=>`<text x="220" y="${i*36+24}" font-size="13" text-anchor="end" fill="#2A2148">${ST[k].l}</text><rect x="230" y="${i*36+8}" width="${Math.max(2,c/maxC*440)}" height="24" rx="2" fill="${ST[k].c}" data-tip="${esc(ST[k].l+': '+c)}"/><text x="${236+c/maxC*440}" y="${i*36+25}" font-size="13" fill="#2A2148">${c}</text>`).join('')}</svg></section>`;
   s+=`<section class="panel"><h3>All ${state.level.toLowerCase()}s</h3><p class="cap">Select a column heading to sort.${state.hideSmall&&hidden?` ${hidden} with fewer than 10 students in a group ${hidden===1?'is':'are'} hidden.`:''}</p>${allTable(list,t)}</section>`;
@@ -662,12 +674,13 @@ function mapPage(){
   <div class="legend" style="margin-bottom:6px"><span><i class="sw" style="background:${COL.sigAhead};border-radius:50%"></i>Significantly ahead of the ${refL}</span><span><i class="sw" style="background:${COL.ns};border-radius:50%"></i>Not significant</span><span><i class="sw" style="background:${COL.sigBehind};border-radius:50%"></i>Significantly behind</span></div>${pts.length?s:'<p class="empty">No areas to show.</p>'}</section>`;
 }
 function noLevel(){return `<p class="empty">There are no ${state.level.toLowerCase()} results in this file. If programmes are missing, rerun app_equity_gaps.R (it groups programmes by coursetitle) and load the new equity_gaps_all_levels_long.csv.</p>`}
-function startPage(err){return `<div class="startbox"><h3>Load your results</h3><p>This dashboard holds no data of its own. It fills in when you give it the long results file written by <code>app_equity_gaps.R</code>.</p><p>Drag <code>equity_gaps_all_levels_long.csv</code> onto this page, or use <b>Load results file</b> in the sidebar.</p><p>The file is read in your browser and stays on your computer. Nothing is uploaded. Reopening the page clears it, so load the file again each time.</p>${err?`<p style="color:#6B3596;font-weight:600">${esc(err)}</p>`:''}</div>`}
+function startPage(err){return `<div class="startbox"><h3>Load your results</h3><p>This dashboard holds no data of its own. It fills in when you give it the long results file written by <code>app_equity_gaps.R</code>.</p><p>Drag <code>equity_gaps_all_levels_long.csv</code> onto this page, or use <b>Load results file</b> in the sidebar. You can add <code>equity_gaps_scan.csv</code> at the same time for the Other equity gaps page.</p><p>The file is read in your browser and stays on your computer. Nothing is uploaded. Reopening the page clears it, so load the file again each time.</p>${err?`<p style="color:#6B3596;font-weight:600">${esc(err)}</p>`:''}</div>`}
 
 /* ---------- Download a panel as an image or PDF ---------- */
 const ICON='<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 12.5v1h11v-1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 function exportContext(){
   const t=TGm[state.target];
+  if(state.page==='scan')return `Other equity gaps · ${scanAreaName()} · latest four years combined`;
   if(state.page==='ranking'||state.page==='map')return `${t.id} · ${t.stage}: ${t.grp} vs ${t.cmp} · ${modeLabel()} by ${state.level.toLowerCase()}${state.rfac?' · '+FACm[state.rfac].name:''}`;
   const nm=state.page==='overview'?'Middlesex University':state.page==='faculty'?FACm[state.fac].name:state.page==='department'?state.dept:state.prog;
   return `${nm} · ${modeLabel()}`;
@@ -711,9 +724,72 @@ async function exportPanel(panel,fmt,note){
   finally{wrap.remove()}
 }
 
+/* ---------- Other equity gaps (scan of every demographic group) ---------- */
+let SCAN=null;
+const SP={'Monitor closely':{c:'#6B3596',t:'#fff'},'Monitor':{c:'#A97BCB',t:'#fff'},'Small but significant gap':{c:'#DCC6EC',t:'#2A2148'},'No significant gap':{c:'#ECEBF1',t:'#77728A'},'Too few students':{c:'#F6F5F8',t:'#9A95AA'}};
+const SPORDER=['Monitor closely','Monitor','Small but significant gap','No significant gap','Too few students'];
+const STAGES=['Continuation','Completion','Attainment','Progression'];
+function buildScan(rows){
+  const need=['level','stage','characteristic','group','comparator','priority','gap_pp','margin_pp'];
+  const miss=need.filter(k=>!(k in rows[0]));if(miss.length)throw new Error('This scan file is missing columns: '+miss.join(', ')+'.');
+  SCAN=rows.map(r=>{const fd=r.level==='Faculty'?FACDEF[r.faculty]:null;
+    return {area:r.level==='University'?'U':fd?fd.code:null,stage:r.stage,char:r.characteristic,group:r.group,comp:r.comparator,app:r.app_target&&r.app_target!=='NA'?r.app_target:null,
+      pri:r.priority,behind:r.group_behind,gap:num(r.gap_pp),h:num(r.margin_pp),p:num(r.p_value),years:r.years_latest4,
+      nG:num(r.n_group),rG:num(r.rate_group),nC:num(r.n_comparator),rC:num(r.rate_comparator),base:num(r.baseline_gap_pp),chg:num(r.change_pp),
+      ylab:(r.year_labels||'').split('|'),ys:[1,2,3,4,5,6,7].map(i=>num(r['gap_y'+i]))}}).filter(r=>r.area);
+}
+const scanArea=()=>state.scanArea||'U';
+const scanAreaName=()=>scanArea()==='U'?'Middlesex University':FACm[scanArea()].name;
+function scanTip(r){
+  const behindTxt=r.gap==null?'':r.gap>0?`${r.group} students are behind`:r.gap<0?`${r.comp} students are behind`:'No gap';
+  return esc(`<b>${r.stage}: ${r.group} vs ${r.comp}</b><br>${scanAreaName()} · ${r.years||'latest four years'}<br>${r.group}: ${f1(r.rG)}% of ${r0(r.nG)} students<br>${r.comp}: ${f1(r.rC)}% of ${r0(r.nC)} students<br>Gap: <b>${f1(r.gap)} pp</b>${r.h!=null?' ±'+f1(r.h):''} (${behindTxt})<br>Baseline gap: ${f1(r.base)} pp · Change: ${r.chg==null?'–':(r.chg>0?'+':'')+f1(r.chg)} pp<br><b>${r.pri}</b>${r.app?' · APP target '+r.app:''}`);
+}
+function scanSpark(r){
+  const sgn=r.gap!=null&&r.gap<0?-1:1,v=r.ys.map(x=>x==null?null:x*sgn),have=v.filter(x=>x!=null);
+  if(have.length<2)return '<span class="uni">Not enough data</span>';
+  const w=140,h=36,p=4;let lo=Math.min(0,...have),hi=Math.max(0,...have);if(hi-lo<4)hi=lo+4;
+  const x=i=>p+i*(w-2*p)/6,y=q=>h-p-(q-lo)/(hi-lo)*(h-2*p);
+  let d='';v.forEach((q,i)=>{if(q!=null)d+=(i&&v[i-1]!=null?'L':'M')+x(i).toFixed(1)+' '+y(q).toFixed(1)});
+  let s=`<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Gap over seven years"><rect x="${x(3)-3}" y="0" width="${x(6)-x(3)+6}" height="${h}" fill="#ECEBF1"/><line x1="${p}" x2="${w-p}" y1="${y(0)}" y2="${y(0)}" stroke="#B5B1C2" stroke-dasharray="2 2"/><path d="${d}" fill="none" stroke="#4A4560" stroke-width="1.6"/>`;
+  v.forEach((q,i)=>{if(q!=null)s+=`<circle cx="${x(i)}" cy="${y(q)}" r="${i===6?3.5:2}" fill="${i===6?SP[r.pri].c:'#4A4560'}"/><circle cx="${x(i)}" cy="${y(q)}" r="7" fill="transparent" data-tip="${esc(`<b>${r.ylab[i]||'Year '+(i+1)}</b>: gap ${f1(q)} pp`)}"/>`});
+  return s+'</svg>';
+}
+function scanPage(){
+  if(!SCAN)return `<div class="startbox"><h3>Load the gap scan</h3><p>This page reads <code>equity_gaps_scan.csv</code>, written by section 10 of <code>app_equity_gaps.R</code>. It compares every demographic group in the OfS file with its comparison group, at each stage of the student lifecycle, not only the groups with APP targets.</p><p>Use <b>Load results file</b> to choose it. You can load it together with <code>equity_gaps_all_levels_long.csv</code>.</p></div>`;
+  const rows=SCAN.filter(r=>r.area===scanArea());
+  if(!rows.length)return '<p class="empty">No scan results for this area.</p>';
+  const inScope=rows.filter(r=>(state.scanApp||!r.app)&&(state.scanStage==='all'||r.stage===state.scanStage));
+  const cnt=k=>inScope.filter(r=>r.pri===k).length;
+  const tile=(l,v,s)=>`<div class="tile"><div class="lab">${l}</div><div class="val">${v}</div><div class="sub">${s}</div></div>`;
+  let s=`<div class="tiles">${tile('Monitor closely',cnt('Monitor closely'),`Significant gaps of ${'6'} pp or more`)}${tile('Monitor',cnt('Monitor'),'Significant gaps of 3 to 6 pp')}${tile('Small but significant',cnt('Small but significant gap'),'Significant gaps under 3 pp')}${tile('No significant gap',cnt('No significant gap'),'Within the margin of error')}</div>`;
+  // Overview grid: comparisons down the side, lifecycle stages across
+  const keys=[];rows.forEach(r=>{const k=r.char+'|'+r.group+'|'+r.comp;if(!keys.includes(k))keys.push(k)});
+  let g=`<div class="scroll"><table class="heat scan"><thead><tr><th style="text-align:left">Comparison</th>${STAGES.map(st=>`<th>${st}</th>`).join('')}</tr></thead><tbody>`;let lastChar='';
+  keys.forEach(k=>{const [ch,gr,cp]=k.split('|');
+    if(ch!==lastChar){g+=`<tr><td class="grp" colspan="5">${esc(ch)}</td></tr>`;lastChar=ch}
+    g+=`<tr><td class="nm" style="font-weight:400">${esc(gr)} <span class="uni">vs ${esc(cp)}</span></td>`;
+    STAGES.forEach(st=>{const r=rows.find(x=>x.stage===st&&x.char===ch&&x.group===gr&&x.comp===cp);
+      if(!r){g+='<td class="c" style="background:#fff;color:#C9C6D2">·</td>';return}
+      const col=SP[r.pri]||SP['No significant gap'];
+      g+=`<td class="c${r.pri==='Too few students'?' hatch':''}" style="background:${col.c};color:${col.t}" data-tip="${scanTip(r)}">${r.pri==='Too few students'?'n&lt;20':f1(r.gap)}${r.app?'<span class="apptag">APP</span>':''}</td>`});
+    g+='</tr>'});
+  g+=`</tbody></table></div><div class="legend" style="margin-top:8px">${SPORDER.map(k=>`<span><i class="sw" style="background:${SP[k].c};border:1px solid #D9D7E0"></i>${k}</span>`).join('')}<span><span class="apptag" style="position:static">APP</span> already an APP target</span></div><p class="cap" style="margin-top:6px">Each cell is the gap over the latest four years, in percentage points. A positive number means the first-named group is behind. A negative number means the comparison group is behind. Hover for rates, student numbers and the margin of error.</p>`;
+  s+=`<section class="panel"><h3>All equity gaps</h3><p class="cap">${esc(scanAreaName())} · every comparison in the OfS file, latest four years combined</p>${g}</section>`;
+  // Gaps to monitor
+  const mon=inScope.filter(r=>r.pri==='Monitor closely'||r.pri==='Monitor').sort((a,b)=>Math.abs(b.gap)-Math.abs(a.gap));
+  const behindName=r=>r.gap>0?r.group:r.comp, vsName=r=>r.gap>0?r.comp:r.group;
+  let t=`<div class="scroll"><table class="rank fixed"><colgroup><col style="width:12%"><col style="width:20%"><col style="width:17%"><col style="width:9%"><col style="width:12%"><col style="width:14%"><col style="width:16%"></colgroup><thead><tr><th>Stage</th><th>Group behind</th><th>Compared with</th><th class="ctr">Gap</th><th class="ctr">Change since baseline</th><th class="ctr">Seven years</th><th class="ctr">Priority</th></tr></thead><tbody>`;
+  t+=mon.map(r=>{const c=r.chg==null?null:(r.gap<0?-r.chg:r.chg);
+    return `<tr data-tip="${scanTip(r)}"><td>${r.stage}</td><td><b>${esc(behindName(r))}</b>${r.app?` <span class="apptag" style="position:static">APP ${r.app}</span>`:''}<span class="facname">${esc(r.char)}</span></td><td>${esc(vsName(r))}</td><td class="ctr"><b>${f1(Math.abs(r.gap))}</b><small class="yr">±${f1(r.h)} pp</small></td><td class="ctr">${c==null?'–':c<=-1?`<span class="chg good">▼ ${f1(-c)} narrower</span>`:c>=1?`<span class="chg bad">▲ ${f1(c)} wider</span>`:`<span class="chg flat">● little change</span>`}</td><td class="ctr">${scanSpark(r)}</td><td class="ctr"><span class="pill" style="--c:${SP[r.pri].c};background:${tint(SP[r.pri].c,.22)}">${r.pri}</span></td></tr>`}).join('');
+  t+='</tbody></table></div>';
+  s+=`<section class="panel"><h3>Gaps to monitor</h3><p class="cap">${esc(scanAreaName())} · significant gaps of 3 pp or more over the latest four years${state.scanApp?', including APP targets':', excluding APP targets'}${state.scanStage==='all'?'':' · '+state.scanStage}. The trend line shows the gap for the group behind; the shaded part is the latest four years.</p>${mon.length?t:'<p class="empty">No significant gaps of 3 pp or more for this selection.</p>'}</section>`;
+  return s;
+}
+
 /* ---------- Render ---------- */
-const TITLES={overview:['APP EQUITY GAPS 2026','University progress against Access and Participation Plan targets'],faculty:['FACULTY VIEW',''],department:['DEPARTMENT VIEW',''],programme:['PROGRAMME VIEW',''],ranking:['TARGET RANKING','Which areas are making most progress, and which are furthest behind'],map:['PROGRESS MAP','Distance from the milestone against change since the baseline']};
-const SHOW={overview:[],faculty:['fFacW'],department:['fFacW','fDeptW'],programme:['fFacW','fDeptW','fProgW'],ranking:['fTargetW','fLevelW','fFacW','fSmallW'],map:['fTargetW','fLevelW','fRefW','fFacW']};
+
+const TITLES={overview:['APP EQUITY GAPS 2026','University progress against Access and Participation Plan targets'],faculty:['FACULTY VIEW',''],department:['DEPARTMENT VIEW',''],programme:['PROGRAMME VIEW',''],ranking:['TARGET BY AREA','How each area stands against one APP target'],scan:['OTHER EQUITY GAPS','Gaps for every demographic group, beyond the formal APP targets'],map:['PROGRESS MAP','Distance from the milestone against change since the baseline']};
+const SHOW={overview:[],faculty:['fFacW'],department:['fFacW','fDeptW'],programme:['fFacW','fDeptW','fProgW'],ranking:['fTargetW','fLevelW','fFacW','fSmallW'],map:['fTargetW','fLevelW','fRefW','fFacW'],scan:['fScanAreaW','fScanStageW','fScanAppW']};
 const loaded=()=>!!AREAS.U;
 function fillSelects(){
   const rankLike=state.page==='ranking'||state.page==='map';
@@ -729,8 +805,9 @@ function fillSelects(){
 function render(){
   fillSelects();
   document.querySelectorAll('.nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.page===state.page?'page':'false'));
-  ['fTargetW','fLevelW','fRefW','fFacW','fDeptW','fProgW','fSmallW'].forEach(id=>$(id).hidden=!loaded()||!SHOW[state.page].includes(id));
-  $('fHead').hidden=!loaded()||!SHOW[state.page].length;
+  ['fTargetW','fLevelW','fRefW','fFacW','fDeptW','fProgW','fSmallW','fScanAreaW','fScanStageW','fScanAppW'].forEach(id=>$(id).hidden=!(state.page==='scan'?SCAN:loaded())||!SHOW[state.page].includes(id));
+  $('fHead').hidden=!(state.page==='scan'?SCAN:loaded())||!SHOW[state.page].length;
+  $('fScanArea').innerHTML='<option value="U">Middlesex University</option>'+FAC.map(f=>`<option value="${esc(f.code)}">${esc(f.name)}</option>`).join('');$('fScanArea').value=state.scanArea;$('fScanStage').value=state.scanStage;$('fScanApp').checked=state.scanApp;
   $('srcChip').textContent=loaded()?'OfS individualised data':'No data loaded';
   let [ti,sub]=TITLES[state.page];
   if(state.page==='faculty')sub='Progress against APP targets: '+FACm[state.fac].name;
@@ -739,6 +816,7 @@ function render(){
   $('pTitle').textContent=ti;$('pSub').textContent=sub;
   $('trendGuide').innerHTML=trendGuide();
   $('sigEx').textContent=sigExample();
+  if(state.page==='scan'){$('pTitle').textContent=ti;$('pSub').textContent=sub;view.innerHTML=scanPage();addExportButtons();return}
   if(!loaded()){view.innerHTML=startPage();return}
   let h='';
   if(state.page==='overview')h=areaPage(AREAS.U,'Faculty snapshot',byLevel('Faculty'));
@@ -747,6 +825,7 @@ function render(){
   if(state.page==='programme')h=state.prog?areaPage(AREAS['P:'+state.prog]):`<p class="empty">There are no programme results in this file. Rerun app_equity_gaps.R (it groups programmes by coursetitle) and load the new equity_gaps_all_levels_long.csv.</p>`;
   if(state.page==='ranking')h=rankingPage();
   if(state.page==='map')h=mapPage();
+  if(state.page==='scan'){view.innerHTML=scanPage();addExportButtons();return}
   view.innerHTML=h;
   addExportButtons();
 }
@@ -768,15 +847,19 @@ $('fTarget').addEventListener('change',e=>{state.target=e.target.value;render()}
 $('fLevel').addEventListener('change',e=>{state.level=e.target.value;render()});
 $('fRef').addEventListener('change',e=>{state.ref=e.target.value;render()});
 $('fSmall').addEventListener('change',e=>{state.hideSmall=e.target.checked;render()});
+$('fScanArea').addEventListener('change',e=>{state.scanArea=e.target.value;render()});
+$('fScanStage').addEventListener('change',e=>{state.scanStage=e.target.value;render()});
+$('fScanApp').addEventListener('change',e=>{state.scanApp=e.target.checked;render()});
+const LOADED={};
 function loadFile(f){if(!f)return;const rd=new FileReader();
-  rd.onload=()=>{try{build(parseCSV(String(rd.result)));$('srcNote').className='';$('srcNote').textContent='Showing '+f.name+'. Load another file to replace it.';state.open=null;render()}
+  rd.onload=()=>{try{const rows=parseCSV(String(rd.result));if(rows.length&&'characteristic' in rows[0]){buildScan(rows);LOADED.scan=f.name}else{build(rows);LOADED.main=f.name}$('srcNote').className='';$('srcNote').textContent='Showing '+Object.values(LOADED).join(' and ')+'.';state.open=null;render()}
     catch(err){$('srcNote').className='err';$('srcNote').textContent=err.message;if(!loaded())view.innerHTML=startPage(err.message)}};
   rd.onerror=()=>{$('srcNote').className='err';$('srcNote').textContent='That file could not be read. Try saving it again as CSV.'};
   rd.readAsText(f)}
-$('fileIn').addEventListener('change',e=>{loadFile(e.target.files[0]);e.target.value=''});
+$('fileIn').addEventListener('change',e=>{[...e.target.files].forEach(loadFile);e.target.value=''});
 ['dragenter','dragover'].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();document.body.classList.add('dragging')}));
 ['dragleave','drop'].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();if(ev==='drop'||!e.relatedTarget)document.body.classList.remove('dragging')}));
-document.addEventListener('drop',e=>loadFile(e.dataTransfer&&e.dataTransfer.files[0]));
+document.addEventListener('drop',e=>{if(e.dataTransfer)[...e.dataTransfer.files].forEach(loadFile)});
 function act(e){
   const eb=e.target.closest('.expbtn');if(eb){const m=eb.nextElementSibling;view.querySelectorAll('.expmenu').forEach(x=>{if(x!==m)x.hidden=true});m.hidden=!m.hidden;return true}
   const ex=e.target.closest('[data-exp]');if(ex){const menu=ex.closest('.expmenu');exportPanel(ex.closest('section.panel'),ex.dataset.exp,menu.querySelector('.expnote'));return true}

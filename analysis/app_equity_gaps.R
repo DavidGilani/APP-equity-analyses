@@ -436,3 +436,223 @@ if (requireNamespace("writexl", quietly = TRUE)) {
     file.path(out_dir, "equity_gaps.xlsx"))
 }
 cat("\nFiles written to:", out_dir, "\n")
+
+# =============================================================================
+# 10. Equity gap scan: every demographic group, not only the APP targets
+# =============================================================================
+# Compares each group in the OfS file with its comparison group, at every
+# lifecycle stage, so gaps outside the formal APP targets can be monitored and
+# researched ahead of the next APP.
+#
+# For each comparison and stage it reports:
+#   - the gap over the latest four years combined (the main measure)
+#   - its 95% margin of error and p-value (two-group test of the rates)
+#   - the gap over the first four years (baseline) and the change since
+#   - the gap in each of the seven years, for a trend line
+#   - which group is behind, and whether the gap is already an APP target
+#
+# Gap = comparison group's rate minus the named group's rate. A positive gap
+# means the named group is behind; a negative gap means the comparison group
+# is behind.
+#
+# Not in the OfS file, so not covered: care experience, estrangement, caring
+# responsibilities, commuting, parental higher education (first in family),
+# refugee status, Gypsy, Roma and Traveller communities, military families.
+
+scan_min_n   <- 20   # each group needs at least this many students over the four years
+monitor_gap  <- 3    # significant gaps of at least this size: "Monitor"
+priority_gap <- 6    # significant gaps of at least this size: "Monitor closely"
+scan_levels  <- list(University = character(0), Faculty = "faculty")
+
+code    <- function(x) trimws(as.character(x))
+numcode <- function(x) suppressWarnings(as.integer(as.character(x)))
+uk      <- c("E", "N", "S", "W")
+
+base <- base %>% mutate(
+  split_s_sex    = case_when(code(student_sex) == "2" ~ "Female", code(student_sex) == "1" ~ "Male"),
+  split_s_mature = case_when(code(engagement_starting_age_group) == "U21" ~ "Under 21",
+                             code(engagement_starting_age_group) %in% c("21_25", "26_30", "31_40", "41_50", "51+") ~ "21 and over"),
+  split_s_age    = case_when(code(engagement_starting_age_group) == "U21" ~ "Under 21",
+                             code(engagement_starting_age_group) == "21_25" ~ "21 to 25",
+                             code(engagement_starting_age_group) == "26_30" ~ "26 to 30",
+                             code(engagement_starting_age_group) %in% c("31_40", "41_50", "51+") ~ "31 and over"),
+  split_s_eth    = case_when(!(student_domicile %in% uk) ~ NA_character_,
+                             code(broad_student_ethnicity) == "A" ~ "Asian",
+                             code(broad_student_ethnicity) == "B" ~ "Black",
+                             code(broad_student_ethnicity) == "M" ~ "Mixed",
+                             code(broad_student_ethnicity) == "O" ~ "Other ethnicity",
+                             code(broad_student_ethnicity) == "W" ~ "White"),
+  split_s_dis    = case_when(code(is_reported_disabled) == "Y" ~ "Disability reported",
+                             code(is_reported_disabled) == "N" ~ "No disability reported"),
+  split_s_distype = case_when(code(is_reported_disabled) == "N" ~ "No disability reported",
+                              code(reported_disability_type) == "COG"   ~ "Cognitive or learning difference",
+                              code(reported_disability_type) == "MH"    ~ "Mental health condition",
+                              code(reported_disability_type) == "MULTI" ~ "Multiple impairments",
+                              code(reported_disability_type) == "PHY"   ~ "Physical or sensory impairment",
+                              code(reported_disability_type) == "SOC"   ~ "Social or communication impairment"),
+  split_s_imd15  = case_when(student_domicile == "E" & code(historic_home_imd_quintile_by_nation) == "E1" ~ "IMD Q1",
+                             student_domicile == "E" & code(historic_home_imd_quintile_by_nation) == "E5" ~ "IMD Q5"),
+  split_s_tundra = case_when(student_domicile == "E" & code(engagement_starting_age_group) == "U21" & numcode(tundra_msoa_quintile) %in% 1:2 ~ "TUNDRA Q1-2",
+                             student_domicile == "E" & code(engagement_starting_age_group) == "U21" & numcode(tundra_msoa_quintile) %in% 3:5 ~ "TUNDRA Q3-5"),
+  split_s_polar  = case_when(code(engagement_starting_age_group) == "U21" & numcode(polar4_quintile) %in% 1:2 ~ "POLAR4 Q1-2",
+                             code(engagement_starting_age_group) == "U21" & numcode(polar4_quintile) %in% 3:5 ~ "POLAR4 Q3-5"),
+  split_s_nssec  = case_when(student_domicile %in% uk & numcode(socioeconomic_class) %in% 5:7 ~ "Routine and manual",
+                             student_domicile %in% uk & numcode(socioeconomic_class) %in% 1:2 ~ "Higher managerial and professional"),
+  split_s_lgb    = case_when(code(sexual_orientation) %in% c("10", "11") ~ "LGB+",
+                             code(sexual_orientation) == "12" ~ "Heterosexual"),
+  split_s_access = case_when(broad_entry_qualifications == 10 ~ "Access or foundation course", broad_entry_qualifications %in% 1:4 ~ "A-level"),
+  split_s_heq    = case_when(broad_entry_qualifications == 6  ~ "HE-level qualification",      broad_entry_qualifications %in% 1:4 ~ "A-level"),
+  split_s_noq    = case_when(broad_entry_qualifications == 11 ~ "None, unknown or other",      broad_entry_qualifications %in% 1:4 ~ "A-level"),
+  split_s_fy     = case_when(numcode(linked_engagement_has_foundation_year) == 1 ~ "Foundation year",
+                             numcode(linked_engagement_has_foundation_year) == 0 ~ "No foundation year"),
+  split_s_abcs_c = case_when(numcode(abcs_continuation_quintile) == 1 ~ "ABCS Q1", numcode(abcs_continuation_quintile) == 5 ~ "ABCS Q5"),
+  split_s_abcs_k = case_when(numcode(abcs_completion_quintile)   == 1 ~ "ABCS Q1", numcode(abcs_completion_quintile)   == 5 ~ "ABCS Q5"),
+  split_s_abcs_p = case_when(numcode(abcs_progression_quintile)  == 1 ~ "ABCS Q1", numcode(abcs_progression_quintile)  == 5 ~ "ABCS Q5"),
+  split_s_sex_imd = case_when(split_s_sex == "Male"   & split_imd == "IMD Q1-2" ~ "Male, IMD Q1-2",
+                              split_s_sex == "Female" & split_imd == "IMD Q3-5" ~ "Female, IMD Q3-5"),
+  split_s_sex_eth = case_when(split_s_sex == "Male"   & split_s_eth == "Black" ~ "Black male",
+                              split_s_sex == "Female" & split_s_eth == "White" ~ "White female")
+)
+
+# Every comparison in the scan. stages = "all" or a single stage.
+scan_defs <- tribble(
+  ~characteristic,                    ~column,            ~group,                               ~comparator,                          ~stages,
+  "Sex",                              "split_s_sex",      "Male",                               "Female",                             "all",
+  "Age on entry",                     "split_s_mature",   "21 and over",                        "Under 21",                           "all",
+  "Age on entry",                     "split_s_age",      "21 to 25",                           "Under 21",                           "all",
+  "Age on entry",                     "split_s_age",      "26 to 30",                           "Under 21",                           "all",
+  "Age on entry",                     "split_s_age",      "31 and over",                        "Under 21",                           "all",
+  "Ethnicity",                        "split_ethnicity",  "ABMO",                               "White",                              "all",
+  "Ethnicity",                        "split_s_eth",      "Asian",                              "White",                              "all",
+  "Ethnicity",                        "split_s_eth",      "Black",                              "White",                              "all",
+  "Ethnicity",                        "split_s_eth",      "Mixed",                              "White",                              "all",
+  "Ethnicity",                        "split_s_eth",      "Other ethnicity",                    "White",                              "all",
+  "Disability",                       "split_s_dis",      "Disability reported",                "No disability reported",             "all",
+  "Disability",                       "split_s_distype",  "Cognitive or learning difference",   "No disability reported",             "all",
+  "Disability",                       "split_s_distype",  "Mental health condition",            "No disability reported",             "all",
+  "Disability",                       "split_s_distype",  "Multiple impairments",               "No disability reported",             "all",
+  "Disability",                       "split_s_distype",  "Physical or sensory impairment",     "No disability reported",             "all",
+  "Disability",                       "split_s_distype",  "Social or communication impairment", "No disability reported",             "all",
+  "Free school meals",                "split_fsm",        "Eligible",                           "Not eligible",                       "all",
+  "Deprivation (IMD 2019)",           "split_imd",        "IMD Q1-2",                           "IMD Q3-5",                           "all",
+  "Deprivation (IMD 2019)",           "split_s_imd15",    "IMD Q1",                             "IMD Q5",                             "all",
+  "Area participation (TUNDRA)",      "split_s_tundra",   "TUNDRA Q1-2",                        "TUNDRA Q3-5",                        "all",
+  "Area participation (POLAR4)",      "split_s_polar",    "POLAR4 Q1-2",                        "POLAR4 Q3-5",                        "all",
+  "Socioeconomic class (NS-SEC)",     "split_s_nssec",    "Routine and manual",                 "Higher managerial and professional", "all",
+  "Sexual orientation",               "split_s_lgb",      "LGB+",                               "Heterosexual",                       "all",
+  "Entry qualifications",             "split_btec_alevel","BTEC",                               "A-level",                            "all",
+  "Entry qualifications",             "split_btec_other", "BTEC",                               "All other qualifications",           "all",
+  "Entry qualifications",             "split_s_access",   "Access or foundation course",        "A-level",                            "all",
+  "Entry qualifications",             "split_s_heq",      "HE-level qualification",             "A-level",                            "all",
+  "Entry qualifications",             "split_s_noq",      "None, unknown or other",             "A-level",                            "all",
+  "Foundation year",                  "split_s_fy",       "Foundation year",                    "No foundation year",                 "all",
+  "Combined characteristics (ABCS)",  "split_s_abcs_c",   "ABCS Q1",                            "ABCS Q5",                            "Continuation",
+  "Combined characteristics (ABCS)",  "split_s_abcs_k",   "ABCS Q1",                            "ABCS Q5",                            "Completion",
+  "Combined characteristics (ABCS)",  "split_s_abcs_p",   "ABCS Q1",                            "ABCS Q5",                            "Progression",
+  "Intersections",                    "split_s_sex_imd",  "Male, IMD Q1-2",                     "Female, IMD Q3-5",                   "all",
+  "Intersections",                    "split_s_sex_eth",  "Black male",                         "White female",                       "all"
+)
+
+# Which comparisons are already formal APP targets
+app_lookup <- tribble(
+  ~stage,         ~column,             ~group,     ~app_target,
+  "Continuation", "split_btec_alevel", "BTEC",     "PTS_1",
+  "Completion",   "split_fsm",         "Eligible", "PTS_2",
+  "Completion",   "split_btec_alevel", "BTEC",     "PTS_3",
+  "Attainment",   "split_ethnicity",   "ABMO",     "PTS_4",
+  "Attainment",   "split_fsm",         "Eligible", "PTS_5",
+  "Attainment",   "split_imd",         "IMD Q1-2", "PTS_6",
+  "Attainment",   "split_btec_alevel", "BTEC",     "PTS_7",
+  "Progression",  "split_btec_other",  "BTEC",     "PTP_2"
+)
+
+# Seven years per stage, as for the APP targets
+stage_years <- list(Continuation = 2017:2023, Completion = 2014:2020,
+                    Attainment = 2018:2024, Progression = 2017:2023)
+
+scan_stages <- build_stages(base, level_options[[chosen_level]])
+
+gap_of <- function(s_g, n_g, s_c, n_c) ifelse(n_g > 0 & n_c > 0, 100 * (s_c / n_c - s_g / n_g), NA_real_)
+
+# University rows have no grouping column, so they are joined side by side
+join_units <- function(x, y, unit_vars) if (length(unit_vars)) left_join(x, y, by = unit_vars) else bind_cols(x, y)
+
+scan_one <- function(def, stg, unit_vars) {
+  yrs <- stage_years[[stg]]
+  d <- scan_stages %>%
+    filter(stage == stg, base_academic_year %in% yrs) %>%
+    mutate(grp = case_when(.data[[def$column]] == def$group ~ "g",
+                           .data[[def$column]] == def$comparator ~ "c")) %>%
+    filter(!is.na(grp))
+  if (nrow(d) == 0) return(NULL)
+  agg <- function(x, ...) {
+    out <- x %>% group_by(across(all_of(unit_vars)), ..., grp) %>%
+      summarise(n = sum(weight), s = sum(success), .groups = "drop") %>%
+      pivot_wider(names_from = grp, values_from = c(n, s), values_fill = 0)
+    for (v in c("n_g", "n_c", "s_g", "s_c")) if (!v %in% names(out)) out[[v]] <- 0
+    out
+  }
+  latest <- agg(filter(d, base_academic_year %in% tail(yrs, 4)))
+  basel  <- agg(filter(d, base_academic_year %in% head(yrs, 4))) %>%
+    transmute(across(all_of(unit_vars)), baseline_gap_pp = gap_of(s_g, n_g, s_c, n_c))
+  yearly <- agg(d, base_academic_year) %>%
+    mutate(gap = gap_of(s_g, n_g, s_c, n_c), yi = match(base_academic_year, yrs)) %>%
+    select(all_of(unit_vars), yi, gap) %>%
+    arrange(yi) %>%
+    pivot_wider(names_from = yi, values_from = gap, names_prefix = "gap_y")
+  for (i in 1:7) if (!paste0("gap_y", i) %in% names(yearly)) yearly[[paste0("gap_y", i)]] <- NA_real_
+  latest %>%
+    mutate(rate_group = 100 * s_g / n_g, rate_comparator = 100 * s_c / n_c,
+           gap_pp = gap_of(s_g, n_g, s_c, n_c),
+           se = 100 * sqrt((s_g / n_g) * (1 - s_g / n_g) / n_g + (s_c / n_c) * (1 - s_c / n_c) / n_c),
+           margin_pp = 1.96 * se,
+           p_value = ifelse(se > 0, 2 * pnorm(-abs(gap_pp / se)), NA_real_)) %>%
+    join_units(basel, unit_vars) %>%
+    join_units(yearly, unit_vars) %>%
+    transmute(across(all_of(unit_vars)),
+              stage = stg, characteristic = def$characteristic, column = def$column,
+              group = def$group, comparator = def$comparator,
+              years_latest4 = paste(yl(tail(yrs, 4)[1]), "to", yl(tail(yrs, 1))),
+              year_labels = paste(sapply(yrs, yl), collapse = "|"),
+              n_group = round(n_g), rate_group, n_comparator = round(n_c), rate_comparator,
+              gap_pp, margin_pp, p_value, baseline_gap_pp,
+              change_pp = gap_pp - baseline_gap_pp,
+              gap_y1, gap_y2, gap_y3, gap_y4, gap_y5, gap_y6, gap_y7)
+}
+yl <- function(y) paste0(y, "/", substr(y + 1, 3, 4))
+
+scan <- map_dfr(names(scan_levels), function(lv) {
+  map_dfr(seq_len(nrow(scan_defs)), function(i) {
+    def <- scan_defs[i, ]
+    stgs <- if (def$stages == "all") names(stage_years) else def$stages
+    map_dfr(stgs, ~ scan_one(def, .x, scan_levels[[lv]]))
+  }) %>% mutate(level = lv, .before = 1)
+}) %>%
+  { if (!"faculty" %in% names(.)) mutate(., faculty = NA_character_) else . } %>%
+  mutate(faculty = if_else(level == "University", NA_character_, faculty)) %>%
+  left_join(app_lookup, by = c("stage", "column", "group")) %>%
+  mutate(
+    significant  = !is.na(p_value) & p_value < 0.05 & n_group >= scan_min_n & n_comparator >= scan_min_n,
+    group_behind = case_when(is.na(gap_pp) ~ NA_character_, gap_pp > 0 ~ group, gap_pp < 0 ~ comparator, TRUE ~ "Neither"),
+    priority = case_when(
+      is.na(gap_pp) | n_group < scan_min_n | n_comparator < scan_min_n ~ "Too few students",
+      !significant ~ "No significant gap",
+      abs(gap_pp) >= priority_gap ~ "Monitor closely",
+      abs(gap_pp) >= monitor_gap ~ "Monitor",
+      TRUE ~ "Small but significant gap"),
+    across(c(rate_group, rate_comparator, gap_pp, margin_pp, baseline_gap_pp, change_pp, starts_with("gap_y")), ~ round(.x, 1)),
+    p_value = signif(p_value, 3)) %>%
+  select(level, faculty, stage, characteristic, group, comparator, app_target, priority,
+         group_behind, gap_pp, margin_pp, p_value, significant, years_latest4,
+         n_group, rate_group, n_comparator, rate_comparator,
+         baseline_gap_pp, change_pp, year_labels, starts_with("gap_y"))
+
+cat("\nGaps to monitor that are not APP targets (University, latest four years)\n")
+scan %>%
+  filter(level == "University", is.na(app_target), priority %in% c("Monitor closely", "Monitor")) %>%
+  arrange(desc(abs(gap_pp))) %>%
+  select(stage, characteristic, group, comparator, group_behind, gap_pp, margin_pp, change_pp, priority) %>%
+  print(n = Inf, width = Inf)
+
+write_csv(scan, file.path(out_dir, "equity_gaps_scan.csv"))
+cat("\nScan written to:", file.path(out_dir, "equity_gaps_scan.csv"), "\n")
