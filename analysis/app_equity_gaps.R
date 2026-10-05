@@ -657,3 +657,149 @@ scan %>%
 
 write_csv(scan, file.path(out_dir, "equity_gaps_scan.csv"))
 cat("\nScan written to:", file.path(out_dir, "equity_gaps_scan.csv"), "\n")
+
+# =============================================================================
+# 11. Ethnicity: outcomes and gaps for every ethnic group, latest five years
+# =============================================================================
+# Needs sections 0 to 3 to have run (import, base population, build_stages).
+#
+# For continuation, completion, attainment and progression, and for each of
+# the latest five years plus the five years combined, it reports:
+#   - the rate and number of students for All students, White, ABMO, Asian,
+#     Black, Mixed, Other ethnicity and Unknown
+#   - the gap between White students and each other group, with its 95%
+#     margin of error and whether it is statistically significant
+#
+# Gap = White rate minus the group's rate. A positive gap means the group's
+# rate is lower than White students'.
+#
+# The OfS file holds broad ethnic groups only (Asian, Black, Mixed, Other,
+# White), so finer groups such as Black African or Black Caribbean are not
+# available here. Ethnicity is reported for UK-domiciled students, as in the
+# APP population.
+#
+# Output (in the same outputs folder):
+#   ethnicity_outcomes_long.csv   one row per stage, area, group and year
+#   ethnicity_outcomes_wide.csv   one row per stage, area, group and measure,
+#                                 with the years across the columns
+#   ethnicity_outcomes.xlsx       the wide table, one sheet per stage
+
+eth_years  <- list(Continuation = 2019:2023, Completion = 2016:2020,
+                   Attainment = 2020:2024, Progression = 2019:2023)
+eth_levels <- list(University = character(0), Faculty = "faculty")   # remove Faculty for University only
+eth_min_n  <- 10   # rates and gaps for groups with fewer students are flagged
+
+eth_code <- function(x) trimws(as.character(x))
+yl_eth   <- function(y) paste0(y, "/", substr(y + 1, 3, 4))
+
+eth_stages <- base %>%
+  mutate(split_eth5 = case_when(
+           eth_code(broad_student_ethnicity) == "A" ~ "Asian",
+           eth_code(broad_student_ethnicity) == "B" ~ "Black",
+           eth_code(broad_student_ethnicity) == "M" ~ "Mixed",
+           eth_code(broad_student_ethnicity) == "O" ~ "Other ethnicity",
+           eth_code(broad_student_ethnicity) == "W" ~ "White",
+           TRUE ~ "Unknown")) %>%
+  build_stages(level_options[[chosen_level]]) %>%
+  filter(paste(stage) %in% names(eth_years))
+
+eth_groups <- c("All students", "White", "ABMO", "Asian", "Black", "Mixed", "Other ethnicity", "Unknown")
+
+# Each student-subject row counted once in every group it belongs to
+eth_long_rows <- bind_rows(
+  eth_stages %>% mutate(eth_group = "All students"),
+  eth_stages %>% mutate(eth_group = split_eth5),
+  eth_stages %>% filter(split_eth5 %in% c("Asian", "Black", "Mixed", "Other ethnicity")) %>% mutate(eth_group = "ABMO")
+)
+
+eth_summary <- function(unit_vars) {
+  map_dfr(names(eth_years), function(stg) {
+    yrs <- eth_years[[stg]]
+    d <- eth_long_rows %>% filter(stage == stg, base_academic_year %in% yrs)
+    by_year <- d %>%
+      group_by(across(all_of(unit_vars)), eth_group, base_academic_year) %>%
+      summarise(n = sum(weight), s = sum(success), .groups = "drop") %>%
+      mutate(period = yl_eth(base_academic_year), period_order = match(base_academic_year, yrs))
+    pooled <- d %>%
+      group_by(across(all_of(unit_vars)), eth_group) %>%
+      summarise(n = sum(weight), s = sum(success), .groups = "drop") %>%
+      mutate(period = paste(yl_eth(min(yrs)), "to", yl_eth(max(yrs))), period_order = 6L)
+    bind_rows(by_year, pooled) %>% mutate(stage = stg)
+  })
+}
+
+eth_long <- imap_dfr(eth_levels, function(unit_vars, lv) {
+  out <- eth_summary(unit_vars) %>% mutate(level = lv)
+  if (!length(unit_vars)) out$faculty <- NA_character_
+  out
+}) %>%
+  mutate(rate = 100 * s / n)
+
+# Gaps against White students, in the same area, stage and period
+white <- eth_long %>% filter(eth_group == "White") %>%
+  select(level, faculty, stage, period, n_white = n, rate_white = rate)
+
+eth_long <- eth_long %>%
+  left_join(white, by = c("level", "faculty", "stage", "period")) %>%
+  mutate(
+    gap_vs_white_pp = if_else(eth_group %in% c("White", "All students"), NA_real_, rate_white - rate),
+    margin_pp = if_else(is.na(gap_vs_white_pp), NA_real_,
+                        196 * sqrt((rate / 100) * (1 - rate / 100) / n + (rate_white / 100) * (1 - rate_white / 100) / n_white)),
+    significant = case_when(
+      is.na(gap_vs_white_pp) ~ NA_character_,
+      n < eth_min_n | n_white < eth_min_n ~ "Too few students",
+      abs(gap_vs_white_pp) > margin_pp ~ "Significant",
+      TRUE ~ "Not significant"),
+    small_numbers = n < eth_min_n,
+    eth_group = factor(eth_group, levels = eth_groups),
+    stage = factor(stage, levels = names(eth_years)),
+    level = factor(level, levels = names(eth_levels))) %>%
+  arrange(level, faculty, stage, eth_group, period_order) %>%
+  transmute(level, faculty, stage, group = eth_group, period,
+            students = round(n), rate = round(rate, 1),
+            gap_vs_white_pp = round(gap_vs_white_pp, 1), margin_pp = round(margin_pp, 1),
+            significant, small_numbers)
+
+# Wide version: one row per area, stage, group and measure, years across the columns.
+# Stages cover different years, so the CSV uses Year 1 (oldest) to Year 5 with a
+# column naming the years; the Excel file uses the real years, one sheet per stage.
+eth_measures <- c("Rate (%)", "Students", "Gap vs White (pp)", "Margin of error (pp)")
+eth_wide_base <- eth_long %>%
+  mutate(col = if_else(grepl(" to ", period), "Five years combined", period),
+         `Rate (%)` = rate, Students = students,
+         `Gap vs White (pp)` = gap_vs_white_pp, `Margin of error (pp)` = margin_pp) %>%
+  select(level, faculty, stage, group, col, all_of(eth_measures)) %>%
+  pivot_longer(all_of(eth_measures), names_to = "measure", values_to = "value") %>%
+  filter(!(group %in% c("White", "All students") & measure %in% eth_measures[3:4])) %>%
+  mutate(measure = factor(measure, levels = eth_measures))
+
+eth_wide <- eth_wide_base %>%
+  group_by(stage) %>%
+  mutate(years_covered = paste(yl_eth(min(eth_years[[as.character(first(stage))]])), "to",
+                               yl_eth(max(eth_years[[as.character(first(stage))]]))),
+         col = if_else(col == "Five years combined", col,
+                       paste("Year", match(col, yl_eth(eth_years[[as.character(first(stage))]]))))) %>%
+  ungroup() %>%
+  pivot_wider(names_from = col, values_from = value) %>%
+  select(level, faculty, stage, years_covered, group, measure, paste("Year", 1:5), `Five years combined`) %>%
+  arrange(level, faculty, stage, group, measure)
+
+eth_sheets <- lapply(split(eth_wide_base, eth_wide_base$stage), function(x) {
+  stg <- as.character(x$stage[1])
+  x %>% pivot_wider(names_from = col, values_from = value) %>%
+    select(level, faculty, group, measure, all_of(yl_eth(eth_years[[stg]])), `Five years combined`) %>%
+    arrange(level, faculty, group, measure)
+})
+
+cat("\nEthnicity: University rates and gaps, five years combined\n")
+eth_long %>%
+  filter(level == "University", grepl(" to ", period)) %>%
+  select(stage, group, students, rate, gap_vs_white_pp, margin_pp, significant) %>%
+  print(n = Inf, width = Inf)
+
+write_csv(eth_long, file.path(out_dir, "ethnicity_outcomes_long.csv"), na = "")
+write_csv(eth_wide, file.path(out_dir, "ethnicity_outcomes_wide.csv"), na = "")
+if (requireNamespace("writexl", quietly = TRUE)) {
+  writexl::write_xlsx(eth_sheets, file.path(out_dir, "ethnicity_outcomes.xlsx"))
+}
+cat("\nEthnicity tables written to:", out_dir, "\n")
