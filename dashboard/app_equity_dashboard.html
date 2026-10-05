@@ -6,6 +6,7 @@
 <title>APP Equity Gaps</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;600;700&display=swap">
@@ -171,6 +172,10 @@ table.fixed.narrow{min-width:560px}
 .heat.scan td.grp{font-weight:700;font-size:12px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink2);padding:10px 2px 2px}
 .heat.scan td.c{position:relative;min-width:84px}
 .apptag{position:absolute;top:2px;right:3px;font-size:9px;font-weight:700;letter-spacing:.05em;background:#fff;color:#2B1F52;border:1px solid #2B1F52;border-radius:2px;padding:0 3px;line-height:1.4}
+.ethleg{gap:6px 8px}
+.ethchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--panel-line);background:var(--bg);border-radius:999px;padding:3px 10px 3px 6px;font-size:12px;color:var(--ink);cursor:pointer}
+.ethchip[aria-pressed="false"]{opacity:.45;text-decoration:line-through}
+.ethchip:focus-visible{outline:3px solid var(--purple);outline-offset:2px}
 </style>
 </head>
 <body>
@@ -185,6 +190,7 @@ table.fixed.narrow{min-width:560px}
       <button data-page="programme">Programme</button>
       <button data-page="ranking">Target by area</button>
       <button data-page="scan">Other equity gaps</button>
+      <button data-page="eth">Ethnicity over time</button>
       <button data-page="map">Progress map</button>
     </nav>
     <h2 id="fHead">Filters</h2>
@@ -197,12 +203,14 @@ table.fixed.narrow{min-width:560px}
       <div class="field" id="fProgW"><label for="fProg">Programme</label><select id="fProg"></select></div>
       <div class="field" id="fScanAreaW"><label for="fScanArea">Area</label><select id="fScanArea"></select></div>
       <div class="field" id="fScanStageW"><label for="fScanStage">Stage (gaps to monitor)</label><select id="fScanStage"><option value="all">All stages</option><option>Continuation</option><option>Completion</option><option>Attainment</option><option>Progression</option></select></div>
+      <div class="field" id="fEthAreaW"><label for="fEthArea">Area</label><select id="fEthArea"></select></div>
+      <div class="field" id="fEthStageW"><label for="fEthStage">Measure</label><select id="fEthStage"><option>Continuation</option><option>Completion</option><option>Attainment</option><option>Progression</option></select></div>
       <label class="check" id="fScanAppW"><input type="checkbox" id="fScanApp" checked> Include gaps that are already APP targets</label>
       <label class="check" id="fSmallW"><input type="checkbox" id="fSmall" checked> Hide areas where either group has fewer than 10 students</label>
     </div>
     <h2>Data</h2>
     <div class="load">
-      <input type="file" id="fileIn" accept=".csv,text/csv" multiple>
+      <input type="file" id="fileIn" accept=".csv,text/csv,.xlsx,.xls" multiple>
       <label class="btn" for="fileIn">Load results file</label>
       <small id="srcNote">Choose or drop equity_gaps_all_levels_long.csv from the R outputs folder.</small>
     </div>
@@ -255,6 +263,9 @@ table.fixed.narrow{min-width:560px}
       <li><b>Too few students</b>: fewer than 20 students in either group over the four years.</li>
     </ul>
     <p>These bands are set at the top of section 10 of the R script, and the dashboard applies the same bands to whichever scan file is loaded. The OfS file does not include care experience, estrangement, caring responsibilities, commuting, parental higher education, refugee status or Gypsy, Roma and Traveller communities, so those groups are not covered.</p>
+    <h3>Ethnicity over time</h3>
+    <p>This page reads <code>ethnicity_outcomes_by_year.csv</code>, written by section 11 of the R script, as CSV or Excel. The first chart shows each group's rate. The second shows each group's gap to White students: White students' rate minus the group's rate, so a line above zero means the group's rate is lower.</p>
+    <p><b>Each year</b> shows single years. <b>4-year rolling</b> combines each year with the three before it, so each point rests on four times as many students and moves less from year to year. Hollow markers show points with fewer than 10 students. Select a group's button to show or hide its line.</p>
     <h3>Student numbers</h3>
     <p>Tables show the number of students in the target group and in the comparison group separately. For example, 27 BTEC and 16 A-level entrants.</p>
   </div>
@@ -357,7 +368,7 @@ function metrics(serIn,baseline,t){
 const byLevel=l=>Object.values(AREAS).filter(a=>a.level===l).sort((x,y)=>x.name.localeCompare(y.name));
 
 /* ---------- Which view: most recent year or 4-year aggregate ---------- */
-const state={page:'overview',fac:null,dept:null,prog:null,target:'PTS_1',level:'Department',rfac:'',hideSmall:true,open:null,sort:{k:'name',d:1},scanArea:'U',scanStage:'all',scanApp:true,ref:'m',modes:{},summary:{}};
+const state={page:'overview',fac:null,dept:null,prog:null,target:'PTS_1',level:'Department',rfac:'',hideSmall:true,open:null,sort:{k:'name',d:1},scanArea:'U',scanStage:'all',scanApp:true,ethArea:'U',ethStage:'Continuation',ethMode:'year',ethHide:{Unknown:true},ref:'m',modes:{},summary:{}};
 function defMode(){const p=state.page;if(p==='department'||p==='programme')return 'agg';if(p==='ranking'||p==='map')return state.level==='Faculty'?'latest':'agg';return 'latest'}
 const modeKey=()=>state.page==='ranking'||state.page==='map'?state.page+':'+state.level:state.page;
 const mode=()=>state.modes[modeKey()]||defMode();
@@ -680,6 +691,7 @@ function startPage(err){return `<div class="startbox"><h3>Load your results</h3>
 const ICON='<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 12.5v1h11v-1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 function exportContext(){
   const t=TGm[state.target];
+  if(state.page==='eth')return `${state.ethStage} by ethnicity · ${state.ethArea==='U'?'Middlesex University':FACm[state.ethArea].name} · ${state.ethMode==='year'?'each year':'4-year rolling'}`;
   if(state.page==='scan')return `Other equity gaps · ${scanAreaName()} · latest four years combined`;
   if(state.page==='ranking'||state.page==='map')return `${t.id} · ${t.stage}: ${t.grp} vs ${t.cmp} · ${modeLabel()} by ${state.level.toLowerCase()}${state.rfac?' · '+FACm[state.rfac].name:''}`;
   const nm=state.page==='overview'?'Middlesex University':state.page==='faculty'?FACm[state.fac].name:state.page==='department'?state.dept:state.prog;
@@ -819,10 +831,121 @@ function scanPage(){
   return s;
 }
 
+/* ---------- Ethnicity over time ---------- */
+let ETH=null;
+const ETH_SERIES=[
+  {g:'White',col:'#141122',w:2.4,dash:'',shape:'circle'},
+  {g:'ABMO',col:'#6E6880',w:3,dash:'7 4',shape:'circle'},
+  {g:'Asian',col:'#2F6BC0',w:2,dash:'',shape:'square'},
+  {g:'Black',col:'#C2513C',w:2,dash:'',shape:'triangle'},
+  {g:'Mixed',col:'#1F8A6A',w:2,dash:'',shape:'diamond'},
+  {g:'Other ethnicity',col:'#B8901F',w:2,dash:'',shape:'cross'},
+  {g:'All students',col:'#9A95AA',w:1.6,dash:'2 3',shape:'none'},
+  {g:'Unknown',col:'#BDB8C6',w:1.4,dash:'1 3',shape:'none'}
+];
+const ETH_STAGES=['Continuation','Completion','Attainment','Progression'];
+function buildEth(rows){
+  const need=['level','stage','group','year','students','successes'];
+  const miss=need.filter(k=>!(k in rows[0]));if(miss.length)throw new Error('This ethnicity file is missing columns: '+miss.join(', ')+'.');
+  ETH={};
+  rows.forEach(r=>{const fd=r.level==='Faculty'?FACDEF[r.faculty]:null;const area=r.level==='University'?'U':fd?fd.code:null;if(!area)return;
+    const k=area+'|'+r.stage+'|'+r.group;(ETH[k]=ETH[k]||{})[+r.year]={n:num(r.students)||0,s:num(r.successes)||0,lab:r.year_label||yl(+r.year)}});
+}
+const yl=y=>y+'/'+String(y+1).slice(2);
+// Points for one group: yearly, or pooled over each run of four consecutive years
+function ethPoints(area,stage,group,mode){
+  const d=ETH[area+'|'+stage+'|'+group];if(!d)return [];
+  const yrs=Object.keys(d).map(Number).sort((a,b)=>a-b);
+  if(mode==='year')return yrs.map(y=>({y,lab:d[y].lab,n:d[y].n,s:d[y].s}));
+  return yrs.filter(y=>[1,2,3].every(k=>d[y-k])).map(y=>{let n=0,s=0;for(let k=0;k<4;k++){n+=d[y-k].n;s+=d[y-k].s}return {y,lab:d[y].lab,span:`${d[y-3].lab} to ${d[y].lab}`,n,s}});
+}
+function ethData(){
+  const area=state.ethArea,stage=state.ethStage,mode=state.ethMode;
+  const W=Object.fromEntries(ethPoints(area,stage,'White',mode).map(p=>[p.y,p]));
+  const series=ETH_SERIES.map(sr=>{const pts=ethPoints(area,stage,sr.g,mode).map(p=>{
+      const rate=p.n?100*p.s/p.n:null,w=W[p.y],wr=w&&w.n?100*w.s/w.n:null;
+      const gap=sr.g==='White'||sr.g==='All students'||rate==null||wr==null?null:wr-rate;
+      const h=gap==null?null:moe(p.n,w.n,rate,wr);
+      return {...p,rate,gap,h,small:p.n<SMALL}});
+    return {...sr,pts}}).filter(s=>s.pts.length);
+  const years=[...new Set(series.flatMap(s=>s.pts.map(p=>p.y)))].sort((a,b)=>a-b);
+  return {series,years};
+}
+function marker(shape,x,y,col,hollow){
+  const f=hollow?'#fff':col,st=`stroke="${col}" stroke-width="1.6" fill="${f}"`;
+  if(shape==='square')return `<rect x="${x-3.5}" y="${y-3.5}" width="7" height="7" ${st}/>`;
+  if(shape==='triangle')return `<path d="M${x} ${y-4.5}L${x+4.5} ${y+3.5}L${x-4.5} ${y+3.5}Z" ${st}/>`;
+  if(shape==='diamond')return `<path d="M${x} ${y-5}L${x+5} ${y}L${x} ${y+5}L${x-5} ${y}Z" ${st}/>`;
+  if(shape==='cross')return `<path d="M${x-4} ${y-4}L${x+4} ${y+4}M${x+4} ${y-4}L${x-4} ${y+4}" stroke="${col}" stroke-width="2.2" fill="none"/>`;
+  if(shape==='none')return '';
+  return `<circle cx="${x}" cy="${y}" r="3.8" ${st}/>`;
+}
+function ethChart(kind){
+  const {series,years}=ethData();
+  const shown=series.filter(s=>!state.ethHide[s.g]&&(kind==='rate'||s.g!=='White'&&s.g!=='All students'));
+  const val=p=>kind==='rate'?p.rate:p.gap;
+  const vals=shown.flatMap(s=>s.pts.map(val)).filter(v=>v!=null);
+  if(!years.length||!vals.length)return '<p class="empty">No results to show for this selection.</p>';
+  const w=820,h=330,l=52,r=150,tp=16,b=34;
+  let lo=Math.min(...vals),hi=Math.max(...vals);
+  if(kind==='gap'){lo=Math.min(lo,0);hi=Math.max(hi,0)}
+  const pad=(hi-lo)*0.08||2;lo-=pad;hi+=pad;
+  const step=(hi-lo)>60?20:(hi-lo)>30?10:(hi-lo)>12?5:2;
+  lo=Math.floor(lo/step)*step;hi=Math.ceil(hi/step)*step;
+  if(kind==='rate'){lo=Math.max(0,lo);hi=Math.min(100,hi)}
+  const X=i=>l+(years.length===1?(w-l-r)/2:i*(w-l-r)/(years.length-1)),Y=v=>tp+(hi-v)/(hi-lo)*(h-tp-b);
+  let s=`<svg viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="${kind==='rate'?'Rates':'Gaps to White students'} by year">`;
+  for(let v=lo;v<=hi+1e-9;v+=step){s+=`<line x1="${l}" x2="${w-r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${kind==='gap'&&Math.abs(v)<1e-9?'#77728A':'#E2E0E8'}" ${kind==='gap'&&Math.abs(v)<1e-9?'stroke-width="1.5"':''}/><text x="${l-8}" y="${Y(v)+4}" font-size="11" text-anchor="end" fill="#77728A">${kind==='rate'?v+'%':(v>0?'+':'')+v}</text>`}
+  const every=years.length>9?2:1;
+  years.forEach((y,i)=>{if(i%every===0||i===years.length-1){const p=series[0].pts.find(q=>q.y===y)||{lab:yl(y)};s+=`<text x="${X(i)}" y="${h-12}" font-size="11" text-anchor="middle" fill="#77728A">${state.ethMode==='roll'?'to ':''}${p.lab}</text>`}});
+  if(kind==='gap')s+=`<text x="${l+6}" y="${Y(0)-6}" font-size="11" fill="#4A4560">White students (0)</text>`;
+  const labels=[];
+  shown.forEach(sr=>{
+    const pts=sr.pts.map(p=>({p,i:years.indexOf(p.y),v:val(p)})).filter(q=>q.v!=null&&q.i>=0);
+    let d='';pts.forEach((q,k)=>{const cont=k&&pts[k-1].i===q.i-1;d+=(cont?'L':'M')+X(q.i).toFixed(1)+' '+Y(q.v).toFixed(1)});
+    s+=`<path d="${d}" fill="none" stroke="${sr.col}" stroke-width="${sr.w}" ${sr.dash?`stroke-dasharray="${sr.dash}"`:''} stroke-linejoin="round"/>`;
+    pts.forEach(q=>{const p=q.p,tip=`<b>${sr.g}</b> · ${state.ethStage}<br>${p.span||p.lab}<br>Rate: ${f1(p.rate)}% of ${r0(p.n)} students${p.gap!=null?`<br>Gap to White: <b>${f1(p.gap)} pp</b> ±${f1(p.h)}`:''}${p.small?'<br>Fewer than 10 students':''}`;
+      s+=marker(sr.shape,X(q.i),Y(q.v),sr.col,p.small)+`<circle cx="${X(q.i)}" cy="${Y(q.v)}" r="9" fill="transparent" data-tip="${esc(tip)}"/>`});
+    const last=pts[pts.length-1];if(last)labels.push({y:Y(last.v),t:`${sr.g} ${kind==='rate'?f1(last.v)+'%':(last.v>0?'+':'')+f1(last.v)}`,col:sr.col});
+  });
+  // Direct labels at the line ends, nudged apart so they do not overlap
+  labels.sort((a,b)=>a.y-b.y);for(let i=1;i<labels.length;i++)if(labels[i].y-labels[i-1].y<13)labels[i].y=labels[i-1].y+13;
+  labels.forEach(L=>s+=`<text x="${w-r+8}" y="${L.y+4}" font-size="11.5" fill="#2A2148"><tspan fill="${L.col}" font-weight="700">■</tspan> ${esc(L.t)}</text>`);
+  return s+'</svg>';
+}
+function ethLegend(){
+  const {series}=ethData();
+  return `<div class="legend ethleg" role="group" aria-label="Show or hide groups">${series.map(sr=>`<button class="ethchip" data-ethg="${esc(sr.g)}" aria-pressed="${!state.ethHide[sr.g]}"><svg width="26" height="12" aria-hidden="true"><line x1="1" x2="25" y1="6" y2="6" stroke="${sr.col}" stroke-width="${sr.w}" ${sr.dash?`stroke-dasharray="${sr.dash}"`:''}/>${marker(sr.shape,13,6,sr.col,false)}</svg>${esc(sr.g)}</button>`).join('')}<span class="uni" style="white-space:normal">Select a group to show or hide it. Hollow markers have fewer than 10 students.</span></div>`;
+}
+function ethTable(){
+  const {series,years}=ethData();
+  const lab=y=>{const p=series[0].pts.find(q=>q.y===y);return p?(p.span?'to '+p.lab:p.lab):yl(y)};
+  let t=`<div class="scroll"><table class="rank" style="font-size:12px"><thead><tr><th>Group</th><th>Measure</th>${years.map(y=>`<th class="num">${lab(y)}</th>`).join('')}</tr></thead><tbody>`;
+  series.forEach(sr=>{const m=Object.fromEntries(sr.pts.map(p=>[p.y,p]));
+    const row=(name,f)=>`<tr><td>${name===null?`<b>${esc(sr.g)}</b>`:''}</td><td>${name||'Rate (%)'}</td>${years.map(y=>`<td class="num">${m[y]?f(m[y]):'–'}</td>`).join('')}</tr>`;
+    t+=row(null,p=>`<span style="${p.small?'color:#8A4DB6':''}">${f1(p.rate)}</span>`);
+    t+=row('Students',p=>r0(p.n));
+    if(sr.g!=='White'&&sr.g!=='All students')t+=row('Gap to White (pp)',p=>p.gap==null?'–':`${f1(p.gap)} <span class="uni">±${f1(p.h)}</span>`);
+  });
+  return t+'</tbody></table></div>';
+}
+function ethPage(){
+  if(!ETH)return `<div class="startbox"><h3>Load the ethnicity file</h3><p>This page reads <code>ethnicity_outcomes_by_year.csv</code>, written by section 11 of <code>app_equity_gaps.R</code>. It shows rates and gaps to White students for every ethnic group, for each year in the data.</p><p>Use <b>Load results file</b> to choose it. You can load it alongside the other results files, as CSV or Excel.</p></div>`;
+  const md=state.ethMode,area=state.ethArea==='U'?'Middlesex University':FACm[state.ethArea].name;
+  const what=md==='year'?'each year':'4-year rolling (each point combines that year and the three before it)';
+  let s=`<div class="toolbar" role="group" aria-label="Yearly or rolling"><span class="tlab">Show</span><button data-ethmode="year" aria-pressed="${md==='year'}">Each year</button><button data-ethmode="roll" aria-pressed="${md==='roll'}">4-year rolling</button><span class="tnote">${md==='year'?'Single years show the most recent changes but move a lot where groups are small.':'Each point combines four years of students, which smooths out year-to-year noise.'}</span></div>`;
+  s+=ethLegend();
+  s+=`<section class="panel"><h3>${esc(state.ethStage)} rate by ethnicity</h3><p class="cap">${esc(area)} · ${what}</p>${ethChart('rate')}</section>`;
+  s+=`<section class="panel"><h3>${esc(state.ethStage)} gap to White students</h3><p class="cap">${esc(area)} · ${what}. White students' rate minus each group's rate, in percentage points. Above the line means the group's rate is lower than White students'.</p>${ethChart('gap')}</section>`;
+  s+=`<section class="panel"><h3>Data table</h3><p class="cap">${esc(area)} · ${esc(state.ethStage)} · ${what}. Rates for groups with fewer than 10 students are shown in purple.</p>${ethTable()}</section>`;
+  return s;
+}
+
 /* ---------- Render ---------- */
 
-const TITLES={overview:['APP EQUITY GAPS 2026','University progress against Access and Participation Plan targets'],faculty:['FACULTY VIEW',''],department:['DEPARTMENT VIEW',''],programme:['PROGRAMME VIEW',''],ranking:['TARGET BY AREA','How each area stands against one APP target'],scan:['OTHER EQUITY GAPS','Gaps for every demographic group, beyond the formal APP targets'],map:['PROGRESS MAP','Distance from the milestone against change since the baseline']};
-const SHOW={overview:[],faculty:['fFacW'],department:['fFacW','fDeptW'],programme:['fFacW','fDeptW','fProgW'],ranking:['fTargetW','fLevelW','fFacW','fSmallW'],map:['fTargetW','fLevelW','fRefW','fFacW'],scan:['fScanAreaW','fScanStageW','fScanAppW']};
+
+const TITLES={overview:['APP EQUITY GAPS 2026','University progress against Access and Participation Plan targets'],faculty:['FACULTY VIEW',''],department:['DEPARTMENT VIEW',''],programme:['PROGRAMME VIEW',''],ranking:['TARGET BY AREA','How each area stands against one APP target'],scan:['OTHER EQUITY GAPS','Gaps for every demographic group, beyond the formal APP targets'],eth:['ETHNICITY OVER TIME','Rates and gaps to White students for every ethnic group'],map:['PROGRESS MAP','Distance from the milestone against change since the baseline']};
+const SHOW={overview:[],faculty:['fFacW'],department:['fFacW','fDeptW'],programme:['fFacW','fDeptW','fProgW'],ranking:['fTargetW','fLevelW','fFacW','fSmallW'],map:['fTargetW','fLevelW','fRefW','fFacW'],scan:['fScanAreaW','fScanStageW','fScanAppW'],eth:['fEthAreaW','fEthStageW']};
 const loaded=()=>!!AREAS.U;
 function fillSelects(){
   const rankLike=state.page==='ranking'||state.page==='map';
@@ -838,10 +961,11 @@ function fillSelects(){
 function render(){
   fillSelects();
   document.querySelectorAll('.nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.page===state.page?'page':'false'));
-  ['fTargetW','fLevelW','fRefW','fFacW','fDeptW','fProgW','fSmallW','fScanAreaW','fScanStageW','fScanAppW'].forEach(id=>$(id).hidden=!(state.page==='scan'?SCAN:loaded())||!SHOW[state.page].includes(id));
-  $('fHead').hidden=!(state.page==='scan'?SCAN:loaded())||!SHOW[state.page].length;
+  ['fTargetW','fLevelW','fRefW','fFacW','fDeptW','fProgW','fSmallW','fScanAreaW','fScanStageW','fScanAppW','fEthAreaW','fEthStageW'].forEach(id=>$(id).hidden=!(state.page==='scan'?SCAN:state.page==='eth'?ETH:loaded())||!SHOW[state.page].includes(id));
+  $('fHead').hidden=!(state.page==='scan'?SCAN:state.page==='eth'?ETH:loaded())||!SHOW[state.page].length;
+  $('fEthArea').innerHTML='<option value="U">Middlesex University</option>'+FAC.map(f=>`<option value="${esc(f.code)}">${esc(f.name)}</option>`).join('');$('fEthArea').value=state.ethArea;$('fEthStage').value=state.ethStage;
   $('fScanArea').innerHTML='<option value="U">Middlesex University</option>'+FAC.map(f=>`<option value="${esc(f.code)}">${esc(f.name)}</option>`).join('');$('fScanArea').value=state.scanArea;$('fScanStage').value=state.scanStage;$('fScanApp').checked=state.scanApp;
-  $('srcChip').textContent=loaded()?'OfS individualised data':'No data loaded';
+  $('srcChip').textContent=(loaded()||SCAN||ETH)?'OfS individualised data':'No data loaded';
   let [ti,sub]=TITLES[state.page];
   if(state.page==='faculty')sub='Progress against APP targets: '+FACm[state.fac].name;
   if(state.page==='department')sub='Progress against APP targets: '+(state.dept||'no department selected');
@@ -849,6 +973,7 @@ function render(){
   $('pTitle').textContent=ti;$('pSub').textContent=sub;
   $('trendGuide').innerHTML=trendGuide();
   $('sigEx').textContent=sigExample();
+  if(state.page==='eth'){$('pTitle').textContent=ti;$('pSub').textContent=sub;view.innerHTML=ethPage();addExportButtons();return}
   if(state.page==='scan'){$('pTitle').textContent=ti;$('pSub').textContent=sub;view.innerHTML=scanPage();addExportButtons();return}
   if(!loaded()){view.innerHTML=startPage();return}
   let h='';
@@ -881,19 +1006,25 @@ $('fLevel').addEventListener('change',e=>{state.level=e.target.value;render()});
 $('fRef').addEventListener('change',e=>{state.ref=e.target.value;render()});
 $('fSmall').addEventListener('change',e=>{state.hideSmall=e.target.checked;render()});
 $('fScanArea').addEventListener('change',e=>{state.scanArea=e.target.value;render()});
+$('fEthArea').addEventListener('change',e=>{state.ethArea=e.target.value;render()});
+$('fEthStage').addEventListener('change',e=>{state.ethStage=e.target.value;render()});
 $('fScanStage').addEventListener('change',e=>{state.scanStage=e.target.value;render()});
 $('fScanApp').addEventListener('change',e=>{state.scanApp=e.target.checked;render()});
 const LOADED={};
-function loadFile(f){if(!f)return;const rd=new FileReader();
-  rd.onload=()=>{try{const rows=parseCSV(String(rd.result));if(rows.length&&'characteristic' in rows[0]){buildScan(rows);LOADED.scan=f.name}else{build(rows);LOADED.main=f.name}$('srcNote').className='';$('srcNote').textContent='Showing '+Object.values(LOADED).join(' and ')+'.';state.open=null;render()}
+function loadFile(f){if(!f)return;const rd=new FileReader(),isXL=/\.xlsx?$/i.test(f.name);
+  rd.onload=()=>{try{const rows=isXL?xlRows(rd.result):parseCSV(String(rd.result));if(!rows.length)throw new Error(f.name+' has no rows.');if('characteristic' in rows[0]){buildScan(rows);LOADED.scan=f.name}else if('successes' in rows[0]&&'group' in rows[0]){buildEth(rows);LOADED.eth=f.name}else{build(rows);LOADED.main=f.name}$('srcNote').className='';$('srcNote').textContent='Showing '+Object.values(LOADED).join(' and ')+'.';state.open=null;render()}
     catch(err){$('srcNote').className='err';$('srcNote').textContent=err.message;if(!loaded())view.innerHTML=startPage(err.message)}};
   rd.onerror=()=>{$('srcNote').className='err';$('srcNote').textContent='That file could not be read. Try saving it again as CSV.'};
-  rd.readAsText(f)}
+  if(isXL){if(!window.XLSX){$('srcNote').className='err';$('srcNote').textContent='Reading Excel files needs an internet connection the first time. Save the sheet as CSV instead, or reopen the page online.';return}rd.readAsArrayBuffer(f)}else rd.readAsText(f)}
+// First sheet of an Excel file, as rows keyed by the header row
+function xlRows(buf){const wb=XLSX.read(buf,{type:'array'});return parseCSV(XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]))}
 $('fileIn').addEventListener('change',e=>{[...e.target.files].forEach(loadFile);e.target.value=''});
 ['dragenter','dragover'].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();document.body.classList.add('dragging')}));
 ['dragleave','drop'].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();if(ev==='drop'||!e.relatedTarget)document.body.classList.remove('dragging')}));
 document.addEventListener('drop',e=>{if(e.dataTransfer)[...e.dataTransfer.files].forEach(loadFile)});
 function act(e){
+  const em=e.target.closest('[data-ethmode]');if(em){state.ethMode=em.dataset.ethmode;render();return true}
+  const eg=e.target.closest('[data-ethg]');if(eg){const g=eg.dataset.ethg;state.ethHide[g]=!state.ethHide[g];render();return true}
   const eb=e.target.closest('.expbtn');if(eb){const m=eb.nextElementSibling;view.querySelectorAll('.expmenu').forEach(x=>{if(x!==m)x.hidden=true});m.hidden=!m.hidden;return true}
   const ex=e.target.closest('[data-exp]');if(ex){const menu=ex.closest('.expmenu');exportPanel(ex.closest('section.panel'),ex.dataset.exp,menu.querySelector('.expnote'));return true}
   const sm=e.target.closest('[data-summary]');if(sm){const k=sm.dataset.summary;state.summary[k]=!state.summary[k];render();return true}

@@ -803,3 +803,33 @@ if (requireNamespace("writexl", quietly = TRUE)) {
   writexl::write_xlsx(eth_sheets, file.path(out_dir, "ethnicity_outcomes.xlsx"))
 }
 cat("\nEthnicity tables written to:", out_dir, "\n")
+
+# ---- 11b. Every year with data, for the dashboard's Ethnicity over time page ----
+# Students and successes for each group, stage and year, from the earliest year
+# in the file to the latest year with a mature outcome. The dashboard pools these
+# itself to show either yearly figures or 4-year rolling figures.
+# Load ethnicity_outcomes_by_year.csv into the dashboard with "Load results file".
+stage_last <- sapply(eth_years, max)
+eth_by_year <- imap_dfr(eth_levels, function(unit_vars, lv) {
+  out <- eth_long_rows %>%
+    filter(base_academic_year <= stage_last[as.character(stage)]) %>%
+    group_by(across(all_of(unit_vars)), stage, eth_group, base_academic_year) %>%
+    summarise(students = sum(weight), successes = sum(success), .groups = "drop") %>%
+    mutate(level = lv)
+  if (!length(unit_vars)) out$faculty <- NA_character_
+  out
+}) %>%
+  # keep only years where the stage has a real population
+  group_by(level, faculty, stage, base_academic_year) %>%
+  filter(sum(students[eth_group == "All students"]) > 0) %>%
+  ungroup() %>%
+  transmute(level, faculty, stage, group = eth_group, year = base_academic_year,
+            year_label = yl_eth(base_academic_year),
+            students = round(students, 2), successes = round(successes, 2),
+            rate = round(100 * successes / students, 1)) %>%
+  arrange(level, faculty, factor(stage, levels = names(eth_years)), factor(group, levels = eth_groups), year)
+
+write_csv(eth_by_year, file.path(out_dir, "ethnicity_outcomes_by_year.csv"), na = "")
+cat("Years covered for the dashboard:\n")
+eth_by_year %>% filter(level == "University", group == "All students") %>%
+  group_by(stage) %>% summarise(first = min(year_label), last = max(year_label), years = n()) %>% print()
