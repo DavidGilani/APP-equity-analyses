@@ -460,8 +460,9 @@ cat("\nFiles written to:", out_dir, "\n")
 # refugee status, Gypsy, Roma and Traveller communities, military families.
 
 scan_min_n   <- 20   # each group needs at least this many students over the four years
-monitor_gap  <- 3    # significant gaps of at least this size: "Monitor"
-priority_gap <- 6    # significant gaps of at least this size: "Monitor closely"
+monitor_gap  <- 5    # significant gaps of 5 to 10 pp: "Monitor"
+priority_gap <- 10   # significant gaps of 10 pp or more: "Monitor closely"
+                     # significant gaps under 5 pp: "Small but significant gap"
 scan_levels  <- list(University = character(0), Faculty = "faculty")
 
 code    <- function(x) trimws(as.character(x))

@@ -248,13 +248,13 @@ table.fixed.narrow{min-width:560px}
     <h3>Other equity gaps</h3>
     <p>This page reads <code>equity_gaps_scan.csv</code> and compares every demographic group in the OfS file with its comparison group, at each lifecycle stage. It looks beyond the APP targets, so new or growing gaps can be researched before the next plan is written.</p>
     <ul>
-      <li><b>Monitor closely</b>: a significant gap of 6 pp or more over the latest four years.</li>
-      <li><b>Monitor</b>: a significant gap of 3 to 6 pp.</li>
-      <li><b>Small but significant gap</b>: significant, but under 3 pp.</li>
+      <li><b>Monitor closely</b>: a significant gap of 10 pp or more over the latest four years.</li>
+      <li><b>Monitor</b>: a significant gap of 5 to 10 pp.</li>
+      <li><b>Small but significant gap</b>: a significant gap of under 5 pp.</li>
       <li><b>No significant gap</b>: within the margin of error.</li>
       <li><b>Too few students</b>: fewer than 20 students in either group over the four years.</li>
     </ul>
-    <p>These thresholds are set at the top of section 10 of the R script and can be changed. The OfS file does not include care experience, estrangement, caring responsibilities, commuting, parental higher education, refugee status or Gypsy, Roma and Traveller communities, so those groups are not covered.</p>
+    <p>These bands are set at the top of section 10 of the R script, and the dashboard applies the same bands to whichever scan file is loaded. The OfS file does not include care experience, estrangement, caring responsibilities, commuting, parental higher education, refugee status or Gypsy, Roma and Traveller communities, so those groups are not covered.</p>
     <h3>Student numbers</h3>
     <p>Tables show the number of students in the target group and in the comparison group separately. For example, 27 BTEC and 16 A-level entrants.</p>
   </div>
@@ -704,17 +704,42 @@ async function exportPanel(panel,fmt,note){
   c.querySelectorAll('.scroll').forEach(e=>{e.style.overflow='visible'});c.style.width=widest+'px';
   wrap.appendChild(c);document.body.appendChild(wrap);
   try{
-    const cv=await html2canvas(wrap,{scale:2,backgroundColor:'#ffffff',logging:false});
+    // Image scale: sharp enough to read, small enough to keep files light
+    const S=fmt==='pdf'?1.5:2;
+    // Safe places to break a page: the bottom of each table row and of each block
+    const top=wrap.getBoundingClientRect().top;
+    const breaks=[...wrap.querySelectorAll('tr, .legend, p, .tiles, svg, .scroll')].map(e=>Math.round((e.getBoundingClientRect().bottom-top)*S)).sort((a,b)=>a-b);
+    // Column headings of the main table, repeated at the top of each later page
+    const tables=[...wrap.querySelectorAll('table')].filter(t=>t.tHead);
+    const mainT=tables.sort((a,b)=>b.getBoundingClientRect().height-a.getBoundingClientRect().height)[0];
+    let hd=null;if(mainT){const r=mainT.tHead.getBoundingClientRect(),l=mainT.getBoundingClientRect();hd={y:Math.round((r.top-top)*S),h:Math.round(r.height*S),end:Math.round((l.bottom-top)*S),x:Math.round((l.left-wrap.getBoundingClientRect().left)*S),w:Math.round(l.width*S)}}
+    const cv=await html2canvas(wrap,{scale:S,backgroundColor:'#ffffff',logging:false});
     const name=slug(head+' '+title);
     if(fmt==='png'){const a=document.createElement('a');a.href=cv.toDataURL('image/png');a.download=name+'.png';document.body.appendChild(a);a.click();a.remove()}
     else{
       const {jsPDF}=window.jspdf;const land=cv.width>cv.height*0.9;
-      const pdf=new jsPDF({orientation:land?'landscape':'portrait',unit:'pt',format:'a4'});
-      const m=24,pw=pdf.internal.pageSize.getWidth()-2*m,ph=pdf.internal.pageSize.getHeight()-2*m,sc=pw/cv.width,slice=Math.floor(ph/sc);
-      for(let y=0,pg=0;y<cv.height;y+=slice,pg++){
-        const h=Math.min(slice,cv.height-y),part=document.createElement('canvas');part.width=cv.width;part.height=h;
-        part.getContext('2d').drawImage(cv,0,y,cv.width,h,0,0,cv.width,h);
-        if(pg)pdf.addPage();pdf.addImage(part.toDataURL('image/png'),'PNG',m,m,pw,h*sc);
+      const pdf=new jsPDF({orientation:land?'landscape':'portrait',unit:'pt',format:'a4',compress:true});
+      const m=24,pw=pdf.internal.pageSize.getWidth()-2*m,ph=pdf.internal.pageSize.getHeight()-2*m,sc=pw/cv.width,pagePx=Math.floor(ph/sc);
+      // JPEG at high quality: far smaller than PNG for page-sized images, and still crisp
+      const jpg=c=>c.toDataURL('image/jpeg',0.88);
+      let y=0,pg=0;
+      while(y<cv.height){
+        const repeat=pg>0&&hd&&y>hd.y+hd.h&&y<hd.end-4; // add the column headings when a later page continues the table
+        const room=pagePx-(repeat?hd.h:0);
+        let end=Math.min(y+room,cv.height);
+        if(end<cv.height){                              // move the break up to the last row that fits
+          const ok=breaks.filter(b=>b>y+room*0.4&&b<=end);
+          if(ok.length)end=ok[ok.length-1];
+        }
+        const h=end-y,part=document.createElement('canvas');
+        part.width=cv.width;part.height=h+(repeat?hd.h:0);
+        const g=part.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,part.width,part.height);
+        if(repeat)g.drawImage(cv,0,hd.y,cv.width,hd.h,0,0,cv.width,hd.h);
+        g.drawImage(cv,0,y,cv.width,h,0,repeat?hd.h:0,cv.width,h);
+        if(pg)pdf.addPage();
+        pdf.addImage(jpg(part),'JPEG',m,m,pw,part.height*sc,undefined,'FAST');
+        if(pg)pdf.setFontSize(8),pdf.setTextColor(119,114,138),pdf.text('Continued',m,m-8);
+        y=end;pg++;
       }
       pdf.save(name+'.pdf');
     }
@@ -729,12 +754,20 @@ let SCAN=null;
 const SP={'Monitor closely':{c:'#6B3596',t:'#fff'},'Monitor':{c:'#A97BCB',t:'#fff'},'Small but significant gap':{c:'#DCC6EC',t:'#2A2148'},'No significant gap':{c:'#ECEBF1',t:'#77728A'},'Too few students':{c:'#F6F5F8',t:'#9A95AA'}};
 const SPORDER=['Monitor closely','Monitor','Small but significant gap','No significant gap','Too few students'];
 const STAGES=['Continuation','Completion','Attainment','Progression'];
+// Bands for significant gaps: under 5, 5 to 10, and 10 pp or more
+const SCAN_MIN_N=20,BAND_MID=5,BAND_HIGH=10;
+function band(gap,p,nG,nC,fallback){
+  if(gap==null||nG==null||nC==null||nG<SCAN_MIN_N||nC<SCAN_MIN_N)return 'Too few students';
+  if(p==null)return fallback||'No significant gap';
+  if(p>=0.05)return 'No significant gap';
+  const a=Math.abs(gap);return a>=BAND_HIGH?'Monitor closely':a>=BAND_MID?'Monitor':'Small but significant gap';
+}
 function buildScan(rows){
   const need=['level','stage','characteristic','group','comparator','priority','gap_pp','margin_pp'];
   const miss=need.filter(k=>!(k in rows[0]));if(miss.length)throw new Error('This scan file is missing columns: '+miss.join(', ')+'.');
   SCAN=rows.map(r=>{const fd=r.level==='Faculty'?FACDEF[r.faculty]:null;
     return {area:r.level==='University'?'U':fd?fd.code:null,stage:r.stage,char:r.characteristic,group:r.group,comp:r.comparator,app:r.app_target&&r.app_target!=='NA'?r.app_target:null,
-      pri:r.priority,behind:r.group_behind,gap:num(r.gap_pp),h:num(r.margin_pp),p:num(r.p_value),years:r.years_latest4,
+      pri:band(num(r.gap_pp),num(r.p_value),num(r.n_group),num(r.n_comparator),r.priority),behind:r.group_behind,gap:num(r.gap_pp),h:num(r.margin_pp),p:num(r.p_value),years:r.years_latest4,
       nG:num(r.n_group),rG:num(r.rate_group),nC:num(r.n_comparator),rC:num(r.rate_comparator),base:num(r.baseline_gap_pp),chg:num(r.change_pp),
       ylab:(r.year_labels||'').split('|'),ys:[1,2,3,4,5,6,7].map(i=>num(r['gap_y'+i]))}}).filter(r=>r.area);
 }
@@ -761,7 +794,7 @@ function scanPage(){
   const inScope=rows.filter(r=>(state.scanApp||!r.app)&&(state.scanStage==='all'||r.stage===state.scanStage));
   const cnt=k=>inScope.filter(r=>r.pri===k).length;
   const tile=(l,v,s)=>`<div class="tile"><div class="lab">${l}</div><div class="val">${v}</div><div class="sub">${s}</div></div>`;
-  let s=`<div class="tiles">${tile('Monitor closely',cnt('Monitor closely'),`Significant gaps of ${'6'} pp or more`)}${tile('Monitor',cnt('Monitor'),'Significant gaps of 3 to 6 pp')}${tile('Small but significant',cnt('Small but significant gap'),'Significant gaps under 3 pp')}${tile('No significant gap',cnt('No significant gap'),'Within the margin of error')}</div>`;
+  let s=`<div class="tiles">${tile('Monitor closely',cnt('Monitor closely'),'Significant gaps of 10 pp or more')}${tile('Monitor',cnt('Monitor'),'Significant gaps of 5 to 10 pp')}${tile('Small but significant',cnt('Small but significant gap'),'Significant gaps under 5 pp')}${tile('No significant gap',cnt('No significant gap'),'Within the margin of error')}</div>`;
   // Overview grid: comparisons down the side, lifecycle stages across
   const keys=[];rows.forEach(r=>{const k=r.char+'|'+r.group+'|'+r.comp;if(!keys.includes(k))keys.push(k)});
   let g=`<div class="scroll"><table class="heat scan"><thead><tr><th style="text-align:left">Comparison</th>${STAGES.map(st=>`<th>${st}</th>`).join('')}</tr></thead><tbody>`;let lastChar='';
@@ -782,7 +815,7 @@ function scanPage(){
   t+=mon.map(r=>{const c=r.chg==null?null:(r.gap<0?-r.chg:r.chg);
     return `<tr data-tip="${scanTip(r)}"><td>${r.stage}</td><td><b>${esc(behindName(r))}</b>${r.app?` <span class="apptag" style="position:static">APP ${r.app}</span>`:''}<span class="facname">${esc(r.char)}</span></td><td>${esc(vsName(r))}</td><td class="ctr"><b>${f1(Math.abs(r.gap))}</b><small class="yr">±${f1(r.h)} pp</small></td><td class="ctr">${c==null?'–':c<=-1?`<span class="chg good">▼ ${f1(-c)} narrower</span>`:c>=1?`<span class="chg bad">▲ ${f1(c)} wider</span>`:`<span class="chg flat">● little change</span>`}</td><td class="ctr">${scanSpark(r)}</td><td class="ctr"><span class="pill" style="--c:${SP[r.pri].c};background:${tint(SP[r.pri].c,.22)}">${r.pri}</span></td></tr>`}).join('');
   t+='</tbody></table></div>';
-  s+=`<section class="panel"><h3>Gaps to monitor</h3><p class="cap">${esc(scanAreaName())} · significant gaps of 3 pp or more over the latest four years${state.scanApp?', including APP targets':', excluding APP targets'}${state.scanStage==='all'?'':' · '+state.scanStage}. The trend line shows the gap for the group behind; the shaded part is the latest four years.</p>${mon.length?t:'<p class="empty">No significant gaps of 3 pp or more for this selection.</p>'}</section>`;
+  s+=`<section class="panel"><h3>Gaps to monitor</h3><p class="cap">${esc(scanAreaName())} · significant gaps of 5 pp or more over the latest four years${state.scanApp?', including APP targets':', excluding APP targets'}${state.scanStage==='all'?'':' · '+state.scanStage}. The trend line shows the gap for the group behind; the shaded part is the latest four years.</p>${mon.length?t:'<p class="empty">No significant gaps of 5 pp or more for this selection.</p>'}</section>`;
   return s;
 }
 
