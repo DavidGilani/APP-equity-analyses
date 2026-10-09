@@ -16,6 +16,8 @@
 #
 # Outputs (outputs/husid_match):
 #   husid_match_summary.csv      match rates for every breakdown
+#   husid_match_by_id_year.csv   APP students and extract IDs by year the ID was issued
+#   husid_match_by_provider_part.csv  most common provider codes within the IDs
 #   husid_unmatched_sample.csv   up to 200 unmatched HUSIDs or SIDs to investigate
 #                                (personal identifiers: keep this file secure)
 # =============================================================================
@@ -68,21 +70,24 @@ n_sci <- sum(grepl("[eE]\\+", extract$HUSID))
 if (n_sci > 0) warning(n_sci, " HUSIDs are in scientific notation and will probably not match. Re-export with HUSID as text.")
 
 extract <- extract %>%
-  mutate(husid_clean = clean_husid(HUSID), SPRIDEN_ID = trimws(SPRIDEN_ID))
+  mutate(husid_clean = clean_husid(HUSID), SPRIDEN_ID = na_if(trimws(SPRIDEN_ID), ""))
 
 cat("\n---- HUSID extract ----\n")
 cat("Rows:", nrow(extract), "\n")
 cat("Rows with no HUSID:", sum(is.na(extract$husid_clean)), "\n")
+cat("Rows with no student ID (SPRIDEN_ID):", sum(is.na(extract$SPRIDEN_ID)), "\n")
+cat("Rows with neither:", sum(is.na(extract$husid_clean) & is.na(extract$SPRIDEN_ID)), "\n")
 cat("HUSIDs that are not 13 digits:", sum(!is.na(extract$husid_clean) & nchar(extract$husid_clean) != 13), "\n")
 dup_husid <- extract %>% filter(!is.na(husid_clean)) %>% count(husid_clean) %>% filter(n > 1)
 cat("HUSIDs linked to more than one student ID:", nrow(dup_husid), "\n")
-dup_id <- extract %>% filter(!is.na(husid_clean)) %>% distinct(SPRIDEN_ID, husid_clean) %>% count(SPRIDEN_ID) %>% filter(n > 1)
+dup_id <- extract %>% filter(!is.na(husid_clean), !is.na(SPRIDEN_ID)) %>% distinct(SPRIDEN_ID, husid_clean) %>% count(SPRIDEN_ID) %>% filter(n > 1)
 cat("Student IDs linked to more than one HUSID:", nrow(dup_id), "\n")
 
-# One row per HUSID for matching (if a HUSID has several IDs, keep the first
+# One row per HUSID for matching. Rows with no student ID are dropped, since
+# they cannot link to anything. (If a HUSID has several IDs, keep the first
 # and flag it, so the match rate is not inflated by duplicates)
 lookup <- extract %>%
-  filter(!is.na(husid_clean)) %>%
+  filter(!is.na(husid_clean), !is.na(SPRIDEN_ID)) %>%
   group_by(husid_clean) %>%
   summarise(SPRIDEN_ID = first(SPRIDEN_ID), ids_for_husid = n_distinct(SPRIDEN_ID), .groups = "drop")
 
@@ -192,8 +197,52 @@ in_ofs <- lookup %>% mutate(found = husid_clean %in% c(ofs$husid_clean, ofs$sid_
 cat("\nIDs in the extract that appear in the OfS file (as a HUSID or SID):", sum(in_ofs$found), "of", nrow(in_ofs),
     sprintf("(%.1f%%)\n", 100 * mean(in_ofs$found)))
 
+# ---- 3b. Which identifiers are missing from the extract? ----------------------------
+# HESA identifiers start with the two-digit year they were first issued (for
+# example 22... for an ID issued in 2022-23). Counting IDs by that prefix in
+# the extract and in the OfS file shows whether the extract simply does not
+# hold IDs issued in recent years, which would explain a low match for recent
+# entrants. Digits 3 to 6 identify the issuing provider, so the second table
+# shows whether unmatched IDs were issued in a different form or by another
+# provider. Both tables are counts only, with no identifiers.
+id_parts <- function(x) tibble(id_year_prefix = substr(x, 1, 2), id_provider_part = substr(x, 3, 6))
+
+app_ids <- app %>%
+  filter(!is.na(match_key)) %>%
+  group_by(match_key) %>%
+  summarise(id_source = first(id_source), matched = any(matched), .groups = "drop") %>%
+  bind_cols(id_parts(.$match_key))
+
+prefix_tbl <- full_join(
+  bind_cols(lookup, id_parts(lookup$husid_clean)) %>% count(id_year_prefix, name = "ids_in_extract"),
+  app_ids %>% group_by(id_year_prefix) %>%
+    summarise(app_students = n(),
+              app_with_husid = sum(id_source == "HUSID"),
+              app_with_sid_only = sum(id_source == "SID"),
+              app_matched = sum(matched), .groups = "drop"),
+  by = "id_year_prefix") %>%
+  mutate(across(where(is.numeric), ~ coalesce(.x, 0L)),
+         match_rate_pct = round(100 * app_matched / app_students, 1)) %>%
+  arrange(id_year_prefix)
+
+cat("\n---- APP students and extract IDs by year the ID was issued (first two digits) ----\n")
+print(prefix_tbl, n = Inf, width = Inf)
+
+provider_tbl <- bind_rows(
+  bind_cols(lookup, id_parts(lookup$husid_clean)) %>% count(id_provider_part) %>% mutate(source = "Extract"),
+  app_ids %>% filter(matched) %>% count(id_provider_part) %>% mutate(source = "APP students, matched"),
+  app_ids %>% filter(!matched) %>% count(id_provider_part) %>% mutate(source = "APP students, unmatched")
+) %>%
+  group_by(source) %>% slice_max(n, n = 5, with_ties = FALSE) %>% ungroup() %>%
+  select(source, id_provider_part, n)
+
+cat("\n---- Most common provider part of the ID (digits 3 to 6) ----\n")
+print(provider_tbl, n = Inf)
+
 # ---- 4. Save ------------------------------------------------------------------------
 write_csv(summary_tbl, file.path(out_dir, "husid_match_summary.csv"))
+write_csv(prefix_tbl, file.path(out_dir, "husid_match_by_id_year.csv"))
+write_csv(provider_tbl, file.path(out_dir, "husid_match_by_provider_part.csv"))
 unmatched <- app %>% filter(!matched, !is.na(match_key)) %>%
   distinct(match_key, id_source, base_academic_year, faculty) %>% head(200)
 write_csv(unmatched, file.path(out_dir, "husid_unmatched_sample.csv"))
