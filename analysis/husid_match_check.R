@@ -20,6 +20,7 @@
 #   husid_match_by_provider_part.csv  most common provider codes within the IDs
 #   husid_near_matches.csv       unmatched APP students with a near match in the extract
 #   husid_extract_ids_in_ofs.csv extract IDs found anywhere in the OfS file
+#   husid_id_lengths.csv         number of digits in the IDs in each file
 #   husid_unmatched_sample.csv   up to 200 unmatched HUSIDs or SIDs to investigate
 #                                (personal identifiers: keep this file secure)
 # =============================================================================
@@ -143,6 +144,45 @@ cat("SIDs that are not 13 digits:", sum(!is.na(ofs$sid_clean) & nchar(ofs$sid_cl
 ofs <- ofs %>% left_join(lookup, by = c("match_key" = "husid_clean")) %>%
   mutate(matched = !is.na(SPRIDEN_ID))
 
+# ---- 2b. Second pass on the first 13 digits ----------------------------------------
+# HESA identifiers are 13 digits. For many IDs issued from 2022, one file holds
+# extra trailing digits, so the IDs agree on the first 13 digits but not in full.
+# Where the exact ID is not found, students are matched on the first 13 digits.
+# This only happens where the 13-digit key has no more than one longer version
+# in each file, and one student ID in the extract, so nobody can be linked to
+# another student's record. (A 13-digit ID and one longer version of it are
+# treated as the same student.) 'matched' stays as the exact match; 'matched_13'
+# includes both passes, and 'student_id' holds the SPRIDEN_ID from either.
+key13 <- function(x) ifelse(!is.na(x) & nchar(x) > 13, substr(x, 1, 13), x)
+
+lookup13 <- extract %>%
+  filter(!is.na(husid_clean), !is.na(SPRIDEN_ID)) %>%
+  mutate(key = key13(husid_clean)) %>%
+  group_by(key) %>%
+  filter(n_distinct(husid_clean[husid_clean != key]) <= 1, n_distinct(SPRIDEN_ID) == 1) %>%
+  summarise(SPRIDEN_ID_13 = first(SPRIDEN_ID), .groups = "drop")
+
+ofs_key_unique <- ofs %>%
+  filter(!is.na(match_key)) %>%
+  mutate(key = key13(match_key)) %>%
+  group_by(key) %>%
+  summarise(key_unique = n_distinct(match_key[match_key != key]) <= 1, .groups = "drop")
+
+ofs <- ofs %>%
+  mutate(key13 = key13(match_key)) %>%
+  left_join(ofs_key_unique, by = c("key13" = "key")) %>%
+  left_join(lookup13, by = c("key13" = "key")) %>%
+  mutate(SPRIDEN_ID_13 = ifelse(coalesce(key_unique, FALSE), SPRIDEN_ID_13, NA_character_),
+         matched_13 = matched | !is.na(SPRIDEN_ID_13),
+         student_id = coalesce(SPRIDEN_ID, SPRIDEN_ID_13)) %>%
+  select(-key_unique)
+
+cat("\n---- Second pass on the first 13 digits ----\n")
+cat("Extra rows matched:", sum(ofs$matched_13 & !ofs$matched), "\n")
+cat("13-digit keys left out because more than one longer ID shares them:",
+    sum(!ofs_key_unique$key_unique), "in the OfS file,",
+    n_distinct(key13(lookup$husid_clean)) - nrow(lookup13), "in the extract\n")
+
 # ---- 3. Match rates ------------------------------------------------------------------
 # Unique students: a student counts as matched if their HUSID (or SID, where
 # there is no HUSID) is in the extract. Students with neither cannot be matched
@@ -155,6 +195,7 @@ rate <- function(d, label, ...) {
     group_by(...) %>%
     summarise(students = n_distinct(student),
               students_matched = n_distinct(student[matched]),
+              students_matched_inc_13 = n_distinct(student[matched_13]),
               with_husid = n_distinct(student[id_source == "HUSID"]),
               matched_via_husid = n_distinct(student[matched & id_source == "HUSID"]),
               with_sid_only = n_distinct(student[id_source == "SID"]),
@@ -162,6 +203,7 @@ rate <- function(d, label, ...) {
               no_identifier = n_distinct(student[id_source == "None"]),
               .groups = "drop") %>%
     mutate(match_rate_pct = round(100 * students_matched / students, 1),
+           match_rate_inc_13_pct = round(100 * students_matched_inc_13 / students, 1),
            husid_match_rate_pct = round(100 * matched_via_husid / with_husid, 1),
            sid_match_rate_pct = round(100 * matched_via_sid / with_sid_only, 1),
            across(ends_with("_pct"), ~ ifelse(is.nan(.x), NA_real_, .x)),
@@ -185,6 +227,7 @@ summary_tbl <- bind_rows(
   rate(ofs, "All students by mode", linked_engagement_starting_mode) %>% mutate(group = as.character(linked_engagement_starting_mode)) %>% select(-linked_engagement_starting_mode)
 ) %>%
   select(breakdown, group, students, students_matched, match_rate_pct,
+         students_matched_inc_13, match_rate_inc_13_pct,
          with_husid, matched_via_husid, husid_match_rate_pct,
          with_sid_only, matched_via_sid, sid_match_rate_pct, no_identifier)
 
@@ -283,13 +326,27 @@ print(near_tbl, n = Inf, width = Inf)
 cat("\n---- Extract IDs: how many appear in the OfS file at all ----\n")
 print(extract_tbl, n = Inf, width = Inf)
 
+# How many digits does each ID have? HESA IDs should have 13. Counts only.
+length_tbl <- bind_rows(
+  tibble(source = "Extract", id = extract$husid_clean),
+  tibble(source = "OfS husid", id = ofs$husid_clean),
+  tibble(source = "OfS sid", id = ofs$sid_clean)
+) %>%
+  filter(!is.na(id)) %>% distinct() %>%
+  mutate(id_issued = issued(substr(id, 1, 2)), digits = nchar(id)) %>%
+  count(source, id_issued, digits, name = "ids")
+
+cat("\n---- Number of digits in each ID ----\n")
+print(length_tbl, n = Inf)
+
 # ---- 4. Save ------------------------------------------------------------------------
 write_csv(summary_tbl, file.path(out_dir, "husid_match_summary.csv"))
 write_csv(prefix_tbl, file.path(out_dir, "husid_match_by_id_year.csv"))
 write_csv(provider_tbl, file.path(out_dir, "husid_match_by_provider_part.csv"))
 write_csv(near_tbl, file.path(out_dir, "husid_near_matches.csv"))
 write_csv(extract_tbl, file.path(out_dir, "husid_extract_ids_in_ofs.csv"))
-unmatched <- app %>% filter(!matched, !is.na(match_key)) %>%
+write_csv(length_tbl, file.path(out_dir, "husid_id_lengths.csv"))
+unmatched <- app %>% filter(!matched_13, !is.na(match_key)) %>%
   distinct(match_key, id_source, base_academic_year, faculty) %>% head(200)
 write_csv(unmatched, file.path(out_dir, "husid_unmatched_sample.csv"))
 cat("\nFiles written to:", out_dir, "\n")
@@ -300,7 +357,7 @@ cat("\nFiles written to:", out_dir, "\n")
 #
 #   religion <- read_csv(file.path(data_dir, "religion extract.csv"),
 #                        col_types = cols(.default = col_character()))
-#   ofs_with_religion <- ofs %>% left_join(religion, by = "SPRIDEN_ID")
+#   ofs_with_religion <- ofs %>% left_join(religion, by = c("student_id" = "SPRIDEN_ID"))
 #
 # Check the same way how many matched students have a religion recorded before
 # relying on it, since a high HUSID match rate does not guarantee the second
