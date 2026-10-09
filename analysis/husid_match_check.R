@@ -18,6 +18,8 @@
 #   husid_match_summary.csv      match rates for every breakdown
 #   husid_match_by_id_year.csv   APP students and extract IDs by year the ID was issued
 #   husid_match_by_provider_part.csv  most common provider codes within the IDs
+#   husid_near_matches.csv       unmatched APP students with a near match in the extract
+#   husid_extract_ids_in_ofs.csv extract IDs found anywhere in the OfS file
 #   husid_unmatched_sample.csv   up to 200 unmatched HUSIDs or SIDs to investigate
 #                                (personal identifiers: keep this file secure)
 # =============================================================================
@@ -239,10 +241,54 @@ provider_tbl <- bind_rows(
 cat("\n---- Most common provider part of the ID (digits 3 to 6) ----\n")
 print(provider_tbl, n = Inf)
 
+# ---- 3c. Near matches for unmatched APP students -------------------------------------
+# The extract holds plenty of IDs issued from 2022, yet few of them match. This
+# checks whether unmatched IDs are close to an ID in the extract, which would
+# point to a formatting or allocation difference rather than missing students:
+#   same_first_12     same ID apart from the last (check) digit
+#   same_except_provider  same year, serial and check digit, but a different
+#                     provider part (digits 3 to 6), e.g. 1000 against 1067
+#   in_ofs_elsewhere  the extract ID is in the OfS file, but on another row
+#                     (e.g. a HUSID matches a different student's SID)
+# The table also counts, for the extract, how many of its IDs appear anywhere in
+# the OfS file. Counts only, with no identifiers.
+ext_ids <- lookup$husid_clean
+no_provider <- function(x) paste0(substr(x, 1, 2), substr(x, 7, 13))
+issued <- function(prefix) ifelse(prefix %in% sprintf("%02d", 22:30), "Issued 2022 or later", "Issued before 2022")
+provider_group <- function(part) ifelse(part %in% c("1067", "1000"), part, "Other")
+
+near_tbl <- app_ids %>%
+  filter(!matched) %>%
+  mutate(id_issued = issued(id_year_prefix),
+         provider = provider_group(id_provider_part),
+         same_first_12 = substr(match_key, 1, 12) %in% substr(ext_ids, 1, 12),
+         same_except_provider = no_provider(match_key) %in% no_provider(ext_ids)) %>%
+  group_by(id_issued, id_source, provider) %>%
+  summarise(unmatched_app_students = n(),
+            same_first_12 = sum(same_first_12),
+            same_except_provider = sum(same_except_provider),
+            .groups = "drop")
+
+all_ofs_ids <- unique(na.omit(c(ofs$husid_clean, ofs$sid_clean)))
+extract_tbl <- tibble(id = ext_ids) %>%
+  bind_cols(id_parts(.$id)) %>%
+  mutate(id_issued = issued(id_year_prefix), provider = provider_group(id_provider_part),
+         in_ofs = id %in% all_ofs_ids, in_app = id %in% app_ids$match_key) %>%
+  group_by(id_issued, provider) %>%
+  summarise(ids_in_extract = n(), found_anywhere_in_ofs = sum(in_ofs),
+            found_in_app_population = sum(in_app), .groups = "drop")
+
+cat("\n---- Unmatched APP students: near matches in the extract ----\n")
+print(near_tbl, n = Inf, width = Inf)
+cat("\n---- Extract IDs: how many appear in the OfS file at all ----\n")
+print(extract_tbl, n = Inf, width = Inf)
+
 # ---- 4. Save ------------------------------------------------------------------------
 write_csv(summary_tbl, file.path(out_dir, "husid_match_summary.csv"))
 write_csv(prefix_tbl, file.path(out_dir, "husid_match_by_id_year.csv"))
 write_csv(provider_tbl, file.path(out_dir, "husid_match_by_provider_part.csv"))
+write_csv(near_tbl, file.path(out_dir, "husid_near_matches.csv"))
+write_csv(extract_tbl, file.path(out_dir, "husid_extract_ids_in_ofs.csv"))
 unmatched <- app %>% filter(!matched, !is.na(match_key)) %>%
   distinct(match_key, id_source, base_academic_year, faculty) %>% head(200)
 write_csv(unmatched, file.path(out_dir, "husid_unmatched_sample.csv"))
