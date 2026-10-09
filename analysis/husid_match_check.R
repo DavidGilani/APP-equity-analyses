@@ -6,15 +6,17 @@
 # that can be matched:
 #   - overall, and within the APP population used for the equity gap analyses
 #   - by academic year, level, mode, faculty and lifecycle stage
+#   - separately for students matched on HUSID and on SID (from 2022-23 the
+#     OfS file holds the identifier in 'sid' and leaves 'husid' empty)
 # so you can judge whether other student-record data (for example religion)
 # can be brought into the APP analyses by SPRIDEN_ID.
 #
-# Counts are of unique students (HUSID), not rows: the OfS file has one row per
+# Counts are of unique students (HUSID, or SID where there is no HUSID), not rows: the OfS file has one row per
 # student per subject, and a student can appear in several years.
 #
 # Outputs (outputs/husid_match):
 #   husid_match_summary.csv      match rates for every breakdown
-#   husid_unmatched_sample.csv   up to 200 unmatched HUSIDs to investigate
+#   husid_unmatched_sample.csv   up to 200 unmatched HUSIDs or SIDs to investigate
 #                                (personal identifiers: keep this file secure)
 # =============================================================================
 
@@ -98,8 +100,24 @@ if (exists("raw") && is.data.frame(raw) && "husid" %in% names(raw)) {
   ofs <- read_excel(ofs_file, sheet = 1, guess_max = 1100000) %>% clean_names()
 }
 
+# The four academic faculties, named as they appear in facultyv4. Partner,
+# collaborative and unassigned records are left out of the faculty breakdown.
+academic_faculties <- c("Arts and Creative Industries", "Business and Law",
+                        "Health,Social Care & Education", "Science and Technology")
+
+# From 2022-23 (Data Futures) the OfS file holds the student identifier in
+# 'sid' and leaves 'husid' empty. For students who started before then, the
+# SID should be the same number as their HUSID. Each student is matched on
+# HUSID where there is one, and on SID otherwise.
+if (!"sid" %in% names(ofs)) ofs$sid <- NA_character_
+
 ofs <- ofs %>%
   mutate(husid_clean = clean_husid(husid),
+         sid_clean = clean_husid(sid),
+         id_source = case_when(!is.na(husid_clean) ~ "HUSID",
+                               !is.na(sid_clean)   ~ "SID",
+                               TRUE                ~ "None"),
+         match_key = coalesce(husid_clean, sid_clean),
          registering_ukprn = suppressWarnings(as.numeric(registering_ukprn)),
          app_exclusion_reason = suppressWarnings(as.numeric(app_exclusion_reason)),
          base_academic_year = suppressWarnings(as.numeric(base_academic_year)),
@@ -110,23 +128,36 @@ ofs <- ofs %>%
 
 cat("\n---- OfS individualised data ----\n")
 cat("Rows:", nrow(ofs), "\n")
-cat("Rows with no HUSID (often students returned through the ILR):", sum(is.na(ofs$husid_clean)), "\n")
+cat("Rows with a HUSID:", sum(ofs$id_source == "HUSID"), "\n")
+cat("Rows with no HUSID but a SID:", sum(ofs$id_source == "SID"), "\n")
+cat("Rows with neither (often students returned through the ILR):", sum(ofs$id_source == "None"), "\n")
+cat("SIDs that are not 13 digits:", sum(!is.na(ofs$sid_clean) & nchar(ofs$sid_clean) != 13), "\n")
 
-ofs <- ofs %>% left_join(lookup, by = "husid_clean") %>%
+ofs <- ofs %>% left_join(lookup, by = c("match_key" = "husid_clean")) %>%
   mutate(matched = !is.na(SPRIDEN_ID))
 
 # ---- 3. Match rates ------------------------------------------------------------------
-# Unique students: a student counts as matched if their HUSID is in the extract.
-# Students with no HUSID cannot be matched this way and are counted as unmatched.
+# Unique students: a student counts as matched if their HUSID (or SID, where
+# there is no HUSID) is in the extract. Students with neither cannot be matched
+# this way and are counted as unmatched. A student with a HUSID in one year
+# and only a SID in a later year counts once in 'students' but appears in both
+# the HUSID and SID columns, so those columns can add up to more than the total.
 rate <- function(d, label, ...) {
   d %>%
-    mutate(student = coalesce(husid_clean, paste0("noid_", row_number()))) %>%
+    mutate(student = coalesce(match_key, paste0("noid_", row_number()))) %>%
     group_by(...) %>%
     summarise(students = n_distinct(student),
               students_matched = n_distinct(student[matched]),
-              students_no_husid = n_distinct(student[is.na(husid_clean)]),
+              with_husid = n_distinct(student[id_source == "HUSID"]),
+              matched_via_husid = n_distinct(student[matched & id_source == "HUSID"]),
+              with_sid_only = n_distinct(student[id_source == "SID"]),
+              matched_via_sid = n_distinct(student[matched & id_source == "SID"]),
+              no_identifier = n_distinct(student[id_source == "None"]),
               .groups = "drop") %>%
     mutate(match_rate_pct = round(100 * students_matched / students, 1),
+           husid_match_rate_pct = round(100 * matched_via_husid / with_husid, 1),
+           sid_match_rate_pct = round(100 * matched_via_sid / with_sid_only, 1),
+           across(ends_with("_pct"), ~ ifelse(is.nan(.x), NA_real_, .x)),
            breakdown = label, .before = 1)
 }
 
@@ -141,25 +172,30 @@ summary_tbl <- bind_rows(
   rate(ofs, "All students in the OfS file") %>% mutate(group = "All"),
   rate(app, "APP population (full-time first degree, UK, registered)") %>% mutate(group = "All"),
   rate(app, "APP population by year", base_academic_year) %>% mutate(group = as.character(base_academic_year)) %>% select(-base_academic_year),
-  rate(app, "APP population by faculty", faculty) %>% rename(group = faculty),
+  rate(app %>% filter(faculty %in% academic_faculties), "APP population by faculty (academic faculties)", faculty) %>% rename(group = faculty),
   rate(stage_rows, "APP population by lifecycle stage", stage) %>% rename(group = stage),
   rate(ofs, "All students by level", level_aggregate_1) %>% mutate(group = as.character(level_aggregate_1)) %>% select(-level_aggregate_1),
   rate(ofs, "All students by mode", linked_engagement_starting_mode) %>% mutate(group = as.character(linked_engagement_starting_mode)) %>% select(-linked_engagement_starting_mode)
 ) %>%
-  select(breakdown, group, students, students_matched, match_rate_pct, students_no_husid)
+  select(breakdown, group, students, students_matched, match_rate_pct,
+         with_husid, matched_via_husid, husid_match_rate_pct,
+         with_sid_only, matched_via_sid, sid_match_rate_pct, no_identifier)
+
+if (!any(app$faculty %in% academic_faculties))
+  warning("None of the academic faculty names were found in facultyv4. Check the spelling in 'academic_faculties'.")
 
 cat("\n---- Match rates (unique students) ----\n")
 print(summary_tbl, n = Inf, width = Inf)
 
 # Which way round: how many IDs in the extract appear in the OfS file?
-in_ofs <- lookup %>% mutate(found = husid_clean %in% ofs$husid_clean)
-cat("\nHUSIDs in the extract that appear in the OfS file:", sum(in_ofs$found), "of", nrow(in_ofs),
+in_ofs <- lookup %>% mutate(found = husid_clean %in% c(ofs$husid_clean, ofs$sid_clean))
+cat("\nIDs in the extract that appear in the OfS file (as a HUSID or SID):", sum(in_ofs$found), "of", nrow(in_ofs),
     sprintf("(%.1f%%)\n", 100 * mean(in_ofs$found)))
 
 # ---- 4. Save ------------------------------------------------------------------------
 write_csv(summary_tbl, file.path(out_dir, "husid_match_summary.csv"))
-unmatched <- app %>% filter(!matched, !is.na(husid_clean)) %>%
-  distinct(husid_clean, base_academic_year, faculty) %>% head(200)
+unmatched <- app %>% filter(!matched, !is.na(match_key)) %>%
+  distinct(match_key, id_source, base_academic_year, faculty) %>% head(200)
 write_csv(unmatched, file.path(out_dir, "husid_unmatched_sample.csv"))
 cat("\nFiles written to:", out_dir, "\n")
 
