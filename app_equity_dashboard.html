@@ -1,0 +1,1058 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>APP Equity Gaps</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@300;400;600;700&display=swap">
+<style>
+:root{
+  --side:#2B1F52; --side-ink:#FFFFFF; --side-muted:#C9C3DD;
+  --bg:#FFFFFF; --panel:#F3F3F5; --panel-line:#E2E1E7; --row-alt:#E9E8EE;
+  --ink:#2A2148; --ink2:#4A4560; --muted:#77728A; --grid:#D9D7E0;
+  --teal:#6A9E9F; --teal-dk:#2F6E70; --purple:#8A4DB6; --purple-dk:#6B3596; --grey:#BDB8C6;
+  --base-bar:#CFCCD8; --tick:#141122;
+  --font:"Source Sans 3","Segoe UI",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.4}
+button,select,input{font-family:inherit}
+.app{display:grid;grid-template-columns:230px minmax(0,1fr);min-height:100vh}
+.side{background:var(--side);color:var(--side-ink);padding:22px 14px;display:flex;flex-direction:column;gap:18px}
+.brand{font-size:19px;font-weight:600;line-height:1.1;text-align:center;letter-spacing:.01em}
+.side h2{margin:0;font-size:14px;font-weight:700;text-align:center}
+.nav{display:flex;flex-direction:column;gap:9px}
+.nav button{background:transparent;color:var(--side-ink);border:2px solid var(--side-ink);border-radius:2px;padding:9px 6px;font-size:13px;cursor:pointer}
+.nav button:hover{background:rgba(255,255,255,.1)}
+.nav button[aria-current="page"]{background:var(--side-ink);color:var(--side)}
+.nav button:focus-visible,.side select:focus-visible,.side input:focus-visible{outline:3px solid #F2C94C;outline-offset:2px}
+.filters{display:flex;flex-direction:column;gap:10px}
+.field{display:flex;flex-direction:column;gap:3px}
+.field label{font-size:12px;color:var(--side-muted)}
+.field select{background:#8E88A4;color:#fff;border:0;border-radius:2px;padding:5px 6px;font-size:13px;max-width:100%}
+.check{display:flex;gap:6px;align-items:flex-start;font-size:12px;color:var(--side-muted)}
+.main{padding-block:22px 40px;padding-inline:clamp(16px,2.4vw,30px);display:flex;flex-direction:column;gap:18px;min-width:0}
+.head{display:flex;align-items:flex-start;gap:16px}
+.head h1{margin:0;font-size:clamp(20px,2.4vw,28px);font-weight:700;letter-spacing:.32em;color:var(--ink);text-wrap:balance}
+.head p{margin:4px 0 0;font-size:clamp(15px,1.5vw,19px);font-weight:300;color:var(--ink2)}
+.head .grow{flex:1;min-width:0}
+.src{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--purple-dk);border:1px solid var(--purple);padding:3px 8px;border-radius:2px;white-space:nowrap;margin-top:6px}
+.info{flex:none;width:52px;height:52px;border-radius:50%;border:4px solid var(--tick);background:var(--bg);font:700 26px/1 Georgia,serif;color:var(--tick);cursor:pointer}
+.info:focus-visible{outline:3px solid var(--purple);outline-offset:2px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:16px}
+.tile{background:var(--panel);border:1px solid var(--panel-line);padding:16px 14px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:14px}
+.tile .lab{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink2);min-height:2.8em}
+.tile .val{font-size:24px;font-weight:600;font-variant-numeric:tabular-nums}
+.tile .sub{font-size:12px;color:var(--muted)}
+.panel{background:var(--panel);border:1px solid var(--panel-line);padding:16px 16px 18px}
+.panel h3{margin:0 0 2px;font-size:13px;font-weight:600;letter-spacing:.3em;text-transform:uppercase}
+.panel .cap{margin:0 0 12px;font-size:12px;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:18px}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th{font-size:12px;font-weight:600;color:var(--ink2);text-align:left;padding:6px 8px;border-bottom:1px solid var(--grid);vertical-align:bottom}
+td{padding:6px 8px;vertical-align:middle}
+.tt tbody tr.row{cursor:pointer}
+.tt tbody tr.row:nth-of-type(4n+1){background:var(--row-alt)}
+.tt tbody tr.row:hover{box-shadow:inset 3px 0 0 var(--purple)}
+.tt tbody tr.row:focus-visible{outline:2px solid var(--purple);outline-offset:-2px}
+.tt .open{box-shadow:inset 3px 0 0 var(--ink)}
+.tname b{display:block;font-size:13px}
+.tname span{font-size:12px;color:var(--muted)}
+.num{text-align:right}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:2px 9px 2px 7px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;color:var(--ink);border:1px solid var(--c)}
+.pill::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--c)}
+.chg{white-space:nowrap;font-weight:600}
+.chg.good{color:var(--teal-dk)} .chg.bad{color:var(--purple-dk)} .chg.flat{color:var(--muted)}
+.ev{font-size:12px;white-space:nowrap}
+.ev small{display:block;color:var(--muted)}
+.uni{font-size:12px;color:var(--muted);white-space:nowrap}
+.detail > td{background:var(--bg);padding:14px 12px 16px;border:1px solid var(--panel-line)}
+.detail table td{border:0;padding:4px 8px}
+.detail table tbody tr:nth-child(odd){background:var(--panel)}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:var(--ink2);align-items:center}
+.sw{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-2px;margin-right:5px}
+.sw.line{height:3px;width:16px;border-radius:2px;vertical-align:3px}
+.sw.tick{width:3px;height:14px;background:var(--tick);border-radius:0}
+.heat{border-collapse:separate;border-spacing:3px;width:100%}
+.heat th{border:0;text-align:center;padding:4px 2px;font-weight:600;line-height:1.2}
+.heat th small{display:block;font-weight:400;color:var(--muted)}
+.heat td.nm{text-align:left;font-weight:600;white-space:nowrap;padding-right:10px}
+.heat td.nm button{all:unset;cursor:pointer;border-bottom:1px dotted var(--ink2)}
+.heat td.nm button:focus-visible{outline:2px solid var(--purple)}
+.heat td.c{text-align:center;font-weight:600;min-width:64px;border-radius:2px;cursor:default}
+.hatch{background:repeating-linear-gradient(135deg,#fff 0 4px,#DDDAE3 4px 7px)!important;color:var(--muted)!important;font-weight:400!important}
+.rank td{padding:5px 6px}
+.rank tr:nth-child(odd){background:var(--row-alt)}
+.rank .an{min-width:190px}
+.rank .an button{all:unset;cursor:pointer}
+.rank .an button:hover,.rank .an button:focus-visible{text-decoration:underline}
+.chip{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+.facname{font-size:11px;color:var(--muted);display:block}
+.sortable th{cursor:pointer;user-select:none}
+.sortable th[aria-sort]::after{content:" ▾";color:var(--muted)}
+.sortable th[aria-sort="ascending"]::after{content:" ▴"}
+.empty{color:var(--muted);font-size:13px;padding:10px 0}
+svg text{font-family:var(--font)}
+.tip{position:fixed;z-index:30;pointer-events:none;background:#fff;color:var(--ink);border:1px solid var(--panel-line);box-shadow:0 4px 14px rgba(30,20,60,.18);padding:8px 10px;border-radius:3px;font-size:12px;max-width:280px;line-height:1.45}
+.tip b{font-weight:700}
+.overlay{position:fixed;inset:0;background:rgba(20,14,40,.45);z-index:40;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto}
+.about{background:var(--bg);max-width:720px;width:100%;padding:24px 26px;border-top:6px solid var(--side)}
+.about h2{margin:0 0 10px;letter-spacing:.25em;font-size:16px;text-transform:uppercase}
+.about h3{margin:18px 0 6px;font-size:14px}
+.about p,.about li{max-width:65ch;color:var(--ink2)}
+.about code{background:var(--panel);padding:1px 4px;border-radius:2px;font-size:12px}
+.about .close{float:right;background:var(--side);color:#fff;border:0;padding:6px 12px;cursor:pointer}
+@media (max-width:900px){
+  .app{grid-template-columns:1fr}
+  .side{padding:16px}
+  .nav{flex-direction:row;flex-wrap:wrap}
+  .nav button{flex:1 1 140px}
+  .filters{flex-direction:row;flex-wrap:wrap}
+  .field{flex:1 1 180px}
+  .info{width:40px;height:40px;font-size:20px;border-width:3px}
+  .head h1{letter-spacing:.18em}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+.load{display:flex;flex-direction:column;gap:6px}
+.load label.btn{display:block;text-align:center;border:2px dashed var(--side-muted);color:var(--side-ink);padding:8px 6px;font-size:13px;cursor:pointer;border-radius:2px}
+.load label.btn:hover{background:rgba(255,255,255,.1)}
+.load input{position:absolute;width:1px;height:1px;opacity:0}
+.load input:focus-visible + label.btn{outline:3px solid #F2C94C;outline-offset:2px}
+.load small{font-size:11px;color:var(--side-muted);word-break:break-word}
+.load .err{color:#FFC7C7}
+.startbox{background:var(--panel);border:1px solid var(--panel-line);padding:28px;max-width:640px}
+.startbox h3{margin:0 0 8px;letter-spacing:.25em;text-transform:uppercase;font-size:14px}
+.startbox p{color:var(--ink2);max-width:60ch}
+.startbox{border:2px dashed var(--grid)}
+body.dragging .startbox,body.dragging .main{outline:3px dashed var(--purple);outline-offset:-6px}
+.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.toolbar .tlab{font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink2);margin-right:4px}
+.toolbar button{border:2px solid var(--side);background:var(--bg);color:var(--side);padding:6px 14px;font-size:13px;cursor:pointer;border-radius:2px}
+.toolbar button[aria-pressed="true"]{background:var(--side);color:#fff}
+.toolbar button:focus-visible{outline:3px solid var(--purple);outline-offset:2px}
+.toolbar .tnote{font-size:12px;color:var(--muted);flex-basis:100%}
+td small.yr{display:block;font-size:11px;color:var(--muted);font-weight:400;white-space:nowrap}
+td.val{font-size:15px;font-weight:600}
+.about svg{display:block;margin:8px 0 4px;max-width:100%}
+.about table{font-size:13px;margin:6px 0}
+.about td{padding:3px 8px;border-bottom:1px solid var(--panel-line)}
+.summary{background:var(--bg);border:1px solid var(--panel-line);border-left:4px solid var(--side);padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.summary p{margin:0;max-width:95ch;line-height:1.55;color:var(--ink)}
+.summary .row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn2{border:2px solid var(--side);background:var(--side);color:#fff;padding:6px 14px;font-size:13px;cursor:pointer;border-radius:2px}
+.btn2.ghost{background:var(--bg);color:var(--side)}
+.btn2:focus-visible{outline:3px solid var(--purple);outline-offset:2px}
+.copied{font-size:12px;color:var(--teal-dk)}
+/* Fixed column widths so spacing is even and does not depend on content */
+table.fixed{table-layout:fixed;min-width:980px}
+table.fixed.narrow{min-width:560px}
+.fixed th,.fixed td{padding-inline:10px;overflow-wrap:break-word;hyphens:manual}
+.fixed th:first-child,.fixed td:first-child{padding-inline:8px}
+.fixed .ev{white-space:normal}
+.fixed .ctr{text-align:center}
+.fixed .chg{white-space:normal}
+.fixed .pill{white-space:normal;text-align:center;max-width:100%}
+.panel{position:relative}
+.exp{position:absolute;top:10px;right:10px;z-index:5}
+.expbtn{width:30px;height:30px;border:1px solid var(--panel-line);background:var(--bg);border-radius:3px;cursor:pointer;display:grid;place-items:center;color:var(--ink2)}
+.expbtn:hover{border-color:var(--side);color:var(--side)}
+.expbtn:focus-visible{outline:3px solid var(--purple);outline-offset:2px}
+.expmenu{position:absolute;right:0;top:34px;background:var(--bg);border:1px solid var(--panel-line);box-shadow:0 4px 14px rgba(30,20,60,.18);display:flex;flex-direction:column;min-width:190px}
+.expmenu button{all:unset;cursor:pointer;padding:8px 12px;font-size:13px;color:var(--ink)}
+.expmenu button:hover,.expmenu button:focus-visible{background:var(--panel)}
+.expmenu small{padding:6px 12px;font-size:11px;color:var(--muted)}
+.heat.scan td.grp{font-weight:700;font-size:12px;letter-spacing:.15em;text-transform:uppercase;color:var(--ink2);padding:10px 2px 2px}
+.heat.scan td.c{position:relative;min-width:84px}
+.apptag{position:absolute;top:2px;right:3px;font-size:9px;font-weight:700;letter-spacing:.05em;background:#fff;color:#2B1F52;border:1px solid #2B1F52;border-radius:2px;padding:0 3px;line-height:1.4}
+.ethleg{gap:6px 8px}
+.ethchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--panel-line);background:var(--bg);border-radius:999px;padding:3px 10px 3px 6px;font-size:12px;color:var(--ink);cursor:pointer}
+.ethchip[aria-pressed="false"]{opacity:.45;text-decoration:line-through}
+.ethchip:focus-visible{outline:3px solid var(--purple);outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side">
+    <div class="brand">Middlesex<br>University</div>
+    <h2>Navigation</h2>
+    <nav class="nav" aria-label="Dashboard pages">
+      <button data-page="overview">University overview</button>
+      <button data-page="faculty">Faculty</button>
+      <button data-page="department">Department</button>
+      <button data-page="programme">Programme</button>
+      <button data-page="ranking">Target by area</button>
+      <button data-page="scan">Other equity gaps</button>
+      <button data-page="eth">Ethnicity over time</button>
+      <button data-page="map">Progress map</button>
+    </nav>
+    <h2 id="fHead">Filters</h2>
+    <div class="filters">
+      <div class="field" id="fTargetW"><label for="fTarget">Equity gap target</label><select id="fTarget"></select></div>
+      <div class="field" id="fLevelW"><label for="fLevel">Compare</label><select id="fLevel"><option>Faculty</option><option selected>Department</option><option>Programme</option></select></div>
+      <div class="field" id="fRefW"><label for="fRef">Judge against</label><select id="fRef"><option value="m">2026-27 milestone</option><option value="t">2028-29 target</option></select></div>
+      <div class="field" id="fFacW"><label for="fFac">Faculty</label><select id="fFac"></select></div>
+      <div class="field" id="fDeptW"><label for="fDept">Department</label><select id="fDept"></select></div>
+      <div class="field" id="fProgW"><label for="fProg">Programme</label><select id="fProg"></select></div>
+      <div class="field" id="fScanAreaW"><label for="fScanArea">Area</label><select id="fScanArea"></select></div>
+      <div class="field" id="fScanStageW"><label for="fScanStage">Stage (gaps to monitor)</label><select id="fScanStage"><option value="all">All stages</option><option>Continuation</option><option>Completion</option><option>Attainment</option><option>Progression</option></select></div>
+      <div class="field" id="fEthAreaW"><label for="fEthArea">Area</label><select id="fEthArea"></select></div>
+      <div class="field" id="fEthStageW"><label for="fEthStage">Measure</label><select id="fEthStage"><option>Continuation</option><option>Completion</option><option>Attainment</option><option>Progression</option></select></div>
+      <label class="check" id="fScanAppW"><input type="checkbox" id="fScanApp" checked> Include gaps that are already APP targets</label>
+      <label class="check" id="fSmallW"><input type="checkbox" id="fSmall" checked> Hide areas where either group has fewer than 10 students</label>
+    </div>
+    <h2>Data</h2>
+    <div class="load">
+      <input type="file" id="fileIn" accept=".csv,text/csv,.xlsx,.xls" multiple>
+      <label class="btn" for="fileIn">Load results file</label>
+      <small id="srcNote">Choose or drop equity_gaps_all_levels_long.csv from the R outputs folder.</small>
+    </div>
+  </aside>
+  <main class="main">
+    <header class="head">
+      <div class="grow"><h1 id="pTitle"></h1><p id="pSub"></p></div>
+      <span class="src" id="srcChip"></span>
+      <button class="info" id="infoBtn" aria-label="About this dashboard">i</button>
+    </header>
+    <div id="view" style="display:flex;flex-direction:column;gap:18px"></div>
+  </main>
+</div>
+<div class="tip" id="tip" hidden></div>
+<div class="overlay" id="about" hidden>
+  <div class="about" role="dialog" aria-labelledby="aboutH">
+    <button class="close" id="aboutClose">Close</button>
+    <h2 id="aboutH">About this dashboard</h2>
+    <p>Results come from <code>equity_gaps_all_levels_long.csv</code>, produced by <code>app_equity_gaps.R</code> from the OfS individualised student data. The population is full-time, UK-domiciled first degree students registered at Middlesex. Only the four academic faculties are shown.</p>
+    <h3>Reading the trend line</h3>
+    <div id="trendGuide"></div>
+    <h3>Equity gap</h3>
+    <p>The comparison group's rate minus the target group's rate, in percentage points. A positive gap means the target group does worse. BTEC entrants are compared with A-level entrants for continuation, completion and attainment, and with all other qualifications for progression.</p>
+    <h3>Most recent year or 4-year aggregate</h3>
+    <p><b>Most recent year</b> shows the latest single year for each measure. <b>4-year aggregate</b> combines the latest four years into one figure, as the OfS does. The aggregate is steadier where student numbers are small, so department and programme views open on it. The baseline is always the 4-year aggregate of the four baseline years.</p>
+    <h3>Which milestone?</h3>
+    <p>Results are compared with the <b>2026-27 milestone</b>. The APP baselines use the data available when the plan was written, and each later milestone applies to the data available in that year. This file is the 2026 OfS release, which is the data the University holds during 2026-27.</p>
+    <h3>Status</h3>
+    <ul>
+      <li><b>Target met</b>: the gap is at or below the 2028-29 target.</li>
+      <li><b>Significantly ahead of milestone</b>: the gap is below the 2026-27 milestone by more than its margin of error.</li>
+      <li><b>On track</b>: the gap is at or below the 2026-27 milestone, but within the margin of error.</li>
+      <li><b>Behind milestone</b>: the gap is above the 2026-27 milestone, but within the margin of error.</li>
+      <li><b>Significantly behind milestone</b>: the gap is above the 2026-27 milestone by more than its margin of error.</li>
+      <li><b>Small numbers</b>: either group has fewer than 10 students.</li>
+    </ul>
+    <h3>Is the gap to the milestone significant?</h3>
+    <p>This asks whether the distance between an area's gap and the 2026-27 milestone is bigger than chance would produce, given how many students are involved.</p>
+    <p>Each gap has a 95% margin of error, worked out from the size of each group and its rate. If the gap minus its margin is still above the milestone, the area is <b>significantly behind</b>. If the gap plus its margin is still below the milestone, it is <b>significantly ahead</b>. Otherwise the difference from the milestone is <b>not significant</b>.</p>
+    <p id="sigEx"></p>
+    <p>The status combines both questions: which side of the milestone the gap falls, and whether the difference is larger than the margin of error. The line under each status shows the distance from the milestone and the margin, so the judgement can be checked.</p>
+    <p>Tableau calculation: <code>1.96 * SQRT(pT*(1-pT)/nT + pC*(1-pC)/nC) * 100</code>, where p is each group's rate and n its headcount.</p>
+    <h3>Other equity gaps</h3>
+    <p>This page reads <code>equity_gaps_scan.csv</code> and compares every demographic group in the OfS file with its comparison group, at each lifecycle stage. It looks beyond the APP targets, so new or growing gaps can be researched before the next plan is written.</p>
+    <ul>
+      <li><b>Monitor closely</b>: a significant gap of 10 pp or more over the latest four years.</li>
+      <li><b>Monitor</b>: a significant gap of 5 to 10 pp.</li>
+      <li><b>Small but significant gap</b>: a significant gap of under 5 pp.</li>
+      <li><b>No significant gap</b>: within the margin of error.</li>
+      <li><b>Too few students</b>: fewer than 20 students in either group over the four years.</li>
+    </ul>
+    <p>These bands are set at the top of section 10 of the R script, and the dashboard applies the same bands to whichever scan file is loaded. The OfS file does not include care experience, estrangement, caring responsibilities, commuting, parental higher education, refugee status or Gypsy, Roma and Traveller communities, so those groups are not covered.</p>
+    <h3>Ethnicity over time</h3>
+    <p>This page reads <code>ethnicity_outcomes_by_year.csv</code>, written by section 11 of the R script, as CSV or Excel. The first chart shows each group's rate. The second shows each group's gap to White students: White students' rate minus the group's rate, so a line above zero means the group's rate is lower.</p>
+    <p><b>Each year</b> shows single years. <b>4-year rolling</b> combines each year with the three before it, so each point rests on four times as many students and moves less from year to year. Hollow markers show points with fewer than 10 students. Select a group's button to show or hide its line.</p>
+    <h3>Student numbers</h3>
+    <p>Tables show the number of students in the target group and in the comparison group separately. For example, 27 BTEC and 16 A-level entrants.</p>
+  </div>
+</div>
+<script>
+/* ---------- Targets and APP milestones ---------- */
+const SMALL=10;
+const PLAN=['2025-26','2026-27','2027-28','2028-29'];
+const CUR=1;                      // compare with the 2026-27 milestone
+const CURL=PLAN[CUR]+' milestone';
+const MS_AT={5:0,6:1};            // data years that the 2025 and 2026 OfS releases add
+const TG=[
+ {id:'PTS_1',stage:'Continuation',grp:'BTEC',cmp:'A-level',hd:'BTEC vs A-level',ms:[9,7,5,3.9]},
+ {id:'PTS_2',stage:'Completion',grp:'Eligible for FSM',cmp:'Not eligible',hd:'Free school meals',ms:[4.5,3.5,2.5,1.9]},
+ {id:'PTS_3',stage:'Completion',grp:'BTEC',cmp:'A-level',hd:'BTEC vs A-level',ms:[8.5,7,5.5,3.9]},
+ {id:'PTS_4',stage:'Attainment',grp:'ABMO',cmp:'White',hd:'Ethnicity',ms:[9.5,7.5,6,4.9]},
+ {id:'PTS_5',stage:'Attainment',grp:'Eligible for FSM',cmp:'Not eligible',hd:'Free school meals',ms:[9,7,5,4.5]},
+ {id:'PTS_6',stage:'Attainment',grp:'IMD Q1-2',cmp:'IMD Q3-5',hd:'Deprivation (IMD)',ms:[6,5,4,2.9]},
+ {id:'PTS_7',stage:'Attainment',grp:'BTEC',cmp:'A-level',hd:'BTEC vs A-level',ms:[20,16,12,7.9]},
+ {id:'PTP_2',stage:'Progression',grp:'BTEC',cmp:'All other quals',hd:'BTEC vs all other',ms:[8.5,7.5,6.5,4.9]}
+];
+TG.forEach(t=>{t.cur=t.ms[CUR];t.fin=t.ms[3]});
+const TGm=Object.fromEntries(TG.map(t=>[t.id,t]));
+const FACDEF={
+ 'Arts and Creative Industries':{code:'ACI',name:'Arts and Creative Industries',color:'#D96F83'},
+ 'Business and Law':{code:'BAL',name:'Business and Law',color:'#3A66B0'},
+ 'Health,Social Care & Education':{code:'HSCE',name:'Health, Social Care and Education',color:'#C25F3C'},
+ 'Health, Social Care and Education':{code:'HSCE',name:'Health, Social Care and Education',color:'#C25F3C'},
+ 'Science and Technology':{code:'S&T',name:'Science and Technology',color:'#C29A2E'}};
+const FAC=[...new Map(Object.values(FACDEF).map(f=>[f.code,f])).values()];
+const FACm=Object.fromEntries(FAC.map(f=>[f.code,f]));
+const SKIP=new Set(['Unknown','No Department','0','NA','']);
+const PIDX={'YR1':0,'YR2':1,'YR3':2,'YR4':3,'1 year after baseline':4,'2 years after baseline':5,'3 years after baseline':6};
+
+/* ---------- CSV ---------- */
+function parseCSV(text){
+  const rows=[];let row=[],f='',q=false;
+  for(let i=0;i<text.length;i++){const c=text[i];
+    if(q){if(c==='"'){if(text[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+    else if(c==='"')q=true;else if(c===','){row.push(f);f=''}
+    else if(c==='\n'||c==='\r'){if(c==='\r'&&text[i+1]==='\n')i++;row.push(f);f='';if(row.length>1||row[0]!=='')rows.push(row);row=[]}
+    else f+=c}
+  if(f!==''||row.length){row.push(f);rows.push(row)}
+  const h=rows.shift().map(s=>s.trim().replace(/^﻿/,''));
+  return rows.map(r=>Object.fromEntries(h.map((k,i)=>[k,r[i]])));
+}
+const num=v=>v===undefined||v===''||v==='NA'?null:+v;
+
+/* ---------- Build areas ---------- */
+let AREAS={},DEPTS={},PROGS={};
+function build(rows){
+  if(!rows.length)throw new Error('This file is empty.');
+  const need=['level','faculty','department','unit','target_id','period','years','n_target','rate_target','n_comparator','rate_comparator','gap_pp'];
+  const miss=need.filter(k=>!(k in rows[0]));
+  if(miss.length)throw new Error('This file is missing columns: '+miss.join(', ')+'. Choose equity_gaps_all_levels_long.csv.');
+  const A={},YEARS={};
+  rows.forEach(r=>{
+    const lvl=r.level;let fac=null;
+    if(lvl!=='University'){const fd=FACDEF[lvl==='Faculty'?r.unit:r.faculty];if(!fd||SKIP.has(r.unit))return;fac=fd.code}
+    if(!TGm[r.target_id])return;
+    const key=lvl==='University'?'U':lvl[0]+':'+(lvl==='Faculty'?fac:r.unit);
+    const a=A[key]||(A[key]={key,level:lvl,name:lvl==='Faculty'?FACm[fac].name:lvl==='University'?'Middlesex University':r.unit,fac,dept:lvl==='Programme'&&!SKIP.has(r.department)?r.department:null,raw:{}});
+    const t=a.raw[r.target_id]||(a.raw[r.target_id]={ser:Array.from({length:7},()=>null),baseline:null});
+    if(r.period==='Baseline (4-year pooled)'){t.baseline=num(r.gap_pp);return}
+    const i=PIDX[r.period];if(i===undefined)return;
+    t.ser[i]={nT:num(r.n_target)||0,nC:num(r.n_comparator)||0,rT:num(r.rate_target),rC:num(r.rate_comparator),gap:num(r.gap_pp)};
+    if(lvl==='University')(YEARS[r.target_id]=YEARS[r.target_id]||[])[i]=r.years;
+  });
+  if(!A.U)throw new Error('No university rows were found in this file.');
+  TG.forEach(t=>{t.years=(YEARS[t.id]||[]).slice();for(let i=0;i<7;i++)if(!t.years[i])t.years[i]='Year '+(i+1)});
+  Object.values(A).forEach(a=>{a.m={};TG.forEach(t=>{const r=a.raw[t.id]||{ser:Array(7).fill(null),baseline:null};a.m[t.id]=metrics(r.ser,r.baseline,t)});delete a.raw});
+  Object.keys(A).forEach(k=>{if(k!=='U'&&TG.every(t=>A[k].m[t.id].gaps.slice(4).every(g=>g==null)))delete A[k]});
+  AREAS=A;DEPTS={};PROGS={};
+  Object.values(A).forEach(a=>{if(a.level==='Department')(DEPTS[a.fac]=DEPTS[a.fac]||[]).push(a.name);if(a.level==='Programme'&&a.dept)(PROGS[a.dept]=PROGS[a.dept]||[]).push(a.name)});
+  Object.values(DEPTS).forEach(l=>l.sort());Object.values(PROGS).forEach(l=>l.sort());
+}
+const moe=(nT,nC,rT,rC)=>{if(!nT||!nC||rT==null||rC==null)return null;const a=rT/100,b=rC/100;return 196*Math.sqrt(a*(1-a)/nT+b*(1-b)/nC)};
+function judge(o,baseline,t){
+  o.small=o.val==null||o.nT<SMALL||o.nC<SMALL;
+  o.change=o.val!=null&&baseline!=null?o.val-baseline:null;
+  o.status=o.small?'small':o.val<=t.fin?'met':o.val<=t.cur?'track':'behind';
+  const sigAt=ref=>o.small||o.h==null?'na':o.val-o.h>ref?'sigBehind':o.val+o.h<ref?'sigAhead':'ns';
+  o.sig=sigAt(t.cur);o.sigT=sigAt(t.fin);
+  o.dir=o.change==null||o.small?'na':o.change<=-1?'narrow':o.change>=1?'widen':'stable';
+  o.dist=o.val!=null?o.val-t.cur:null;o.baseline=baseline;
+  // One status that combines the side of the milestone with significance
+  o.cstat=o.small?'small':o.status==='met'?'met':o.status==='track'?(o.sig==='sigAhead'?'ahead':'track'):(o.sig==='sigBehind'?'sigbehind':'behind');
+  return o;
+}
+function metrics(serIn,baseline,t){
+  const ser=serIn.map(d=>d||{nT:0,nC:0,rT:null,rC:null,gap:null});
+  const gaps=ser.map(d=>d.gap),ci=ser.map(d=>moe(d.nT,d.nC,d.rT,d.rC));
+  const L=ser[6];
+  const latest=judge({val:L.gap,h:ci[6],nT:L.nT,nC:L.nC,rT:L.rT,rC:L.rC,years:t.years[6]},baseline,t);
+  let nT=0,sT=0,nC=0,sC=0;ser.slice(3).forEach(d=>{if(d.rT!=null&&d.nT){nT+=d.nT;sT+=d.nT*d.rT}if(d.rC!=null&&d.nC){nC+=d.nC;sC+=d.nC*d.rC}});
+  const rT=nT?sT/nT:null,rC=nC?sC/nC:null;
+  const agg=judge({val:rT!=null&&rC!=null?rC-rT:null,h:moe(nT,nC,rT,rC),nT,nC,rT,rC,years:t.years[3]+' to '+t.years[6]},baseline,t);
+  return {gaps,ci,ser,baseline,v:{latest,agg}};
+}
+const byLevel=l=>Object.values(AREAS).filter(a=>a.level===l).sort((x,y)=>x.name.localeCompare(y.name));
+
+/* ---------- Which view: most recent year or 4-year aggregate ---------- */
+const state={page:'overview',fac:null,dept:null,prog:null,target:'PTS_1',level:'Department',rfac:'',hideSmall:true,open:null,sort:{k:'name',d:1},scanArea:'U',scanStage:'all',scanApp:true,ethArea:'U',ethStage:'Continuation',ethMode:'year',ethHide:{Unknown:true},ref:'m',modes:{},summary:{}};
+function defMode(){const p=state.page;if(p==='department'||p==='programme')return 'agg';if(p==='ranking'||p==='map')return state.level==='Faculty'?'latest':'agg';return 'latest'}
+const modeKey=()=>state.page==='ranking'||state.page==='map'?state.page+':'+state.level:state.page;
+const mode=()=>state.modes[modeKey()]||defMode();
+const cur=m=>m.v[mode()];
+const modeLabel=()=>mode()==='agg'?'4-year aggregate':'Most recent year';
+function toolbar(){const md=mode();
+  return `<div class="toolbar" role="group" aria-label="Which results to show"><span class="tlab">Show</span><button data-mode="latest" aria-pressed="${md==='latest'}">Most recent year</button><button data-mode="agg" aria-pressed="${md==='agg'}">4-year aggregate</button><span class="tnote">${md==='latest'?'The latest single year for each measure, compared with the baseline and the '+CURL+'.':'The latest four years combined, compared with the baseline and the '+CURL+'. Steadier where student numbers are small.'}</span></div>`}
+
+/* ---------- Formatting ---------- */
+const ST={met:{l:'Target met',c:'#2F6E70'},ahead:{l:'Significantly ahead of milestone',c:'#4F8C8D'},track:{l:'On track',c:'#8FBABA'},behind:{l:'Behind milestone',c:'#B48ED3'},sigbehind:{l:'Significantly behind milestone',c:'#6B3596'},small:{l:'Small numbers',c:'#BDB8C6'}};
+const CORDER=['met','ahead','track','behind','sigbehind','small'];
+const SIG={sigBehind:'Significantly behind',sigAhead:'Significantly ahead',ns:'Not significant',na:'Too few students'};
+const f1=v=>v==null||isNaN(v)?'–':(+v).toFixed(1);
+const r0=v=>v==null?'–':Math.round(v);
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const esc=s=>String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+// Pale pill background mixed in code (the image export cannot read CSS color-mix)
+const tint=(hex,f)=>{const n=parseInt(hex.slice(1),16),c=[n>>16,n>>8&255,n&255].map(v=>Math.round(v*f+255*(1-f)));return `rgb(${c.join(",")})`};
+const pill=s=>`<span class="pill" style="--c:${ST[s].c};background:${tint(ST[s].c,.22)}">${ST[s].l}</span>`;
+function chg(o){if(o.change==null)return '<span class="chg flat">–</span>';
+  const v=o.change;if(v<=-1)return `<span class="chg good">▼ ${f1(-v)} narrower</span>`;
+  if(v>=1)return `<span class="chg bad">▲ ${f1(v)} wider</span>`;return `<span class="chg flat">● ${f1(Math.abs(v))} little change</span>`}
+function ev(o,t,ref){ref=ref==null?t.cur:ref;if(o.sig==='na')return `<small class="yr" style="white-space:normal">${o.val==null?'No result':`${r0(o.nT)} ${esc(t.grp)} and ${r0(o.nC)} ${esc(t.cmp)} students`}</small>`;
+  const d=o.val-ref,side=d>0?'above':'below';
+  return `<small class="yr" style="white-space:normal">${f1(Math.abs(d))} pp ${side} the ${ref} pp milestone, margin of error ±${f1(o.h)} pp</small>`}
+const tipArea=(a,t,o)=>esc(`<b>${a.name}</b>${a.fac&&a.level!=='Faculty'?' · '+FACm[a.fac].code:''}<br>${t.stage}: ${t.grp} vs ${t.cmp}<br>${modeLabel()} (${o.years}): <b>${f1(o.val)} pp</b>${o.h!=null?' ±'+f1(o.h):''}<br>Baseline: ${f1(o.baseline)} pp · Change: ${o.change==null?'–':(o.change>0?'+':'')+f1(o.change)} pp<br>${CURL}: ${t.cur} pp · 2028-29 target: ${t.fin} pp<br>Students: ${r0(o.nT)} ${t.grp}, ${r0(o.nC)} ${t.cmp}<br><b>${ST[o.cstat].l}</b>`);
+
+/* ---------- Trend line ---------- */
+// Seven data years, then the two plan years still to come. Milestone ticks sit on
+// the 2025 and 2026 OfS releases (2025-26 and 2026-27) and on 2027-28 and 2028-29.
+function sparkSVG(gaps,t,statusCol,w,h,p,hover){
+  const have=gaps.filter(v=>v!=null);
+  const vals=[...have,...t.ms];let lo=Math.min(0,...vals),hi=Math.max(...vals);if(hi-lo<4)hi=lo+4;
+  const x=i=>p+i*(w-2*p)/8,y=v=>h-p-(v-lo)/(hi-lo)*(h-2*p);
+  const pts=gaps.map((g,i)=>g==null?null:[x(i),y(g)]);
+  let path='';pts.forEach((q,i)=>{if(q)path+=(i&&pts[i-1]?'L':'M')+q[0].toFixed(1)+' '+q[1].toFixed(1)});
+  const fp=pts.filter(Boolean);
+  let s=`<rect x="${x(0)-3}" y="0" width="${x(3)-x(0)+6}" height="${h}" fill="#E6E4EC"/>`;
+  if(fp.length>1){s+=`<path d="M${fp[0][0]} ${h-p} `+fp.map(q=>`L${q[0].toFixed(1)} ${q[1].toFixed(1)}`).join(' ')+` L${fp[fp.length-1][0]} ${h-p}Z" fill="#8A4DB6" fill-opacity=".08"/>`}
+  s+=`<path d="${path}" fill="none" stroke="#4A4560" stroke-width="1.6"/>`;
+  [5,6,7,8].forEach((i,k)=>s+=`<line x1="${x(i)-5}" x2="${x(i)+5}" y1="${y(t.ms[k])}" y2="${y(t.ms[k])}" stroke="#141122" stroke-width="2"/>`);
+  gaps.forEach((g,i)=>{if(g==null)return;const last=i===6;
+    s+=`<circle cx="${x(i)}" cy="${y(g)}" r="${last?4:2}" fill="${last?statusCol:'#4A4560'}" stroke="#fff" stroke-width="${last?1.5:0}"/>`;
+    if(hover)s+=`<circle cx="${x(i)}" cy="${y(g)}" r="8" fill="transparent" data-tip="${esc(`<b>${t.years[i]}</b>: gap ${f1(g)} pp`+(i<4?'<br>Baseline year':MS_AT[i]!=null?`<br>${PLAN[MS_AT[i]]} milestone ${t.ms[MS_AT[i]]} pp`:''))}"/>`});
+  if(hover)[7,8].forEach((i,k)=>s+=`<rect x="${x(i)-7}" y="0" width="14" height="${h}" fill="transparent" data-tip="${esc(`<b>${PLAN[k+2]}</b> ${k?'target':'milestone'}: ${t.ms[k+2]} pp`)}"/>`);
+  return {s,x,y};
+}
+function spark(m,t){
+  if(m.gaps.filter(v=>v!=null).length<2)return '<span class="uni">Not enough data</span>';
+  const w=150,h=40;return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Gap trend and APP milestones">${sparkSVG(m.gaps,t,ST[m.v.latest.cstat].c,w,h,5,true).s}</svg>`;
+}
+function trendGuide(){
+  const t=TG[0],g=(AREAS.U&&AREAS.U.m.PTS_1.gaps.every(v=>v!=null))?AREAS.U.m.PTS_1.gaps:[10.7,8.9,8.7,13.6,13.1,11.1,9.9];
+  const w=620,h=150,p=14,ox=20,oy=46;
+  const sp=sparkSVG(g,t,ST.sigbehind.c,w-2*ox,h,p,false);
+  const X=i=>ox+sp.x(i),Y=v=>oy+sp.y(v);
+  const note=(x1,y1,x2,y2,txt,anchor='start')=>`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#77728A"/><text x="${x2+(anchor==='end'?-4:4)}" y="${y2+4}" font-size="12" fill="#2A2148" text-anchor="${anchor}">${txt}</text>`;
+  let s=`<svg viewBox="0 0 ${w} ${oy+h+64}" width="100%" role="img" aria-label="How to read the trend line"><g transform="translate(${ox} ${oy})">${sp.s}</g>`;
+  s+=note(X(1),oy+4,X(1),12,'Grey band: the four baseline years','start');
+  s+=note(X(2),Y(g[2]),X(2)-10,oy+h+22,'Each dot is one year’s gap','start');
+  s+=note(X(6),Y(g[6])+4,X(6)-30,oy+h+44,'Latest year, coloured by its status','start');
+  s+=note(X(7),Y(t.ms[2])-3,w-6,20,'Short black lines: the APP milestone for each year','end');
+  s+=note(X(8),Y(t.ms[3])+2,X(8)-4,oy+h+22,'2028-29 target','end');
+  const lab=[[5,'25-26'],[6,'26-27'],[7,'27-28'],[8,'28-29']];
+  lab.forEach(([i,l])=>s+=`<text x="${X(i)}" y="${oy+h+6}" font-size="10" fill="#77728A" text-anchor="middle">${l}</text>`);
+  s+='</svg>';
+  return s+`<p>The line shows the gap for each of the seven years in the file. The short black lines are the milestones set in the APP for each year to 2028-29: ${t.ms.slice(0,3).join(', ')} and a final target of ${t.fin} pp for continuation. The last two sit beyond today's data and show how far the gap still needs to fall. Hover over a dot or milestone for its value.</p>`;
+}
+
+function sigExample(){
+  if(!AREAS.U)return 'Load a results file to see a worked example from your data.';
+  const t=TGm.PTS_1,L=AREAS.U.m.PTS_1.v.latest,G=AREAS.U.m.PTS_1.v.agg;
+  if(L.val==null||L.h==null)return '';
+  const d=L.val-t.cur,side=d>0?'above':'below';
+  let s=`For example, the University's most recent continuation gap is ${f1(L.val)} pp, ${f1(Math.abs(d))} pp ${side} the milestone of ${t.cur} pp. With ${r0(L.nT)} BTEC and ${r0(L.nC)} A-level entrants, the margin of error is ±${f1(L.h)} pp, so the difference is ${SIG[L.sig].toLowerCase()}.`;
+  if(G.val!=null&&G.h!=null)s+=` Over the 4-year aggregate the gap is ${f1(G.val)} pp with a margin of ±${f1(G.h)} pp, because more students are included, so the same comparison is ${SIG[G.sig].toLowerCase()}.`;
+  return s;
+}
+/* ---------- Target table ---------- */
+function targetTable(a){
+  const ml=modeLabel();
+  let s=`<div class="scroll"><table class="tt fixed"><colgroup><col style="width:19%"><col style="width:17%"><col style="width:12%"><col style="width:12%"><col style="width:15%"><col style="width:25%"></colgroup><thead><tr><th>Target</th><th>Trend to 2028-29</th><th class="ctr">Baseline<br>(4-year)</th><th class="ctr">${ml}</th><th class="ctr">Change since baseline</th><th class="ctr">Status against the<br>${CURL}</th></tr></thead><tbody>`;
+  TG.forEach(t=>{const m=a.m[t.id],o=cur(m),open=state.open===t.id;
+    s+=`<tr class="row${open?' open':''}" tabindex="0" data-open="${t.id}" aria-expanded="${open}" data-tip="${tipArea(a,t,o)}">
+      <td class="tname"><b>${t.id} · ${t.stage}</b><span>${t.grp} vs ${t.cmp}</span></td>
+      <td>${spark(m,t)}</td>
+      <td class="ctr">${f1(m.baseline)}<small class="yr">${t.years[0]} to ${t.years[3]}</small></td>
+      <td class="ctr val">${f1(o.val)}<small class="yr">${o.years}</small></td>
+      <td class="ctr">${chg(o)}</td><td class="ctr">${pill(o.cstat)}${ev(o,t)}</td></tr>`;
+    s+=open?`<tr class="detail"><td colspan="6">${detail(a,t)}</td></tr>`:'<tr hidden></tr>';
+  });
+  return s+`</tbody></table></div><p class="cap" style="margin:10px 0 0">Gaps in percentage points. Select a row for each year's rates, headcounts and margin of error. The (i) button explains the trend line.</p>`;
+}
+
+/* ---------- Detail panel ---------- */
+function detail(a,t){
+  const m=a.m[t.id];
+  if(m.gaps.every(g=>g==null))return '<p class="empty">No results for this target in this area.</p>';
+  return `<div class="grid2"><div><div class="legend" style="margin-bottom:6px"><b style="letter-spacing:.2em;font-size:12px">RATES BY YEAR</b><span><i class="sw line" style="background:#2B1F52"></i>${t.grp}</span><span><i class="sw line" style="background:#9A95AA"></i>${t.cmp}</span></div>${rates(m,t)}</div>
+  <div><div class="legend" style="margin-bottom:6px"><b style="letter-spacing:.2em;font-size:12px">GAP AGAINST APP MILESTONES</b><span><i class="sw" style="background:var(--base-bar)"></i>No milestone that year</span><span><i class="sw tick"></i>Milestone</span></div>${gapYears(m,t)}</div></div>
+  <div class="scroll" style="margin-top:10px">${nTable(m,t)}</div>`;
+}
+function rates(m,t){
+  const w=460,h=210,l=40,r=130,tp=12,b=26;
+  const rT=m.ser.map(d=>d.rT),rC=m.ser.map(d=>d.rC);
+  const all=[...rT,...rC].filter(v=>v!=null);if(!all.length)return '<p class="empty">No rates to show.</p>';
+  let lo=Math.max(0,Math.floor((Math.min(...all)-4)/10)*10),hi=Math.min(100,Math.ceil((Math.max(...all)+2)/10)*10);if(hi-lo<20)lo=Math.max(0,hi-20);
+  const x=i=>l+i*(w-l-r)/6,y=v=>tp+(hi-v)/(hi-lo)*(h-tp-b);
+  let s=`<svg viewBox="0 0 ${w} ${h}" width="100%" style="max-width:${w}px" role="img" aria-label="Rates by year">`;
+  s+=`<rect x="${x(0)-8}" y="${tp}" width="${x(3)-x(0)+16}" height="${h-tp-b}" fill="#ECEBF1"/>`;
+  for(let v=lo;v<=hi;v+=10){s+=`<line x1="${l}" x2="${w-r}" y1="${y(v)}" y2="${y(v)}" stroke="#E2E0E8"/><text x="${l-6}" y="${y(v)+4}" font-size="11" text-anchor="end" fill="#77728A">${v}%</text>`}
+  t.years.forEach((yr,i)=>s+=`<text x="${x(i)}" y="${h-8}" font-size="11" text-anchor="middle" fill="#77728A">${yr}</text>`);
+  [[rT,'#2B1F52',t.grp,'nT'],[rC,'#9A95AA',t.cmp,'nC']].forEach(([arr,col,name,nk])=>{
+    const d=arr.map((v,i)=>v==null?'':`${i&&arr[i-1]!=null?'L':'M'}${x(i)} ${y(v)}`).join('');
+    s+=`<path d="${d}" fill="none" stroke="${col}" stroke-width="2"/>`;
+    arr.forEach((v,i)=>{if(v!=null)s+=`<circle cx="${x(i)}" cy="${y(v)}" r="4" fill="${col}" stroke="#fff" stroke-width="2" data-tip="${esc(`<b>${name}, ${t.years[i]}</b><br>${f1(v)}% of ${r0(m.ser[i][nk])} students`)}"/>`});
+    const lv=arr[6];if(lv!=null)s+=`<text x="${x(6)+9}" y="${y(lv)+4}" font-size="12" fill="#2A2148">${esc(name)} ${f1(lv)}%</text>`;
+  });
+  return s+'</svg>';
+}
+function gapYears(m,t){
+  const w=460,h=226,l=36,r=10,tp=14,b=42;
+  const his=[0,...m.gaps.map((g,i)=>g==null?0:g+(m.ci[i]||0)),...t.ms];
+  const los=m.gaps.map((g,i)=>g==null?0:g-(m.ci[i]||0));
+  let lo=Math.min(0,...los),hi=Math.max(...his)*1.08;lo=Math.floor(lo/5)*5;hi=Math.ceil(hi/5)*5;if(hi<=lo)hi=lo+5;
+  const bw=(w-l-r)/9,x=i=>l+i*bw+bw/2,y=v=>tp+(hi-v)/(hi-lo)*(h-tp-b);
+  let s=`<svg viewBox="0 0 ${w} ${h}" width="100%" style="max-width:${w}px" role="img" aria-label="Gap by year against APP milestones">`;
+  const step=(hi-lo)>60?20:(hi-lo)>30?10:5;
+  for(let v=lo;v<=hi;v+=step){s+=`<line x1="${l}" x2="${w-r}" y1="${y(v)}" y2="${y(v)}" stroke="${v===0?'#9A95AA':'#E2E0E8'}"/><text x="${l-6}" y="${y(v)+4}" font-size="11" text-anchor="end" fill="#77728A">${v}</text>`}
+  s+=`<rect x="${x(7)-bw/2}" y="${tp}" width="${bw*2}" height="${h-tp-b}" fill="#F3F2F6"/>`;
+  m.gaps.forEach((g,i)=>{s+=`<text x="${x(i)}" y="${h-b+14}" font-size="10" text-anchor="middle" fill="#77728A">${t.years[i]}</text>`;if(g==null)return;
+    const k=MS_AT[i],ms=k!=null?t.ms[k]:null,d=m.ser[i],small=d.nT<SMALL||d.nC<SMALL;
+    const col=ms==null?'var(--base-bar)':small?ST.small.c:g<=t.fin?ST.met.c:g<=ms?ST.track.c:ST.behind.c;
+    const y0=y(0),y1=y(g);
+    s+=`<rect x="${x(i)-bw*.3}" y="${Math.min(y0,y1)}" width="${bw*.6}" height="${Math.max(1,Math.abs(y1-y0))}" rx="2" fill="${col}" data-tip="${esc(`<b>${t.years[i]}</b><br>Gap ${f1(g)} pp${m.ci[i]!=null?' ±'+f1(m.ci[i]):''}${ms!=null?`<br>${PLAN[k]} milestone ${ms} pp`:i<4?'<br>Baseline year':'<br>Before the plan began'}<br>${r0(d.nT)} ${t.grp}, ${r0(d.nC)} ${t.cmp}`)}"/>`;
+    if(m.ci[i]!=null){const a=y(g-m.ci[i]),c=y(g+m.ci[i]);s+=`<path d="M${x(i)} ${a}V${c}M${x(i)-4} ${a}H${x(i)+4}M${x(i)-4} ${c}H${x(i)+4}" stroke="#2A2148" stroke-width="1.2" fill="none"/>`}
+  });
+  [5,6,7,8].forEach((i,k)=>{s+=`<line x1="${x(i)-bw*.42}" x2="${x(i)+bw*.42}" y1="${y(t.ms[k])}" y2="${y(t.ms[k])}" stroke="#141122" stroke-width="2.5" data-tip="${esc(`<b>${PLAN[k]}</b> ${k===3?'target':'milestone'}: ${t.ms[k]} pp`)}"/><text x="${x(i)}" y="${h-b+28}" font-size="10" text-anchor="middle" fill="#2A2148" font-weight="600">${PLAN[k]}</text>`});
+  s+=`<text x="${l}" y="${h-b+28}" font-size="10" fill="#77728A">APP year</text>`;
+  return s+'</svg>';
+}
+function nTable(m,t){
+  let s=`<table style="font-size:12px"><thead><tr><th></th>${t.years.map((y,i)=>`<th class="num">${y}${MS_AT[i]!=null?' ★':''}</th>`).join('')}</tr></thead><tbody>`;
+  const row=(lab,f)=>`<tr><td>${lab}</td>${m.ser.map((d,i)=>`<td class="num">${f(d,i)}</td>`).join('')}</tr>`;
+  const n=v=>`<span style="${v<SMALL?'color:#8A4DB6;font-weight:700':''}">${r0(v)}</span>`;
+  s+=row(`${t.grp}: students`,d=>n(d.nT));
+  s+=row(`${t.grp}: rate`,d=>d.rT==null?'–':f1(d.rT)+'%');
+  s+=row(`${t.cmp}: students`,d=>n(d.nC));
+  s+=row(`${t.cmp}: rate`,d=>d.rC==null?'–':f1(d.rC)+'%');
+  s+=row('<b>Gap (pp)</b>',(d,i)=>`<b>${f1(m.gaps[i])}</b>${m.ci[i]!=null?` <span class="uni">±${f1(m.ci[i])}</span>`:''}`);
+  return s+`</tbody></table><p class="cap" style="margin:6px 0 0">★ Years compared with an APP milestone: ${t.years[5]} with 2025-26 and ${t.years[6]} with 2026-27. Headcounts below 10 are shown in purple.</p>`;
+}
+
+/* ---------- Heatmap ---------- */
+const BINS=[[-Infinity,-5,'#2F6E70','#fff','5+ pp ahead'],[-5,-2,'#6A9E9F','#fff','2 to 5 ahead'],[-2,-1,'#BCD6D6','#2A2148','1 to 2 ahead'],[-1,1,'#E4E2E8','#2A2148','Within 1 pp'],[1,2,'#DCC6EC','#2A2148','1 to 2 behind'],[2,5,'#A97BCB','#fff','2 to 5 behind'],[5,Infinity,'#6B3596','#fff','5+ pp behind']];
+const bin=v=>BINS.find(b=>v>=b[0]&&v<b[1])||BINS[3];
+function heat(list){
+  if(!list.length)return '<p class="empty">No areas to show.</p>';
+  let s=`<div class="scroll"><table class="heat"><thead><tr><th style="text-align:left">Area</th>${TG.map(t=>`<th>${t.stage}<small>${t.hd}</small></th>`).join('')}</tr></thead><tbody>`;
+  list.forEach(a=>{s+=`<tr><td class="nm"><button data-go="${esc(a.key)}">${esc(a.name)}</button></td>`;
+    TG.forEach(t=>{const o=cur(a.m[t.id]);
+      if(o.small){s+=`<td class="c hatch" data-tip="${tipArea(a,t,o)}">${o.val==null?'–':'n&lt;10'}</td>`;return}
+      const bb=bin(o.dist);s+=`<td class="c" style="background:${bb[2]};color:${bb[3]}" data-tip="${tipArea(a,t,o)}">${f1(o.val)}${o.sig==='sigBehind'?' !':''}</td>`});
+    s+='</tr>'});
+  return s+`</tbody></table></div><div class="legend" style="margin-top:8px">${modeLabel()} gap, coloured by distance from the ${CURL}:${BINS.map(b=>`<span><i class="sw" style="background:${b[2]}"></i>${b[4]}</span>`).join('')}<span><i class="sw hatch" style="border:1px solid #ccc"></i>Fewer than 10 students, or no result</span><span><b>!</b> significantly behind</span></div>`;
+}
+
+/* ---------- Tiles ---------- */
+function tiles(a){
+  const os=TG.map(t=>cur(a.m[t.id]));
+  const tile=(l,v,s)=>`<div class="tile"><div class="lab">${l}</div><div class="val">${v}</div><div class="sub">${s}</div></div>`;
+  return `<div class="tiles">${tile('On track or met',os.filter(o=>o.status==='met'||o.status==='track').length+' of 8','At or below the '+CURL)}${tile('Gaps narrowed',os.filter(o=>o.dir==='narrow').length+' of 8','Down 1 pp or more since baseline')}${tile('Significantly behind',os.filter(o=>o.sig==='sigBehind').length+' of 8','Behind even allowing for margin of error')}${tile('Small numbers',os.filter(o=>o.small).length+' of 8','Fewer than 10 students in a group')}</div>`;
+}
+
+/* ---------- Written summary ---------- */
+// Built from fixed rules so the page never sends data anywhere.
+const PHRASE={PTS_1:'BTEC continuation',PTS_2:'free school meals completion',PTS_3:'BTEC completion',PTS_4:'ABMO attainment',PTS_5:'free school meals attainment',PTS_6:'IMD quintile 1 and 2 attainment',PTS_7:'BTEC attainment',PTP_2:'BTEC progression'};
+const listJoin=a=>a.length<2?(a[0]||''):a.slice(0,-1).join(', ')+' and '+a[a.length-1];
+const cap1=s=>s.charAt(0).toUpperCase()+s.slice(1);
+const plural=(n,one,many)=>n===1?one:many;
+function summaryText(a){
+  const md=mode(),isAgg=md==='agg';
+  const rows=TG.map(t=>({t,o:cur(a.m[t.id]),u:a.key==='U'?null:cur(AREAS.U.m[t.id])}));
+  const rep=rows.filter(r=>!r.o.small),small=rows.filter(r=>r.o.small);
+  const name=a.key==='U'?'The University':a.name;
+  const lab=r=>PHRASE[r.t.id];
+  const withNums=r=>`${lab(r)} (${f1(r.o.val)} pp${r.o.val<0?', in favour of the target group,':''} against a milestone of ${r.t.cur} pp)`;
+  const out=[];
+  const basis=isAgg?'Combining the latest four years of data for each measure':'Using the most recent year of data for each measure';
+  if(!rep.length){
+    return `${basis}, there are too few students in ${a.key==='U'?'the University':name} to report on any of the eight APP equity gap targets. Every target has fewer than ${SMALL} students in at least one of the groups being compared.${isAgg?'':' The 4-year aggregate may give enough students to report on some of them.'}`;
+  }
+  const ok=rep.filter(r=>r.o.status==='met'||r.o.status==='track');
+  const met=rep.filter(r=>r.o.status==='met');
+  const behind=rep.filter(r=>r.o.status==='behind');
+  const sigB=behind.filter(r=>r.o.sig==='sigBehind'),nsB=behind.filter(r=>r.o.sig!=='sigBehind');
+  const sigA=ok.filter(r=>r.o.sig==='sigAhead');
+  out.push(`${basis}, ${a.key==='U'?'the University':name} is at or below the 2026-27 milestone for ${ok.length} of the ${rep.length} APP equity gap ${plural(rep.length,'target','targets')} with enough students to report.`.replace(/^([a-z])/,m=>m.toUpperCase()));
+  if(ok.length){
+    let s=`${ok.length===1?'This is':'These are'} ${listJoin(ok.map(withNums))}.`;
+    if(met.length)s+=` ${cap1(listJoin(met.map(lab)))} ${plural(met.length,'has','have')} already reached the 2028-29 target.`;
+    if(sigA.length)s+=` The result for ${listJoin(sigA.map(lab))} is significantly better than the milestone, so it is unlikely to be down to chance.`;
+    else s+=` ${ok.length===1?'This result is':'These results are'} not significantly different from the milestone, so ${ok.length===1?'it':'they'} could still move either way.`;
+    out.push(s);
+  }
+  if(behind.length){
+    let s=`The gap is above the milestone for ${listJoin(behind.map(withNums))}.`;
+    if(sigB.length&&nsB.length)s+=` For ${listJoin(sigB.map(lab))}, the difference is larger than the margin of error, so ${plural(sigB.length,'this is','these are')} the clearest ${plural(sigB.length,'priority','priorities')}. For ${listJoin(nsB.map(lab))}, the difference is within the margin of error, so ${plural(nsB.length,'it','they')} should be monitored rather than treated as confirmed.`;
+    else if(sigB.length)s+=` In ${sigB.length===1?'this case':'each case'} the difference is larger than the margin of error, so ${sigB.length===1?'it is unlikely':'they are unlikely'} to be down to chance.`;
+    else s+=` In ${behind.length===1?'this case':'each case'} the difference is within the margin of error, so ${behind.length===1?'it':'they'} should be monitored rather than treated as confirmed.`;
+    out.push(s);
+  }
+  const nar=rep.filter(r=>r.o.dir==='narrow').sort((x,y)=>x.o.change-y.o.change);
+  const wid=rep.filter(r=>r.o.dir==='widen').sort((x,y)=>y.o.change-x.o.change);
+  if(nar.length||wid.length){
+    const d=r=>`${lab(r)} (${r.o.change<0?'down':'up'} ${f1(Math.abs(r.o.change))} pp)`;
+    let s='Compared with the 4-year baseline, ';
+    if(nar.length)s+=`the gap has narrowed for ${listJoin(nar.map(d))}`;
+    if(nar.length&&wid.length)s+=` and widened for ${listJoin(wid.map(d))}.`;
+    else if(wid.length)s+=`the gap has widened for ${listJoin(wid.map(d))}.`;
+    else s+='.';
+    out.push(s);
+  }else out.push('None of the gaps has moved by more than 1 percentage point since the 4-year baseline.');
+  if(a.key!=='U'){
+    const better=rep.filter(r=>r.u&&r.u.val!=null&&r.o.val<=r.u.val-2),worse=rep.filter(r=>r.u&&r.u.val!=null&&r.o.val>=r.u.val+2);
+    const c=r=>`${lab(r)} (${f1(r.o.val)} pp against ${f1(r.u.val)} pp)`;
+    if(better.length||worse.length){
+      let s='Compared with the University as a whole, ';
+      if(better.length)s+=`the gap is at least 2 percentage points smaller for ${listJoin(better.map(c))}`;
+      if(better.length&&worse.length)s+=`, and at least 2 points larger for ${listJoin(worse.map(c))}.`;
+      else if(worse.length)s+=`the gap is at least 2 percentage points larger for ${listJoin(worse.map(c))}.`;
+      else s+='.';
+      out.push(s);
+    }
+  }
+  if(small.length)out.push(`There are too few students to report on ${listJoin(small.map(lab))}.`);
+  if(!isAgg&&a.key!=='U'&&rep.filter(r=>r.o.sig==='ns').length>=rep.length/2)out.push('Single-year figures for an area of this size move a lot from year to year, so the 4-year aggregate gives a steadier picture.');
+  if(isAgg)out.push(`The 4-year aggregate covers ${TG[0].years[3]} to ${TG[0].years[6]} for continuation and the equivalent four years for the other measures.`);
+  return out.join(' ');
+}
+function summaryPanel(a){
+  const key=a.key,open=state.summary[key];
+  if(!open)return `<section class="summary"><div class="row"><button class="btn2" data-summary="${esc(key)}">Write summary</button><span class="tnote" style="font-size:12px;color:var(--muted)">A paragraph on progress against the APP targets, based on the ${modeLabel().toLowerCase()}.</span></div></section>`;
+  return `<section class="summary" aria-live="polite"><h3 style="margin:0;font-size:13px;letter-spacing:.3em;text-transform:uppercase">Summary · ${modeLabel().toLowerCase()}</h3><p id="sumText">${esc(summaryText(a))}</p><div class="row"><button class="btn2" id="copySum">Copy text</button><button class="btn2 ghost" data-summary="${esc(key)}">Hide summary</button><span class="copied" id="copyNote" aria-live="polite"></span></div></section>`;
+}
+
+/* ---------- Pages ---------- */
+const $=id=>document.getElementById(id);
+const view=$('view');
+function areaPage(a,childTitle,children){
+  if(!a)return '<p class="empty">No results for this area.</p>';
+  let s=toolbar()+summaryPanel(a)+tiles(a);
+  s+=`<section class="panel"><h3>Target progress</h3><p class="cap">${esc(a.name)} · ${modeLabel().toLowerCase()} compared with the 4-year baseline</p>${targetTable(a)}</section>`;
+  if(children)s+=`<section class="panel"><h3>${childTitle}</h3><p class="cap">${modeLabel()} gap for each target. Select a name to open its view.</p>${heat(children)}</section>`;
+  return s;
+}
+function areaList(level,fac){let l=byLevel(level);if(fac)l=l.filter(a=>a.fac===fac);return l}
+const areaName=a=>`<button data-go="${esc(a.key)}"><span class="chip" style="background:${FACm[a.fac].color}"></span>${esc(a.name)}</button>${a.level!=='Faculty'?`<span class="facname">${esc(a.level==='Programme'&&a.dept?a.dept:FACm[a.fac].name)}</span>`:''}`;
+
+function rankingPage(){
+  const t=TGm[state.target];
+  let all=areaList(state.level,state.rfac);
+  if(!all.length)return noLevel();
+  let list=all;const hidden=list.filter(a=>cur(a.m[t.id]).small).length;
+  if(state.hideSmall)list=list.filter(a=>!cur(a.m[t.id]).small);
+  const O=a=>cur(a.m[t.id]);
+  const counts=CORDER.map(k=>[k,all.filter(a=>O(a).cstat===k).length]);
+  const maxC=Math.max(1,...counts.map(c=>c[1]));
+  const prog=list.filter(a=>O(a).change!=null&&O(a).change<0).sort((x,y)=>O(x).change-O(y).change);
+  const maxA=Math.max(1,...prog.map(a=>Math.abs(O(a).change)));
+  const bar=(v,max,col,sig)=>`<svg width="100%" height="16" viewBox="0 0 120 16" preserveAspectRatio="none" style="display:block"><rect x="0" y="3" width="${Math.max(2,Math.abs(v)/max*116)}" height="10" rx="2" fill="${sig===false?'url(#hatchP)':col}" stroke="${sig===false?col:'none'}"/></svg>`;
+  const behind=list.filter(a=>O(a).dist!=null&&O(a).dist>0).sort((x,y)=>O(y).dist-O(x).dist);
+  const maxB=Math.max(1,...behind.map(a=>O(a).dist));
+  let s=toolbar()+`<svg width="0" height="0" style="position:absolute"><defs><pattern id="hatchP" width="5" height="5" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="5" fill="#fff"/><line x1="0" y1="0" x2="0" y2="5" stroke="#8A4DB6" stroke-width="2.5"/></pattern></defs></svg>`;
+  s+=`<section class="panel"><h3>Where areas stand</h3><p class="cap">Number of ${state.level.toLowerCase()}s by status for ${t.id}${state.rfac?' in '+esc(FACm[state.rfac].name):''}</p>
+    <svg viewBox="0 0 720 220" width="100%" style="max-width:720px" role="img" aria-label="Status counts">${counts.map(([k,c],i)=>`<text x="220" y="${i*36+24}" font-size="13" text-anchor="end" fill="#2A2148">${ST[k].l}</text><rect x="230" y="${i*36+8}" width="${Math.max(2,c/maxC*440)}" height="24" rx="2" fill="${ST[k].c}" data-tip="${esc(ST[k].l+': '+c)}"/><text x="${236+c/maxC*440}" y="${i*36+25}" font-size="13" fill="#2A2148">${c}</text>`).join('')}</svg></section>`;
+  s+=`<section class="panel"><h3>All ${state.level.toLowerCase()}s</h3><p class="cap">Select a column heading to sort.${state.hideSmall&&hidden?` ${hidden} with fewer than 10 students in a group ${hidden===1?'is':'are'} hidden.`:''}</p>${allTable(list,t)}</section>`;
+  return s;
+}
+function allTable(list,t){
+  const cols=[['name','Area'],['baseline','Baseline'],['val',modeLabel()],['dist','vs '+CURL],['change','Since baseline'],['h','Margin ±'],['nT',t.grp+' students'],['nC',t.cmp+' students'],['status','Status']];
+  const val=(a,k)=>{const o=cur(a.m[t.id]);return k==='name'?a.name:k==='status'?CORDER.indexOf(o.cstat):o[k]};
+  const {k,d}=state.sort;
+  const rows=list.slice().sort((x,y)=>{const a=val(x,k),b=val(y,k);if(a==null)return 1;if(b==null)return -1;return (a>b?1:a<b?-1:0)*d});
+  return `<div class="scroll"><table class="rank sortable fixed"><colgroup><col style="width:18%"><col style="width:7%"><col style="width:9%"><col style="width:9%"><col style="width:12%"><col style="width:7%"><col style="width:8%"><col style="width:8%"><col style="width:22%"></colgroup><thead><tr>${cols.map(([c,l])=>`<th tabindex="0" data-sort="${c}" ${c===k?`aria-sort="${d>0?'ascending':'descending'}"`:''} class="${c==='name'?'':'ctr'}">${esc(l)}</th>`).join('')}</tr></thead><tbody>${rows.map(a=>{const o=cur(a.m[t.id]);return `<tr><td class="an">${areaName(a)}</td><td class="ctr">${f1(o.baseline)}</td><td class="ctr">${f1(o.val)}</td><td class="ctr">${o.dist==null?'–':(o.dist>0?'+':'')+f1(o.dist)}</td><td class="ctr">${chg(o)}</td><td class="ctr">${f1(o.h)}</td><td class="ctr">${r0(o.nT)}</td><td class="ctr">${r0(o.nC)}</td><td class="ctr">${pill(o.cstat)}</td></tr>`}).join('')}</tbody></table></div>`;
+}
+
+function mapPage(){
+  const t=TGm[state.target],useT=state.ref==='t',refV=useT?t.fin:t.cur,refL=useT?'2028-29 target':CURL;
+  const all=areaList(state.level,state.rfac);
+  if(!all.length)return noLevel();
+  const pts=all.map(a=>({a,o:cur(a.m[t.id])})).filter(p=>p.o.val!=null&&p.o.baseline!=null&&!p.o.small).map(p=>({...p,x:refV-p.o.val,y:p.o.baseline-p.o.val,sig:useT?p.o.sigT:p.o.sig}));
+  const w=760,h=470,l=58,r=20,tp=20,b=48;
+  const xr=Math.max(5,...pts.map(p=>Math.abs(p.x)))*1.12,yr=Math.max(5,...pts.map(p=>Math.abs(p.y)))*1.12;
+  const X=v=>l+(v+xr)/(2*xr)*(w-l-r),Y=v=>tp+(yr-v)/(2*yr)*(h-tp-b);
+  const COL={sigAhead:'#2F6E70',sigBehind:'#8A4DB6',ns:'#A9A4B5'};
+  let s=`<svg viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="Progress map">`;
+  s+=`<rect x="${X(0)}" y="${tp}" width="${w-r-X(0)}" height="${Y(0)-tp}" fill="#6A9E9F" fill-opacity=".1"/><rect x="${l}" y="${Y(0)}" width="${X(0)-l}" height="${h-b-Y(0)}" fill="#8A4DB6" fill-opacity=".08"/>`;
+  const ticks=rng=>{const st=rng>40?20:rng>20?10:rng>8?5:2;const o=[];for(let v=-Math.floor(rng/st)*st;v<=rng;v+=st)o.push(v);return o};
+  ticks(xr).forEach(v=>s+=`<line x1="${X(v)}" x2="${X(v)}" y1="${tp}" y2="${h-b}" stroke="${v===0?'#9A95AA':'#E2E0E8'}" ${v===0?'stroke-dasharray="3 3"':''}/><text x="${X(v)}" y="${h-b+16}" font-size="11" text-anchor="middle" fill="#77728A">${v>0?'+':''}${v}</text>`);
+  ticks(yr).forEach(v=>s+=`<line x1="${l}" x2="${w-r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${v===0?'#9A95AA':'#E2E0E8'}" ${v===0?'stroke-dasharray="3 3"':''}/><text x="${l-8}" y="${Y(v)+4}" font-size="11" text-anchor="end" fill="#77728A">${v>0?'+':''}${v}</text>`);
+  s+=`<text x="${(l+w-r)/2}" y="${h-8}" font-size="12" text-anchor="middle" fill="#4A4560">Gap below the ${refL} (pp) · right is better</text>`;
+  s+=`<text transform="translate(14 ${(tp+h-b)/2}) rotate(-90)" font-size="12" text-anchor="middle" fill="#4A4560">Gap narrowed since baseline (pp) · up is better</text>`;
+  s+=`<text x="${w-r-8}" y="${tp+16}" font-size="12" text-anchor="end" fill="#2F6E70" font-weight="600">Ahead and narrowing</text><text x="${l+8}" y="${tp+16}" font-size="12" fill="#4A4560" font-weight="600">Behind, but narrowing</text><text x="${w-r-8}" y="${h-b-10}" font-size="12" text-anchor="end" fill="#4A4560" font-weight="600">Ahead, but widening</text><text x="${l+8}" y="${h-b-10}" font-size="12" fill="#6B3596" font-weight="600">Behind and widening</text>`;
+  const k=state.level==='Faculty'?1.3:state.level==='Department'?2.1:2.6;
+  pts.sort((p,q)=>q.o.nT-p.o.nT).forEach(p=>{const rad=clamp(Math.sqrt(p.o.nT)*k,4,40);
+    s+=`<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="${rad}" fill="${COL[p.sig]}" fill-opacity="${p.sig==='ns'?.75:.88}" stroke="#fff" stroke-width="2" data-tip="${tipArea(p.a,t,p.o)}" data-go="${esc(p.a.key)}" style="cursor:pointer"/>`;
+    if(state.level==='Faculty')s+=`<text x="${X(p.x)}" y="${Y(p.y)+rad+12}" font-size="11" text-anchor="middle" fill="#4A4560" pointer-events="none">${esc(p.a.name)}</text>`});
+  s+='</svg>';
+  const q=(fx,fy)=>pts.filter(p=>fx(p.x)&&fy(p.y)).length;
+  const excl=all.length-pts.length;
+  return toolbar()+`<div class="tiles"><div class="tile"><div class="lab">Ahead and narrowing</div><div class="val">${q(v=>v>=0,v=>v>=0)}</div></div><div class="tile"><div class="lab">Behind, but narrowing</div><div class="val">${q(v=>v<0,v=>v>=0)}</div></div><div class="tile"><div class="lab">Ahead, but widening</div><div class="val">${q(v=>v>=0,v=>v<0)}</div></div><div class="tile"><div class="lab">Behind and widening</div><div class="val">${q(v=>v<0,v=>v<0)}</div></div></div>
+  <section class="panel"><h3>Progress map</h3><p class="cap">${t.id} · ${t.stage}: ${t.grp} vs ${t.cmp}, ${modeLabel().toLowerCase()}. Bubble area shows the number of ${esc(t.grp)} students. Select a bubble to open that area.${excl?` ${excl} ${state.level.toLowerCase()}s with fewer than 10 students in a group, or no baseline, are not shown.`:''}</p>
+  <div class="legend" style="margin-bottom:6px"><span><i class="sw" style="background:${COL.sigAhead};border-radius:50%"></i>Significantly ahead of the ${refL}</span><span><i class="sw" style="background:${COL.ns};border-radius:50%"></i>Not significant</span><span><i class="sw" style="background:${COL.sigBehind};border-radius:50%"></i>Significantly behind</span></div>${pts.length?s:'<p class="empty">No areas to show.</p>'}</section>`;
+}
+function noLevel(){return `<p class="empty">There are no ${state.level.toLowerCase()} results in this file. If programmes are missing, rerun app_equity_gaps.R (it groups programmes by coursetitle) and load the new equity_gaps_all_levels_long.csv.</p>`}
+function startPage(err){return `<div class="startbox"><h3>Load your results</h3><p>This dashboard holds no data of its own. It fills in when you give it the long results file written by <code>app_equity_gaps.R</code>.</p><p>Drag <code>equity_gaps_all_levels_long.csv</code> onto this page, or use <b>Load results file</b> in the sidebar. You can add <code>equity_gaps_scan.csv</code> at the same time for the Other equity gaps page.</p><p>The file is read in your browser and stays on your computer. Nothing is uploaded. Reopening the page clears it, so load the file again each time.</p>${err?`<p style="color:#6B3596;font-weight:600">${esc(err)}</p>`:''}</div>`}
+
+/* ---------- Download a panel as an image or PDF ---------- */
+const ICON='<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 12.5v1h11v-1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+function exportContext(){
+  const t=TGm[state.target];
+  if(state.page==='eth')return `${state.ethStage} by ethnicity · ${state.ethArea==='U'?'Middlesex University':FACm[state.ethArea].name} · ${state.ethMode==='year'?'each year':'4-year rolling'}`;
+  if(state.page==='scan')return `Other equity gaps · ${scanAreaName()} · latest four years combined`;
+  if(state.page==='ranking'||state.page==='map')return `${t.id} · ${t.stage}: ${t.grp} vs ${t.cmp} · ${modeLabel()} by ${state.level.toLowerCase()}${state.rfac?' · '+FACm[state.rfac].name:''}`;
+  const nm=state.page==='overview'?'Middlesex University':state.page==='faculty'?FACm[state.fac].name:state.page==='department'?state.dept:state.prog;
+  return `${nm} · ${modeLabel()}`;
+}
+function addExportButtons(){
+  view.querySelectorAll('section.panel').forEach(p=>{const d=document.createElement('div');d.className='exp';d.setAttribute('data-html2canvas-ignore','');
+    d.innerHTML=`<button class="expbtn" aria-label="Download this panel" title="Download as image or PDF">${ICON}</button><div class="expmenu" hidden><button data-exp="png">Download image (PNG)</button><button data-exp="pdf">Download PDF</button><small class="expnote"></small></div>`;p.appendChild(d)});
+}
+const slug=s=>s.replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,90);
+async function exportPanel(panel,fmt,note){
+  if(!window.html2canvas||(fmt==='pdf'&&!window.jspdf)){note.textContent='Downloads need an internet connection to load. Check you are online and reopen the page.';return}
+  note.textContent='Preparing…';
+  const title=(panel.querySelector('h3')||{}).textContent||'';
+  const head=exportContext();
+  const widest=Math.max(panel.scrollWidth,...[...panel.querySelectorAll('table')].map(t=>t.scrollWidth+34));
+  const wrap=document.createElement('div');
+  wrap.style.cssText=`position:fixed;left:-20000px;top:0;width:${widest+48}px;background:#fff;padding:24px;font-family:${getComputedStyle(document.body).fontFamily}`;
+  const date=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  wrap.innerHTML=`<div style="margin-bottom:14px;border-left:5px solid #2B1F52;padding-left:12px"><div style="font-size:20px;font-weight:700;color:#2A2148">${esc(head)}</div><div style="font-size:13px;color:#4A4560;margin-top:3px">${esc(title.charAt(0)+title.slice(1).toLowerCase())} · APP equity gaps · OfS individualised data · ${date}</div></div>`;
+  const c=panel.cloneNode(true);c.querySelectorAll('[data-html2canvas-ignore]').forEach(e=>e.remove());
+  c.querySelectorAll('.scroll').forEach(e=>{e.style.overflow='visible'});c.style.width=widest+'px';
+  wrap.appendChild(c);document.body.appendChild(wrap);
+  try{
+    // Image scale: sharp enough to read, small enough to keep files light
+    const S=fmt==='pdf'?1.5:2;
+    // Safe places to break a page: the bottom of each table row and of each block
+    const top=wrap.getBoundingClientRect().top;
+    const breaks=[...wrap.querySelectorAll('tr, .legend, p, .tiles, svg, .scroll')].map(e=>Math.round((e.getBoundingClientRect().bottom-top)*S)).sort((a,b)=>a-b);
+    // Column headings of the main table, repeated at the top of each later page
+    const tables=[...wrap.querySelectorAll('table')].filter(t=>t.tHead);
+    const mainT=tables.sort((a,b)=>b.getBoundingClientRect().height-a.getBoundingClientRect().height)[0];
+    let hd=null;if(mainT){const r=mainT.tHead.getBoundingClientRect(),l=mainT.getBoundingClientRect();hd={y:Math.round((r.top-top)*S),h:Math.round(r.height*S),end:Math.round((l.bottom-top)*S),x:Math.round((l.left-wrap.getBoundingClientRect().left)*S),w:Math.round(l.width*S)}}
+    const cv=await html2canvas(wrap,{scale:S,backgroundColor:'#ffffff',logging:false});
+    const name=slug(head+' '+title);
+    if(fmt==='png'){const a=document.createElement('a');a.href=cv.toDataURL('image/png');a.download=name+'.png';document.body.appendChild(a);a.click();a.remove()}
+    else{
+      const {jsPDF}=window.jspdf;const land=cv.width>cv.height*0.9;
+      const pdf=new jsPDF({orientation:land?'landscape':'portrait',unit:'pt',format:'a4',compress:true});
+      const m=24,pw=pdf.internal.pageSize.getWidth()-2*m,ph=pdf.internal.pageSize.getHeight()-2*m,sc=pw/cv.width,pagePx=Math.floor(ph/sc);
+      // JPEG at high quality: far smaller than PNG for page-sized images, and still crisp
+      const jpg=c=>c.toDataURL('image/jpeg',0.88);
+      let y=0,pg=0;
+      while(y<cv.height){
+        const repeat=pg>0&&hd&&y>hd.y+hd.h&&y<hd.end-4; // add the column headings when a later page continues the table
+        const room=pagePx-(repeat?hd.h:0);
+        let end=Math.min(y+room,cv.height);
+        if(end<cv.height){                              // move the break up to the last row that fits
+          const ok=breaks.filter(b=>b>y+room*0.4&&b<=end);
+          if(ok.length)end=ok[ok.length-1];
+        }
+        const h=end-y,part=document.createElement('canvas');
+        part.width=cv.width;part.height=h+(repeat?hd.h:0);
+        const g=part.getContext('2d');g.fillStyle='#fff';g.fillRect(0,0,part.width,part.height);
+        if(repeat)g.drawImage(cv,0,hd.y,cv.width,hd.h,0,0,cv.width,hd.h);
+        g.drawImage(cv,0,y,cv.width,h,0,repeat?hd.h:0,cv.width,h);
+        if(pg)pdf.addPage();
+        pdf.addImage(jpg(part),'JPEG',m,m,pw,part.height*sc,undefined,'FAST');
+        if(pg)pdf.setFontSize(8),pdf.setTextColor(119,114,138),pdf.text('Continued',m,m-8);
+        y=end;pg++;
+      }
+      pdf.save(name+'.pdf');
+    }
+    note.textContent='Downloaded.';
+    setTimeout(()=>{const m=note.closest('.expmenu');if(m){m.hidden=true;note.textContent=''}},1500);
+  }catch(err){note.textContent='The download did not work: '+err.message}
+  finally{wrap.remove()}
+}
+
+/* ---------- Other equity gaps (scan of every demographic group) ---------- */
+let SCAN=null;
+const SP={'Monitor closely':{c:'#6B3596',t:'#fff'},'Monitor':{c:'#A97BCB',t:'#fff'},'Small but significant gap':{c:'#DCC6EC',t:'#2A2148'},'No significant gap':{c:'#ECEBF1',t:'#77728A'},'Too few students':{c:'#F6F5F8',t:'#9A95AA'}};
+const SPORDER=['Monitor closely','Monitor','Small but significant gap','No significant gap','Too few students'];
+const STAGES=['Continuation','Completion','Attainment','Progression'];
+// Bands for significant gaps: under 5, 5 to 10, and 10 pp or more
+const SCAN_MIN_N=20,BAND_MID=5,BAND_HIGH=10;
+function band(gap,p,nG,nC,fallback){
+  if(gap==null||nG==null||nC==null||nG<SCAN_MIN_N||nC<SCAN_MIN_N)return 'Too few students';
+  if(p==null)return fallback||'No significant gap';
+  if(p>=0.05)return 'No significant gap';
+  const a=Math.abs(gap);return a>=BAND_HIGH?'Monitor closely':a>=BAND_MID?'Monitor':'Small but significant gap';
+}
+function buildScan(rows){
+  const need=['level','stage','characteristic','group','comparator','priority','gap_pp','margin_pp'];
+  const miss=need.filter(k=>!(k in rows[0]));if(miss.length)throw new Error('This scan file is missing columns: '+miss.join(', ')+'.');
+  SCAN=rows.map(r=>{const fd=r.level==='Faculty'?FACDEF[r.faculty]:null;
+    return {area:r.level==='University'?'U':fd?fd.code:null,stage:r.stage,char:r.characteristic,group:r.group,comp:r.comparator,app:r.app_target&&r.app_target!=='NA'?r.app_target:null,
+      pri:band(num(r.gap_pp),num(r.p_value),num(r.n_group),num(r.n_comparator),r.priority),behind:r.group_behind,gap:num(r.gap_pp),h:num(r.margin_pp),p:num(r.p_value),years:r.years_latest4,
+      nG:num(r.n_group),rG:num(r.rate_group),nC:num(r.n_comparator),rC:num(r.rate_comparator),base:num(r.baseline_gap_pp),chg:num(r.change_pp),
+      ylab:(r.year_labels||'').split('|'),ys:[1,2,3,4,5,6,7].map(i=>num(r['gap_y'+i]))}}).filter(r=>r.area);
+}
+const scanArea=()=>state.scanArea||'U';
+const scanAreaName=()=>scanArea()==='U'?'Middlesex University':FACm[scanArea()].name;
+function scanTip(r){
+  const behindTxt=r.gap==null?'':r.gap>0?`${r.group} students are behind`:r.gap<0?`${r.comp} students are behind`:'No gap';
+  return esc(`<b>${r.stage}: ${r.group} vs ${r.comp}</b><br>${scanAreaName()} · ${r.years||'latest four years'}<br>${r.group}: ${f1(r.rG)}% of ${r0(r.nG)} students<br>${r.comp}: ${f1(r.rC)}% of ${r0(r.nC)} students<br>Gap: <b>${f1(r.gap)} pp</b>${r.h!=null?' ±'+f1(r.h):''} (${behindTxt})<br>Baseline gap: ${f1(r.base)} pp · Change: ${r.chg==null?'–':(r.chg>0?'+':'')+f1(r.chg)} pp<br><b>${r.pri}</b>${r.app?' · APP target '+r.app:''}`);
+}
+function scanSpark(r){
+  const sgn=r.gap!=null&&r.gap<0?-1:1,v=r.ys.map(x=>x==null?null:x*sgn),have=v.filter(x=>x!=null);
+  if(have.length<2)return '<span class="uni">Not enough data</span>';
+  const w=140,h=36,p=4;let lo=Math.min(0,...have),hi=Math.max(0,...have);if(hi-lo<4)hi=lo+4;
+  const x=i=>p+i*(w-2*p)/6,y=q=>h-p-(q-lo)/(hi-lo)*(h-2*p);
+  let d='';v.forEach((q,i)=>{if(q!=null)d+=(i&&v[i-1]!=null?'L':'M')+x(i).toFixed(1)+' '+y(q).toFixed(1)});
+  let s=`<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Gap over seven years"><rect x="${x(3)-3}" y="0" width="${x(6)-x(3)+6}" height="${h}" fill="#ECEBF1"/><line x1="${p}" x2="${w-p}" y1="${y(0)}" y2="${y(0)}" stroke="#B5B1C2" stroke-dasharray="2 2"/><path d="${d}" fill="none" stroke="#4A4560" stroke-width="1.6"/>`;
+  v.forEach((q,i)=>{if(q!=null)s+=`<circle cx="${x(i)}" cy="${y(q)}" r="${i===6?3.5:2}" fill="${i===6?SP[r.pri].c:'#4A4560'}"/><circle cx="${x(i)}" cy="${y(q)}" r="7" fill="transparent" data-tip="${esc(`<b>${r.ylab[i]||'Year '+(i+1)}</b>: gap ${f1(q)} pp`)}"/>`});
+  return s+'</svg>';
+}
+function scanPage(){
+  if(!SCAN)return `<div class="startbox"><h3>Load the gap scan</h3><p>This page reads <code>equity_gaps_scan.csv</code>, written by section 10 of <code>app_equity_gaps.R</code>. It compares every demographic group in the OfS file with its comparison group, at each stage of the student lifecycle, not only the groups with APP targets.</p><p>Use <b>Load results file</b> to choose it. You can load it together with <code>equity_gaps_all_levels_long.csv</code>.</p></div>`;
+  const rows=SCAN.filter(r=>r.area===scanArea());
+  if(!rows.length)return '<p class="empty">No scan results for this area.</p>';
+  const inScope=rows.filter(r=>(state.scanApp||!r.app)&&(state.scanStage==='all'||r.stage===state.scanStage));
+  const cnt=k=>inScope.filter(r=>r.pri===k).length;
+  const tile=(l,v,s)=>`<div class="tile"><div class="lab">${l}</div><div class="val">${v}</div><div class="sub">${s}</div></div>`;
+  let s=`<div class="tiles">${tile('Monitor closely',cnt('Monitor closely'),'Significant gaps of 10 pp or more')}${tile('Monitor',cnt('Monitor'),'Significant gaps of 5 to 10 pp')}${tile('Small but significant',cnt('Small but significant gap'),'Significant gaps under 5 pp')}${tile('No significant gap',cnt('No significant gap'),'Within the margin of error')}</div>`;
+  // Overview grid: comparisons down the side, lifecycle stages across
+  const keys=[];rows.forEach(r=>{const k=r.char+'|'+r.group+'|'+r.comp;if(!keys.includes(k))keys.push(k)});
+  let g=`<div class="scroll"><table class="heat scan"><thead><tr><th style="text-align:left">Comparison</th>${STAGES.map(st=>`<th>${st}</th>`).join('')}</tr></thead><tbody>`;let lastChar='';
+  keys.forEach(k=>{const [ch,gr,cp]=k.split('|');
+    if(ch!==lastChar){g+=`<tr><td class="grp" colspan="5">${esc(ch)}</td></tr>`;lastChar=ch}
+    g+=`<tr><td class="nm" style="font-weight:400">${esc(gr)} <span class="uni">vs ${esc(cp)}</span></td>`;
+    STAGES.forEach(st=>{const r=rows.find(x=>x.stage===st&&x.char===ch&&x.group===gr&&x.comp===cp);
+      if(!r){g+='<td class="c" style="background:#fff;color:#C9C6D2">·</td>';return}
+      const col=SP[r.pri]||SP['No significant gap'];
+      g+=`<td class="c${r.pri==='Too few students'?' hatch':''}" style="background:${col.c};color:${col.t}" data-tip="${scanTip(r)}">${r.pri==='Too few students'?'n&lt;20':f1(r.gap)}${r.app?'<span class="apptag">APP</span>':''}</td>`});
+    g+='</tr>'});
+  g+=`</tbody></table></div><div class="legend" style="margin-top:8px">${SPORDER.map(k=>`<span><i class="sw" style="background:${SP[k].c};border:1px solid #D9D7E0"></i>${k}</span>`).join('')}<span><span class="apptag" style="position:static">APP</span> already an APP target</span></div><p class="cap" style="margin-top:6px">Each cell is the gap over the latest four years, in percentage points. A positive number means the first-named group is behind. A negative number means the comparison group is behind. Hover for rates, student numbers and the margin of error.</p>`;
+  s+=`<section class="panel"><h3>All equity gaps</h3><p class="cap">${esc(scanAreaName())} · every comparison in the OfS file, latest four years combined</p>${g}</section>`;
+  // Gaps to monitor
+  const mon=inScope.filter(r=>r.pri==='Monitor closely'||r.pri==='Monitor').sort((a,b)=>Math.abs(b.gap)-Math.abs(a.gap));
+  const behindName=r=>r.gap>0?r.group:r.comp, vsName=r=>r.gap>0?r.comp:r.group;
+  let t=`<div class="scroll"><table class="rank fixed"><colgroup><col style="width:12%"><col style="width:20%"><col style="width:17%"><col style="width:9%"><col style="width:12%"><col style="width:14%"><col style="width:16%"></colgroup><thead><tr><th>Stage</th><th>Group behind</th><th>Compared with</th><th class="ctr">Gap</th><th class="ctr">Change since baseline</th><th class="ctr">Seven years</th><th class="ctr">Priority</th></tr></thead><tbody>`;
+  t+=mon.map(r=>{const c=r.chg==null?null:(r.gap<0?-r.chg:r.chg);
+    return `<tr data-tip="${scanTip(r)}"><td>${r.stage}</td><td><b>${esc(behindName(r))}</b>${r.app?` <span class="apptag" style="position:static">APP ${r.app}</span>`:''}<span class="facname">${esc(r.char)}</span></td><td>${esc(vsName(r))}</td><td class="ctr"><b>${f1(Math.abs(r.gap))}</b><small class="yr">±${f1(r.h)} pp</small></td><td class="ctr">${c==null?'–':c<=-1?`<span class="chg good">▼ ${f1(-c)} narrower</span>`:c>=1?`<span class="chg bad">▲ ${f1(c)} wider</span>`:`<span class="chg flat">● little change</span>`}</td><td class="ctr">${scanSpark(r)}</td><td class="ctr"><span class="pill" style="--c:${SP[r.pri].c};background:${tint(SP[r.pri].c,.22)}">${r.pri}</span></td></tr>`}).join('');
+  t+='</tbody></table></div>';
+  s+=`<section class="panel"><h3>Gaps to monitor</h3><p class="cap">${esc(scanAreaName())} · significant gaps of 5 pp or more over the latest four years${state.scanApp?', including APP targets':', excluding APP targets'}${state.scanStage==='all'?'':' · '+state.scanStage}. The trend line shows the gap for the group behind; the shaded part is the latest four years.</p>${mon.length?t:'<p class="empty">No significant gaps of 5 pp or more for this selection.</p>'}</section>`;
+  return s;
+}
+
+/* ---------- Ethnicity over time ---------- */
+let ETH=null;
+const ETH_SERIES=[
+  {g:'White',col:'#141122',w:2.4,dash:'',shape:'circle'},
+  {g:'ABMO',col:'#6E6880',w:3,dash:'7 4',shape:'circle'},
+  {g:'Asian',col:'#2F6BC0',w:2,dash:'',shape:'square'},
+  {g:'Black',col:'#C2513C',w:2,dash:'',shape:'triangle'},
+  {g:'Mixed',col:'#1F8A6A',w:2,dash:'',shape:'diamond'},
+  {g:'Other ethnicity',col:'#B8901F',w:2,dash:'',shape:'cross'},
+  {g:'All students',col:'#9A95AA',w:1.6,dash:'2 3',shape:'none'},
+  {g:'Unknown',col:'#BDB8C6',w:1.4,dash:'1 3',shape:'none'}
+];
+const ETH_STAGES=['Continuation','Completion','Attainment','Progression'];
+function buildEth(rows){
+  const need=['level','stage','group','year','students','successes'];
+  const miss=need.filter(k=>!(k in rows[0]));if(miss.length)throw new Error('This ethnicity file is missing columns: '+miss.join(', ')+'.');
+  ETH={};
+  rows.forEach(r=>{const fd=r.level==='Faculty'?FACDEF[r.faculty]:null;const area=r.level==='University'?'U':fd?fd.code:null;if(!area)return;
+    const k=area+'|'+r.stage+'|'+r.group;(ETH[k]=ETH[k]||{})[+r.year]={n:num(r.students)||0,s:num(r.successes)||0,lab:r.year_label||yl(+r.year)}});
+}
+const yl=y=>y+'/'+String(y+1).slice(2);
+// Points for one group: yearly, or pooled over each run of four consecutive years
+function ethPoints(area,stage,group,mode){
+  const d=ETH[area+'|'+stage+'|'+group];if(!d)return [];
+  const yrs=Object.keys(d).map(Number).sort((a,b)=>a-b);
+  if(mode==='year')return yrs.map(y=>({y,lab:d[y].lab,n:d[y].n,s:d[y].s}));
+  return yrs.filter(y=>[1,2,3].every(k=>d[y-k])).map(y=>{let n=0,s=0;for(let k=0;k<4;k++){n+=d[y-k].n;s+=d[y-k].s}return {y,lab:d[y].lab,span:`${d[y-3].lab} to ${d[y].lab}`,n,s}});
+}
+function ethData(){
+  const area=state.ethArea,stage=state.ethStage,mode=state.ethMode;
+  const W=Object.fromEntries(ethPoints(area,stage,'White',mode).map(p=>[p.y,p]));
+  const series=ETH_SERIES.map(sr=>{const pts=ethPoints(area,stage,sr.g,mode).map(p=>{
+      const rate=p.n?100*p.s/p.n:null,w=W[p.y],wr=w&&w.n?100*w.s/w.n:null;
+      const gap=sr.g==='White'||sr.g==='All students'||rate==null||wr==null?null:wr-rate;
+      const h=gap==null?null:moe(p.n,w.n,rate,wr);
+      return {...p,rate,gap,h,small:p.n<SMALL}});
+    return {...sr,pts}}).filter(s=>s.pts.length);
+  const years=[...new Set(series.flatMap(s=>s.pts.map(p=>p.y)))].sort((a,b)=>a-b);
+  return {series,years};
+}
+function marker(shape,x,y,col,hollow){
+  const f=hollow?'#fff':col,st=`stroke="${col}" stroke-width="1.6" fill="${f}"`;
+  if(shape==='square')return `<rect x="${x-3.5}" y="${y-3.5}" width="7" height="7" ${st}/>`;
+  if(shape==='triangle')return `<path d="M${x} ${y-4.5}L${x+4.5} ${y+3.5}L${x-4.5} ${y+3.5}Z" ${st}/>`;
+  if(shape==='diamond')return `<path d="M${x} ${y-5}L${x+5} ${y}L${x} ${y+5}L${x-5} ${y}Z" ${st}/>`;
+  if(shape==='cross')return `<path d="M${x-4} ${y-4}L${x+4} ${y+4}M${x+4} ${y-4}L${x-4} ${y+4}" stroke="${col}" stroke-width="2.2" fill="none"/>`;
+  if(shape==='none')return '';
+  return `<circle cx="${x}" cy="${y}" r="3.8" ${st}/>`;
+}
+function ethChart(kind){
+  const {series,years}=ethData();
+  const shown=series.filter(s=>!state.ethHide[s.g]&&(kind==='rate'||s.g!=='White'&&s.g!=='All students'));
+  const val=p=>kind==='rate'?p.rate:p.gap;
+  const vals=shown.flatMap(s=>s.pts.map(val)).filter(v=>v!=null);
+  if(!years.length||!vals.length)return '<p class="empty">No results to show for this selection.</p>';
+  const w=820,h=330,l=52,r=150,tp=16,b=34;
+  let lo=Math.min(...vals),hi=Math.max(...vals);
+  if(kind==='gap'){lo=Math.min(lo,0);hi=Math.max(hi,0)}
+  const pad=(hi-lo)*0.08||2;lo-=pad;hi+=pad;
+  const step=(hi-lo)>60?20:(hi-lo)>30?10:(hi-lo)>12?5:2;
+  lo=Math.floor(lo/step)*step;hi=Math.ceil(hi/step)*step;
+  if(kind==='rate'){lo=Math.max(0,lo);hi=Math.min(100,hi)}
+  const X=i=>l+(years.length===1?(w-l-r)/2:i*(w-l-r)/(years.length-1)),Y=v=>tp+(hi-v)/(hi-lo)*(h-tp-b);
+  let s=`<svg viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="${kind==='rate'?'Rates':'Gaps to White students'} by year">`;
+  for(let v=lo;v<=hi+1e-9;v+=step){s+=`<line x1="${l}" x2="${w-r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${kind==='gap'&&Math.abs(v)<1e-9?'#77728A':'#E2E0E8'}" ${kind==='gap'&&Math.abs(v)<1e-9?'stroke-width="1.5"':''}/><text x="${l-8}" y="${Y(v)+4}" font-size="11" text-anchor="end" fill="#77728A">${kind==='rate'?v+'%':(v>0?'+':'')+v}</text>`}
+  const every=years.length>9?2:1;
+  years.forEach((y,i)=>{if(i%every===0||i===years.length-1){const p=series[0].pts.find(q=>q.y===y)||{lab:yl(y)};s+=`<text x="${X(i)}" y="${h-12}" font-size="11" text-anchor="middle" fill="#77728A">${state.ethMode==='roll'?'to ':''}${p.lab}</text>`}});
+  if(kind==='gap')s+=`<text x="${l+6}" y="${Y(0)-6}" font-size="11" fill="#4A4560">White students (0)</text>`;
+  const labels=[];
+  shown.forEach(sr=>{
+    const pts=sr.pts.map(p=>({p,i:years.indexOf(p.y),v:val(p)})).filter(q=>q.v!=null&&q.i>=0);
+    let d='';pts.forEach((q,k)=>{const cont=k&&pts[k-1].i===q.i-1;d+=(cont?'L':'M')+X(q.i).toFixed(1)+' '+Y(q.v).toFixed(1)});
+    s+=`<path d="${d}" fill="none" stroke="${sr.col}" stroke-width="${sr.w}" ${sr.dash?`stroke-dasharray="${sr.dash}"`:''} stroke-linejoin="round"/>`;
+    pts.forEach(q=>{const p=q.p,tip=`<b>${sr.g}</b> · ${state.ethStage}<br>${p.span||p.lab}<br>Rate: ${f1(p.rate)}% of ${r0(p.n)} students${p.gap!=null?`<br>Gap to White: <b>${f1(p.gap)} pp</b> ±${f1(p.h)}`:''}${p.small?'<br>Fewer than 10 students':''}`;
+      s+=marker(sr.shape,X(q.i),Y(q.v),sr.col,p.small)+`<circle cx="${X(q.i)}" cy="${Y(q.v)}" r="9" fill="transparent" data-tip="${esc(tip)}"/>`});
+    const last=pts[pts.length-1];if(last)labels.push({y:Y(last.v),t:`${sr.g} ${kind==='rate'?f1(last.v)+'%':(last.v>0?'+':'')+f1(last.v)}`,col:sr.col});
+  });
+  // Direct labels at the line ends, nudged apart so they do not overlap
+  labels.sort((a,b)=>a.y-b.y);for(let i=1;i<labels.length;i++)if(labels[i].y-labels[i-1].y<13)labels[i].y=labels[i-1].y+13;
+  labels.forEach(L=>s+=`<text x="${w-r+8}" y="${L.y+4}" font-size="11.5" fill="#2A2148"><tspan fill="${L.col}" font-weight="700">■</tspan> ${esc(L.t)}</text>`);
+  return s+'</svg>';
+}
+function ethLegend(){
+  const {series}=ethData();
+  return `<div class="legend ethleg" role="group" aria-label="Show or hide groups">${series.map(sr=>`<button class="ethchip" data-ethg="${esc(sr.g)}" aria-pressed="${!state.ethHide[sr.g]}"><svg width="26" height="12" aria-hidden="true"><line x1="1" x2="25" y1="6" y2="6" stroke="${sr.col}" stroke-width="${sr.w}" ${sr.dash?`stroke-dasharray="${sr.dash}"`:''}/>${marker(sr.shape,13,6,sr.col,false)}</svg>${esc(sr.g)}</button>`).join('')}<span class="uni" style="white-space:normal">Select a group to show or hide it. Hollow markers have fewer than 10 students.</span></div>`;
+}
+function ethTable(){
+  const {series,years}=ethData();
+  const lab=y=>{const p=series[0].pts.find(q=>q.y===y);return p?(p.span?'to '+p.lab:p.lab):yl(y)};
+  let t=`<div class="scroll"><table class="rank" style="font-size:12px"><thead><tr><th>Group</th><th>Measure</th>${years.map(y=>`<th class="num">${lab(y)}</th>`).join('')}</tr></thead><tbody>`;
+  series.forEach(sr=>{const m=Object.fromEntries(sr.pts.map(p=>[p.y,p]));
+    const row=(name,f)=>`<tr><td>${name===null?`<b>${esc(sr.g)}</b>`:''}</td><td>${name||'Rate (%)'}</td>${years.map(y=>`<td class="num">${m[y]?f(m[y]):'–'}</td>`).join('')}</tr>`;
+    t+=row(null,p=>`<span style="${p.small?'color:#8A4DB6':''}">${f1(p.rate)}</span>`);
+    t+=row('Students',p=>r0(p.n));
+    if(sr.g!=='White'&&sr.g!=='All students')t+=row('Gap to White (pp)',p=>p.gap==null?'–':`${f1(p.gap)} <span class="uni">±${f1(p.h)}</span>`);
+  });
+  return t+'</tbody></table></div>';
+}
+function ethPage(){
+  if(!ETH)return `<div class="startbox"><h3>Load the ethnicity file</h3><p>This page reads <code>ethnicity_outcomes_by_year.csv</code>, written by section 11 of <code>app_equity_gaps.R</code>. It shows rates and gaps to White students for every ethnic group, for each year in the data.</p><p>Use <b>Load results file</b> to choose it. You can load it alongside the other results files, as CSV or Excel.</p></div>`;
+  const md=state.ethMode,area=state.ethArea==='U'?'Middlesex University':FACm[state.ethArea].name;
+  const what=md==='year'?'each year':'4-year rolling (each point combines that year and the three before it)';
+  let s=`<div class="toolbar" role="group" aria-label="Yearly or rolling"><span class="tlab">Show</span><button data-ethmode="year" aria-pressed="${md==='year'}">Each year</button><button data-ethmode="roll" aria-pressed="${md==='roll'}">4-year rolling</button><span class="tnote">${md==='year'?'Single years show the most recent changes but move a lot where groups are small.':'Each point combines four years of students, which smooths out year-to-year noise.'}</span></div>`;
+  s+=ethLegend();
+  s+=`<section class="panel"><h3>${esc(state.ethStage)} rate by ethnicity</h3><p class="cap">${esc(area)} · ${what}</p>${ethChart('rate')}</section>`;
+  s+=`<section class="panel"><h3>${esc(state.ethStage)} gap to White students</h3><p class="cap">${esc(area)} · ${what}. White students' rate minus each group's rate, in percentage points. Above the line means the group's rate is lower than White students'.</p>${ethChart('gap')}</section>`;
+  s+=`<section class="panel"><h3>Data table</h3><p class="cap">${esc(area)} · ${esc(state.ethStage)} · ${what}. Rates for groups with fewer than 10 students are shown in purple.</p>${ethTable()}</section>`;
+  return s;
+}
+
+/* ---------- Render ---------- */
+
+
+const TITLES={overview:['APP EQUITY GAPS 2026','University progress against Access and Participation Plan targets'],faculty:['FACULTY VIEW',''],department:['DEPARTMENT VIEW',''],programme:['PROGRAMME VIEW',''],ranking:['TARGET BY AREA','How each area stands against one APP target'],scan:['OTHER EQUITY GAPS','Gaps for every demographic group, beyond the formal APP targets'],eth:['ETHNICITY OVER TIME','Rates and gaps to White students for every ethnic group'],map:['PROGRESS MAP','Distance from the milestone against change since the baseline']};
+const SHOW={overview:[],faculty:['fFacW'],department:['fFacW','fDeptW'],programme:['fFacW','fDeptW','fProgW'],ranking:['fTargetW','fLevelW','fFacW','fSmallW'],map:['fTargetW','fLevelW','fRefW','fFacW'],scan:['fScanAreaW','fScanStageW','fScanAppW'],eth:['fEthAreaW','fEthStageW']};
+const loaded=()=>!!AREAS.U;
+function fillSelects(){
+  const rankLike=state.page==='ranking'||state.page==='map';
+  if(!state.fac||!FACm[state.fac])state.fac=FAC[0].code;
+  $('fFac').innerHTML=(rankLike?'<option value="">(All)</option>':'')+FAC.map(f=>`<option value="${esc(f.code)}">${esc(f.name)}</option>`).join('');
+  $('fFac').value=rankLike?state.rfac:state.fac;
+  const depts=DEPTS[state.fac]||[];if(!depts.includes(state.dept))state.dept=depts[0]||null;
+  $('fDept').innerHTML=depts.length?depts.map(d=>`<option>${esc(d)}</option>`).join(''):'<option value="">(none)</option>';$('fDept').value=state.dept||'';
+  const ps=PROGS[state.dept]||[];if(!ps.includes(state.prog))state.prog=ps[0]||null;
+  $('fProg').innerHTML=ps.length?ps.map(p=>`<option>${esc(p)}</option>`).join(''):'<option value="">(none in this file)</option>';$('fProg').value=state.prog||'';
+  $('fTarget').value=state.target;$('fLevel').value=state.level;$('fSmall').checked=state.hideSmall;$('fRef').value=state.ref;
+}
+function render(){
+  fillSelects();
+  document.querySelectorAll('.nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.page===state.page?'page':'false'));
+  ['fTargetW','fLevelW','fRefW','fFacW','fDeptW','fProgW','fSmallW','fScanAreaW','fScanStageW','fScanAppW','fEthAreaW','fEthStageW'].forEach(id=>$(id).hidden=!(state.page==='scan'?SCAN:state.page==='eth'?ETH:loaded())||!SHOW[state.page].includes(id));
+  $('fHead').hidden=!(state.page==='scan'?SCAN:state.page==='eth'?ETH:loaded())||!SHOW[state.page].length;
+  $('fEthArea').innerHTML='<option value="U">Middlesex University</option>'+FAC.map(f=>`<option value="${esc(f.code)}">${esc(f.name)}</option>`).join('');$('fEthArea').value=state.ethArea;$('fEthStage').value=state.ethStage;
+  $('fScanArea').innerHTML='<option value="U">Middlesex University</option>'+FAC.map(f=>`<option value="${esc(f.code)}">${esc(f.name)}</option>`).join('');$('fScanArea').value=state.scanArea;$('fScanStage').value=state.scanStage;$('fScanApp').checked=state.scanApp;
+  $('srcChip').textContent=(loaded()||SCAN||ETH)?'OfS individualised data':'No data loaded';
+  let [ti,sub]=TITLES[state.page];
+  if(state.page==='faculty')sub='Progress against APP targets: '+FACm[state.fac].name;
+  if(state.page==='department')sub='Progress against APP targets: '+(state.dept||'no department selected');
+  if(state.page==='programme')sub='Progress against APP targets: '+(state.prog||'no programme selected');
+  $('pTitle').textContent=ti;$('pSub').textContent=sub;
+  $('trendGuide').innerHTML=trendGuide();
+  $('sigEx').textContent=sigExample();
+  if(state.page==='eth'){$('pTitle').textContent=ti;$('pSub').textContent=sub;view.innerHTML=ethPage();addExportButtons();return}
+  if(state.page==='scan'){$('pTitle').textContent=ti;$('pSub').textContent=sub;view.innerHTML=scanPage();addExportButtons();return}
+  if(!loaded()){view.innerHTML=startPage();return}
+  let h='';
+  if(state.page==='overview')h=areaPage(AREAS.U,'Faculty snapshot',byLevel('Faculty'));
+  if(state.page==='faculty')h=areaPage(AREAS['F:'+state.fac],'Department snapshot',byLevel('Department').filter(a=>a.fac===state.fac));
+  if(state.page==='department')h=state.dept?areaPage(AREAS['D:'+state.dept],'Programme snapshot',byLevel('Programme').filter(a=>a.dept===state.dept)):'<p class="empty">No departments in this faculty.</p>';
+  if(state.page==='programme')h=state.prog?areaPage(AREAS['P:'+state.prog]):`<p class="empty">There are no programme results in this file. Rerun app_equity_gaps.R (it groups programmes by coursetitle) and load the new equity_gaps_all_levels_long.csv.</p>`;
+  if(state.page==='ranking')h=rankingPage();
+  if(state.page==='map')h=mapPage();
+  if(state.page==='scan'){view.innerHTML=scanPage();addExportButtons();return}
+  view.innerHTML=h;
+  addExportButtons();
+}
+function go(page){state.page=page;state.open=null;try{history.replaceState(null,'','#'+page)}catch(e){}render();window.scrollTo(0,0)}
+function goArea(key){const a=AREAS[key];if(!a)return;
+  if(a.level==='University')return go('overview');
+  state.fac=a.fac;
+  if(a.level==='Faculty')return go('faculty');
+  if(a.level==='Department'){state.dept=a.name;return go('department')}
+  state.dept=a.dept;state.prog=a.name;go('programme')}
+
+/* ---------- Events ---------- */
+$('fTarget').innerHTML=TG.map(t=>`<option value="${t.id}">${t.id} · ${t.stage} · ${esc(t.hd)}</option>`).join('');
+document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.page)));
+$('fFac').addEventListener('change',e=>{if(state.page==='ranking'||state.page==='map')state.rfac=e.target.value;else{state.fac=e.target.value;state.dept=null;state.prog=null}state.open=null;render()});
+$('fDept').addEventListener('change',e=>{state.dept=e.target.value;state.prog=null;state.open=null;render()});
+$('fProg').addEventListener('change',e=>{state.prog=e.target.value;state.open=null;render()});
+$('fTarget').addEventListener('change',e=>{state.target=e.target.value;render()});
+$('fLevel').addEventListener('change',e=>{state.level=e.target.value;render()});
+$('fRef').addEventListener('change',e=>{state.ref=e.target.value;render()});
+$('fSmall').addEventListener('change',e=>{state.hideSmall=e.target.checked;render()});
+$('fScanArea').addEventListener('change',e=>{state.scanArea=e.target.value;render()});
+$('fEthArea').addEventListener('change',e=>{state.ethArea=e.target.value;render()});
+$('fEthStage').addEventListener('change',e=>{state.ethStage=e.target.value;render()});
+$('fScanStage').addEventListener('change',e=>{state.scanStage=e.target.value;render()});
+$('fScanApp').addEventListener('change',e=>{state.scanApp=e.target.checked;render()});
+const LOADED={};
+function loadFile(f){if(!f)return;const rd=new FileReader(),isXL=/\.xlsx?$/i.test(f.name);
+  rd.onload=()=>{try{const rows=isXL?xlRows(rd.result):parseCSV(String(rd.result));if(!rows.length)throw new Error(f.name+' has no rows.');if('characteristic' in rows[0]){buildScan(rows);LOADED.scan=f.name}else if('successes' in rows[0]&&'group' in rows[0]){buildEth(rows);LOADED.eth=f.name}else{build(rows);LOADED.main=f.name}$('srcNote').className='';$('srcNote').textContent='Showing '+Object.values(LOADED).join(' and ')+'.';state.open=null;render()}
+    catch(err){$('srcNote').className='err';$('srcNote').textContent=err.message;if(!loaded())view.innerHTML=startPage(err.message)}};
+  rd.onerror=()=>{$('srcNote').className='err';$('srcNote').textContent='That file could not be read. Try saving it again as CSV.'};
+  if(isXL){if(!window.XLSX){$('srcNote').className='err';$('srcNote').textContent='Reading Excel files needs an internet connection the first time. Save the sheet as CSV instead, or reopen the page online.';return}rd.readAsArrayBuffer(f)}else rd.readAsText(f)}
+// First sheet of an Excel file, as rows keyed by the header row
+function xlRows(buf){const wb=XLSX.read(buf,{type:'array'});return parseCSV(XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]))}
+$('fileIn').addEventListener('change',e=>{[...e.target.files].forEach(loadFile);e.target.value=''});
+['dragenter','dragover'].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();document.body.classList.add('dragging')}));
+['dragleave','drop'].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();if(ev==='drop'||!e.relatedTarget)document.body.classList.remove('dragging')}));
+document.addEventListener('drop',e=>{if(e.dataTransfer)[...e.dataTransfer.files].forEach(loadFile)});
+function act(e){
+  const em=e.target.closest('[data-ethmode]');if(em){state.ethMode=em.dataset.ethmode;render();return true}
+  const eg=e.target.closest('[data-ethg]');if(eg){const g=eg.dataset.ethg;state.ethHide[g]=!state.ethHide[g];render();return true}
+  const eb=e.target.closest('.expbtn');if(eb){const m=eb.nextElementSibling;view.querySelectorAll('.expmenu').forEach(x=>{if(x!==m)x.hidden=true});m.hidden=!m.hidden;return true}
+  const ex=e.target.closest('[data-exp]');if(ex){const menu=ex.closest('.expmenu');exportPanel(ex.closest('section.panel'),ex.dataset.exp,menu.querySelector('.expnote'));return true}
+  const sm=e.target.closest('[data-summary]');if(sm){const k=sm.dataset.summary;state.summary[k]=!state.summary[k];render();return true}
+  if(e.target.closest('#copySum')){const txt=$('sumText').textContent,note=$('copyNote');
+    const sel=()=>{const r=document.createRange();r.selectNodeContents($('sumText'));const w=getSelection();w.removeAllRanges();w.addRange(r);note.textContent='Text selected. Press Ctrl+C to copy.'};
+    try{navigator.clipboard.writeText(txt).then(()=>{note.textContent='Copied.'},sel)}catch(err){sel()}return true}
+  const md=e.target.closest('[data-mode]');if(md){state.modes[modeKey()]=md.dataset.mode;render();return true}
+  const g=e.target.closest('[data-go]');if(g){goArea(g.dataset.go);return true}
+  const s=e.target.closest('[data-sort]');if(s){const k=s.dataset.sort;state.sort=state.sort.k===k?{k,d:-state.sort.d}:{k,d:k==='name'?1:-1};render();return true}
+  const o=e.target.closest('tr[data-open]');if(o){state.open=state.open===o.dataset.open?null:o.dataset.open;render();return true}
+  return false}
+view.addEventListener('click',act);
+view.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('tr[data-open],th[data-sort]')){e.preventDefault();act(e)}});
+const tip=$('tip');
+document.addEventListener('mousemove',e=>{const el=e.target.closest&&e.target.closest('[data-tip]');
+  if(!el){tip.hidden=true;return}
+  tip.innerHTML=el.getAttribute('data-tip');tip.hidden=false;
+  const r=tip.getBoundingClientRect();let x=e.clientX+14,y=e.clientY+14;
+  if(x+r.width>innerWidth-8)x=e.clientX-r.width-14;if(y+r.height>innerHeight-8)y=e.clientY-r.height-14;
+  tip.style.left=Math.max(8,x)+'px';tip.style.top=Math.max(8,y)+'px'});
+$('infoBtn').addEventListener('click',()=>{$('about').hidden=false;$('aboutClose').focus()});
+$('aboutClose').addEventListener('click',()=>{$('about').hidden=true;$('infoBtn').focus()});
+$('about').addEventListener('click',e=>{if(e.target.id==='about')$('about').hidden=true});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){$('about').hidden=true;view.querySelectorAll('.expmenu').forEach(m=>m.hidden=true)}});
+// Close any open download menu when clicking elsewhere
+document.addEventListener('click',e=>{if(!e.target.closest('.exp'))view.querySelectorAll('.expmenu').forEach(m=>m.hidden=true)});
+const h0=(location.hash||'').slice(1);if(TITLES[h0])state.page=h0;
+render();
+</script>
+</body>
+</html>
