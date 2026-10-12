@@ -11,6 +11,22 @@ semi-automating the ESE committee report. See
 the dashboard below, this repository holds code only: no tracker data, notes,
 transcripts or snapshots are committed here.
 
+## APP equity gaps dashboard
+
+`app_equity_dashboard.html` shows progress against the eight APP success and
+progression targets for the University, each faculty, department and programme.
+It holds no data of its own: load the CSVs written by
+`analysis/app_equity_gaps.R` (`equity_gaps_all_levels_long.csv`, and optionally
+`equity_gaps_scan.csv`). Files are read in the browser and never uploaded.
+
+The **Largest department gaps** page ranks departments within each faculty by
+their widest gap, to help choose departments for the reverse mentoring pilot.
+Each target uses the latest four years combined and is compared with the
+University's gap for the same target. Targets for the same group of students
+(four BTEC, two free school meals) are combined, weighted by the number of
+students, so each group counts once. Targets with fewer than 20 students in
+either group are left out. The (i) button explains the method in full.
+
 ## Student cohort comparison dashboard
 
 A single-page tool that compares a group of students against the whole student

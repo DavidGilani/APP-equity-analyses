@@ -173,6 +173,18 @@ table.fixed.narrow{min-width:560px}
 .heat.scan td.c{position:relative;min-width:84px}
 .apptag{position:absolute;top:2px;right:3px;font-size:9px;font-weight:700;letter-spacing:.05em;background:#fff;color:#2B1F52;border:1px solid #2B1F52;border-radius:2px;padding:0 3px;line-height:1.4}
 .ethleg{gap:6px 8px}
+.rank.pri tr:nth-child(odd){background:none}
+.rank.pri tbody tr.prow{border-bottom:1px solid var(--grid);cursor:pointer}
+.rank.pri tbody tr.prow:hover{box-shadow:inset 3px 0 0 var(--purple)}
+.rank.pri tbody tr.prow:focus-visible{outline:2px solid var(--purple);outline-offset:-2px}
+.rank.pri tbody tr.prow.open{box-shadow:inset 3px 0 0 var(--ink)}
+.rank.pri td.hc{text-align:center;font-weight:600;border-radius:2px;border:3px solid var(--panel)}
+.rank.pri td.hc.top{outline:2px solid var(--tick);outline-offset:-5px}
+.rank.pri td.rk{font-size:18px;font-weight:700;text-align:center;color:var(--ink2)}
+.rank.pri .lg b{display:block}
+.method{background:var(--bg);border:1px solid var(--panel-line);border-left:4px solid var(--side);padding:14px 16px}
+.method p{margin:0 0 8px;max-width:95ch;line-height:1.55}
+.method p:last-child{margin:0}
 .ethchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--panel-line);background:var(--bg);border-radius:999px;padding:3px 10px 3px 6px;font-size:12px;color:var(--ink);cursor:pointer}
 .ethchip[aria-pressed="false"]{opacity:.45;text-decoration:line-through}
 .ethchip:focus-visible{outline:3px solid var(--purple);outline-offset:2px}
@@ -192,6 +204,7 @@ table.fixed.narrow{min-width:560px}
       <button data-page="scan">Other equity gaps</button>
       <button data-page="eth">Ethnicity over time</button>
       <button data-page="map">Progress map</button>
+      <button data-page="pri">Largest department gaps</button>
     </nav>
     <h2 id="fHead">Filters</h2>
     <div class="filters">
@@ -206,6 +219,7 @@ table.fixed.narrow{min-width:560px}
       <div class="field" id="fEthAreaW"><label for="fEthArea">Area</label><select id="fEthArea"></select></div>
       <div class="field" id="fEthStageW"><label for="fEthStage">Measure</label><select id="fEthStage"><option>Continuation</option><option>Completion</option><option>Attainment</option><option>Progression</option></select></div>
       <label class="check" id="fScanAppW"><input type="checkbox" id="fScanApp" checked> Include gaps that are already APP targets</label>
+      <label class="check" id="fPriSigW"><input type="checkbox" id="fPriSig"> Only count gaps significantly wider than the University's</label>
       <label class="check" id="fSmallW"><input type="checkbox" id="fSmall" checked> Hide areas where either group has fewer than 10 students</label>
     </div>
     <h2>Data</h2>
@@ -266,6 +280,17 @@ table.fixed.narrow{min-width:560px}
     <h3>Ethnicity over time</h3>
     <p>This page reads <code>ethnicity_outcomes_by_year.csv</code>, written by section 11 of the R script, as CSV or Excel. The first chart shows each group's rate. The second shows each group's gap to White students: White students' rate minus the group's rate, so a line above zero means the group's rate is lower.</p>
     <p><b>Each year</b> shows single years. <b>4-year rolling</b> combines each year with the three before it, so each point rests on four times as many students and moves less from year to year. Hollow markers show points with fewer than 10 students. Select a group's button to show or hide its line.</p>
+    <h3>Largest department gaps</h3>
+    <p>This page ranks departments within each faculty by their largest equity gap, to help choose departments for the reverse mentoring pilot.</p>
+    <ul>
+      <li>Each department's gap for each target uses the latest four years combined, adding up students across the years before working out the rates.</li>
+      <li>Each gap is compared with the University's gap for the same target over the same years. A positive difference means the department's gap is wider than the University's.</li>
+      <li>Targets for the same group of students are combined into one figure for that group, weighted by the number of students in the target group for each. The four BTEC targets become one BTEC figure, and the two free school meals targets one free school meals figure, so each group counts once alongside ethnicity and deprivation.</li>
+      <li>Departments are ranked by the group with the widest gap. The student mentor's background follows from that group.</li>
+      <li>A target is left out where either group has fewer than 20 students over the four years.</li>
+      <li><b>!</b> marks a gap that is wider than the University's by more than its 95% margin of error. For a combined group, the margin comes from the margins of each target, weighted in the same way.</li>
+    </ul>
+    <p>Small departments are more likely to top a list by chance, because their gaps move more. The option to count only significant gaps ranks departments on the gaps where the difference is larger than the margin of error.</p>
     <h3>Student numbers</h3>
     <p>Tables show the number of students in the target group and in the comparison group separately. For example, 27 BTEC and 16 A-level entrants.</p>
   </div>
@@ -368,7 +393,7 @@ function metrics(serIn,baseline,t){
 const byLevel=l=>Object.values(AREAS).filter(a=>a.level===l).sort((x,y)=>x.name.localeCompare(y.name));
 
 /* ---------- Which view: most recent year or 4-year aggregate ---------- */
-const state={page:'overview',fac:null,dept:null,prog:null,target:'PTS_1',level:'Department',rfac:'',hideSmall:true,open:null,sort:{k:'name',d:1},scanArea:'U',scanStage:'all',scanApp:true,ethArea:'U',ethStage:'Continuation',ethMode:'year',ethHide:{Unknown:true},ref:'m',modes:{},summary:{}};
+const state={page:'overview',fac:null,dept:null,prog:null,target:'PTS_1',level:'Department',rfac:'',hideSmall:true,open:null,sort:{k:'name',d:1},scanArea:'U',scanStage:'all',scanApp:true,ethArea:'U',ethStage:'Continuation',ethMode:'year',ethHide:{Unknown:true},ref:'m',modes:{},summary:{},priSig:false,priOpen:null};
 function defMode(){const p=state.page;if(p==='department'||p==='programme')return 'agg';if(p==='ranking'||p==='map')return state.level==='Faculty'?'latest':'agg';return 'latest'}
 const modeKey=()=>state.page==='ranking'||state.page==='map'?state.page+':'+state.level:state.page;
 const mode=()=>state.modes[modeKey()]||defMode();
@@ -692,6 +717,7 @@ const ICON='<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><
 function exportContext(){
   const t=TGm[state.target];
   if(state.page==='eth')return `${state.ethStage} by ethnicity · ${state.ethArea==='U'?'Middlesex University':FACm[state.ethArea].name} · ${state.ethMode==='year'?'each year':'4-year rolling'}`;
+  if(state.page==='pri')return `Largest department gaps · latest four years combined${state.priSig?' · significant gaps only':''}`;
   if(state.page==='scan')return `Other equity gaps · ${scanAreaName()} · latest four years combined`;
   if(state.page==='ranking'||state.page==='map')return `${t.id} · ${t.stage}: ${t.grp} vs ${t.cmp} · ${modeLabel()} by ${state.level.toLowerCase()}${state.rfac?' · '+FACm[state.rfac].name:''}`;
   const nm=state.page==='overview'?'Middlesex University':state.page==='faculty'?FACm[state.fac].name:state.page==='department'?state.dept:state.prog;
@@ -941,14 +967,83 @@ function ethPage(){
   return s;
 }
 
+/* ---------- Largest department gaps (reverse mentoring pilot) ---------- */
+// Targets grouped by the students they concern, so each group counts once
+const DEMOG=[
+ {k:'btec',l:'BTEC entrants',short:'BTEC',ids:['PTS_1','PTS_3','PTS_7','PTP_2'],mentor:'A student who entered with BTECs'},
+ {k:'fsm',l:'Free school meals',short:'Free school meals',ids:['PTS_2','PTS_5'],mentor:'A student who was eligible for free school meals'},
+ {k:'eth',l:'Ethnicity (ABMO)',short:'ABMO',ids:['PTS_4'],mentor:'An Asian, Black, mixed or other ethnicity student'},
+ {k:'imd',l:'Deprivation (IMD Q1-2)',short:'IMD Q1-2',ids:['PTS_6'],mentor:'A student from an IMD quintile 1 or 2 area'}];
+const PRI_MIN=20;   // students in each group over the four years
+// One target: the department's 4-year gap against the University's
+function priTarget(a,t){
+  const o=a.m[t.id].v.agg,u=AREAS.U.m[t.id].v.agg;
+  const ok=o.val!=null&&u.val!=null&&o.h!=null&&o.nT>=PRI_MIN&&o.nC>=PRI_MIN;
+  return {t,o,u,ok,ex:ok?o.val-u.val:null};
+}
+// One group of students: targets combined, weighted by target group headcount
+function priDemog(a,d){
+  const ts=d.ids.map(id=>priTarget(a,TGm[id])),use=ts.filter(x=>x.ok);
+  if(!use.length)return {d,ts,score:null,h:null,sig:false};
+  const W=use.reduce((s,x)=>s+x.o.nT,0);
+  const score=use.reduce((s,x)=>s+x.o.nT*x.ex,0)/W;
+  const h=Math.sqrt(use.reduce((s,x)=>s+(x.o.nT*x.o.h)**2,0))/W;
+  return {d,ts,score,h,sig:score-h>0};
+}
+function priDept(a){
+  const ds=DEMOG.map(d=>priDemog(a,d));
+  const pool=ds.filter(x=>x.score!=null&&(!state.priSig||x.sig));
+  const top=pool.length?pool.reduce((m,x)=>x.score>m.score?x:m):null;
+  return {a,ds,top,rep:ds.filter(x=>x.score!=null).length,wider:ds.filter(x=>x.score!=null&&x.score>=1).length};
+}
+const pm=v=>v==null?'–':(v>0?'+':'')+f1(v);
+const PBIN=['5+ pp narrower','2 to 5 narrower','1 to 2 narrower','Within 1 pp','1 to 2 wider','2 to 5 wider','5+ pp wider'];
+function priTip(a,x){
+  let s=`<b>${a.name}</b> · ${x.d.l}<br>`;
+  s+=x.score==null?`Fewer than ${PRI_MIN} students in a group for every target`:`<b>${pm(x.score)} pp</b> ±${f1(x.h)} against the University${x.sig?' (significant)':''}`;
+  x.ts.forEach(y=>{s+=`<br>${y.t.id} ${y.t.stage}: `+(y.ok?`${f1(y.o.val)} pp vs University ${f1(y.u.val)} pp (${r0(y.o.nT)} ${y.t.grp}, ${r0(y.o.nC)} ${y.t.cmp})`:`too few students (${r0(y.o.nT)} ${y.t.grp}, ${r0(y.o.nC)} ${y.t.cmp})`)});
+  return esc(s);
+}
+function priDetail(r){
+  let s=`<div class="scroll"><table style="font-size:12px"><thead><tr><th>Group</th><th>Target</th><th class="num">Department gap</th><th class="num">University gap</th><th class="num">Difference</th><th class="num">Margin ±</th><th class="num">Target group</th><th class="num">Comparison group</th></tr></thead><tbody>`;
+  r.ds.forEach(x=>x.ts.forEach((y,i)=>{
+    s+=`<tr><td>${i?'':`<b>${esc(x.d.l)}</b>`}</td><td>${y.t.id} · ${y.t.stage}<span class="uni" style="display:block">${esc(y.t.grp)} vs ${esc(y.t.cmp)}</span></td><td class="num">${f1(y.o.val)}</td><td class="num">${f1(y.u.val)}</td><td class="num"><b>${y.ok?pm(y.ex):'–'}</b></td><td class="num">${y.ok?f1(y.o.h):'–'}</td><td class="num"><span style="${y.o.nT<PRI_MIN?'color:#8A4DB6;font-weight:700':''}">${r0(y.o.nT)}</span></td><td class="num"><span style="${y.o.nC<PRI_MIN?'color:#8A4DB6;font-weight:700':''}">${r0(y.o.nC)}</span></td></tr>`}));
+  return s+`</tbody></table></div><p class="cap" style="margin:6px 0 0">Gaps in percentage points, latest four years combined. Headcounts are students over the four years; those below ${PRI_MIN} are shown in purple and left out of the ranking.</p>`;
+}
+function priTable(fac){
+  const rows=areaList('Department',fac).map(priDept);
+  if(!rows.length)return '<p class="empty">No departments in this faculty.</p>';
+  rows.sort((x,y)=>x.top&&y.top?y.top.score-x.top.score:x.top?-1:y.top?1:x.a.name.localeCompare(y.a.name));
+  let s=`<div class="scroll"><table class="rank fixed pri"><colgroup><col style="width:5%"><col style="width:18%"><col style="width:15%"><col style="width:18%">${DEMOG.map(()=>'<col style="width:8.5%">').join('')}<col style="width:10%"></colgroup><thead><tr><th class="ctr">Rank</th><th>Department</th><th>Largest gap</th><th>Student mentor to pair with</th>${DEMOG.map(d=>`<th class="ctr">${esc(d.short)}<small class="uni" style="display:block">${d.ids.length} target${d.ids.length>1?'s':''}</small></th>`).join('')}<th class="ctr">Wider than the University</th></tr></thead><tbody>`;
+  let rank=0;
+  rows.forEach(r=>{const a=r.a,open=state.priOpen===a.key,t=r.top;
+    s+=`<tr class="prow${open?' open':''}" tabindex="0" data-pri="${esc(a.key)}" aria-expanded="${open}"><td class="rk">${t?++rank:'–'}</td><td class="an">${areaName(a)}</td>`;
+    s+=t?`<td class="lg"><b>${esc(t.d.l)}</b>${pm(t.score)} pp${t.sig?' !':''}<small class="yr">±${f1(t.h)} pp margin of error</small></td><td>${esc(t.d.mentor)}</td>`
+        :`<td colspan="2" class="uni" style="white-space:normal">${r.rep?'No gap significantly wider than the University’s':`Fewer than ${PRI_MIN} students in a group for every target`}</td>`;
+    r.ds.forEach(x=>{
+      if(x.score==null){s+=`<td class="hc hatch" data-tip="${priTip(a,x)}">n&lt;${PRI_MIN}</td>`;return}
+      const bb=bin(x.score);s+=`<td class="hc${t===x?' top':''}" style="background:${bb[2]};color:${bb[3]}" data-tip="${priTip(a,x)}">${pm(x.score)}${x.sig?' !':''}</td>`});
+    s+=`<td class="ctr">${r.rep?`${r.wider} of ${r.rep}<small class="yr" style="white-space:normal">groups, by 1 pp or more</small>`:'–'}</td></tr>`;
+    s+=open?`<tr class="detail"><td colspan="${5+DEMOG.length}">${priDetail(r)}</td></tr>`:'';
+  });
+  return s+`</tbody></table></div><div class="legend" style="margin-top:8px">Department gap minus the University gap, latest four years combined:${BINS.map((b,i)=>`<span><i class="sw" style="background:${b[2]}"></i>${PBIN[i]}</span>`).join('')}<span><i class="sw hatch" style="border:1px solid #ccc"></i>Fewer than ${PRI_MIN} students in a group</span><span><b>!</b> significantly wider</span><span><i class="sw" style="outline:2px solid var(--tick);outline-offset:-2px;background:#fff"></i>largest gap</span></div>`;
+}
+function priPage(){
+  const u=AREAS.U,yrs=TG[0].years;
+  let s=`<div class="method"><p>Departments are ranked within each faculty by their widest equity gap, to help choose departments for the reverse mentoring pilot. Each gap uses the latest four years combined (${yrs[3]} to ${yrs[6]} for continuation, and the equivalent four years for the other measures) and is compared with the University's gap for the same target. A positive number means the department's gap is wider than the University's.</p><p>Targets for the same group of students are combined, weighted by the number of students in each, so BTEC and free school meals count once each alongside ethnicity and deprivation. Targets where either group has fewer than ${PRI_MIN} students over the four years are left out. Small departments can top a list by chance, so check the margin of error and the <b>!</b> marker before approaching a department. Select a row to see each target.</p></div>`;
+  const facs=state.rfac?[FACm[state.rfac]]:FAC;
+  facs.forEach(f=>{s+=`<section class="panel"><h3>${esc(f.name)}</h3><p class="cap">Departments ranked by their largest gap against the University${state.priSig?', counting only gaps significantly wider than the University’s':''}. Hover over a cell for each target's figures.</p>${priTable(f.code)}</section>`});
+  return s;
+}
+
 /* ---------- Render ---------- */
 
 
-const TITLES={overview:['APP EQUITY GAPS 2026','University progress against Access and Participation Plan targets'],faculty:['FACULTY VIEW',''],department:['DEPARTMENT VIEW',''],programme:['PROGRAMME VIEW',''],ranking:['TARGET BY AREA','How each area stands against one APP target'],scan:['OTHER EQUITY GAPS','Gaps for every demographic group, beyond the formal APP targets'],eth:['ETHNICITY OVER TIME','Rates and gaps to White students for every ethnic group'],map:['PROGRESS MAP','Distance from the milestone against change since the baseline']};
-const SHOW={overview:[],faculty:['fFacW'],department:['fFacW','fDeptW'],programme:['fFacW','fDeptW','fProgW'],ranking:['fTargetW','fLevelW','fFacW','fSmallW'],map:['fTargetW','fLevelW','fRefW','fFacW'],scan:['fScanAreaW','fScanStageW','fScanAppW'],eth:['fEthAreaW','fEthStageW']};
+const TITLES={overview:['APP EQUITY GAPS 2026','University progress against Access and Participation Plan targets'],faculty:['FACULTY VIEW',''],department:['DEPARTMENT VIEW',''],programme:['PROGRAMME VIEW',''],ranking:['TARGET BY AREA','How each area stands against one APP target'],scan:['OTHER EQUITY GAPS','Gaps for every demographic group, beyond the formal APP targets'],eth:['ETHNICITY OVER TIME','Rates and gaps to White students for every ethnic group'],map:['PROGRESS MAP','Distance from the milestone against change since the baseline'],pri:['LARGEST DEPARTMENT GAPS','Departments with the widest equity gaps, for the reverse mentoring pilot']};
+const SHOW={overview:[],faculty:['fFacW'],department:['fFacW','fDeptW'],programme:['fFacW','fDeptW','fProgW'],ranking:['fTargetW','fLevelW','fFacW','fSmallW'],map:['fTargetW','fLevelW','fRefW','fFacW'],scan:['fScanAreaW','fScanStageW','fScanAppW'],eth:['fEthAreaW','fEthStageW'],pri:['fFacW','fPriSigW']};
 const loaded=()=>!!AREAS.U;
 function fillSelects(){
-  const rankLike=state.page==='ranking'||state.page==='map';
+  const rankLike=state.page==='ranking'||state.page==='map'||state.page==='pri';
   if(!state.fac||!FACm[state.fac])state.fac=FAC[0].code;
   $('fFac').innerHTML=(rankLike?'<option value="">(All)</option>':'')+FAC.map(f=>`<option value="${esc(f.code)}">${esc(f.name)}</option>`).join('');
   $('fFac').value=rankLike?state.rfac:state.fac;
@@ -956,12 +1051,12 @@ function fillSelects(){
   $('fDept').innerHTML=depts.length?depts.map(d=>`<option>${esc(d)}</option>`).join(''):'<option value="">(none)</option>';$('fDept').value=state.dept||'';
   const ps=PROGS[state.dept]||[];if(!ps.includes(state.prog))state.prog=ps[0]||null;
   $('fProg').innerHTML=ps.length?ps.map(p=>`<option>${esc(p)}</option>`).join(''):'<option value="">(none in this file)</option>';$('fProg').value=state.prog||'';
-  $('fTarget').value=state.target;$('fLevel').value=state.level;$('fSmall').checked=state.hideSmall;$('fRef').value=state.ref;
+  $('fTarget').value=state.target;$('fLevel').value=state.level;$('fSmall').checked=state.hideSmall;$('fPriSig').checked=state.priSig;$('fRef').value=state.ref;
 }
 function render(){
   fillSelects();
   document.querySelectorAll('.nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.page===state.page?'page':'false'));
-  ['fTargetW','fLevelW','fRefW','fFacW','fDeptW','fProgW','fSmallW','fScanAreaW','fScanStageW','fScanAppW','fEthAreaW','fEthStageW'].forEach(id=>$(id).hidden=!(state.page==='scan'?SCAN:state.page==='eth'?ETH:loaded())||!SHOW[state.page].includes(id));
+  ['fTargetW','fLevelW','fRefW','fFacW','fDeptW','fProgW','fSmallW','fPriSigW','fScanAreaW','fScanStageW','fScanAppW','fEthAreaW','fEthStageW'].forEach(id=>$(id).hidden=!(state.page==='scan'?SCAN:state.page==='eth'?ETH:loaded())||!SHOW[state.page].includes(id));
   $('fHead').hidden=!(state.page==='scan'?SCAN:state.page==='eth'?ETH:loaded())||!SHOW[state.page].length;
   $('fEthArea').innerHTML='<option value="U">Middlesex University</option>'+FAC.map(f=>`<option value="${esc(f.code)}">${esc(f.name)}</option>`).join('');$('fEthArea').value=state.ethArea;$('fEthStage').value=state.ethStage;
   $('fScanArea').innerHTML='<option value="U">Middlesex University</option>'+FAC.map(f=>`<option value="${esc(f.code)}">${esc(f.name)}</option>`).join('');$('fScanArea').value=state.scanArea;$('fScanStage').value=state.scanStage;$('fScanApp').checked=state.scanApp;
@@ -983,6 +1078,7 @@ function render(){
   if(state.page==='programme')h=state.prog?areaPage(AREAS['P:'+state.prog]):`<p class="empty">There are no programme results in this file. Rerun app_equity_gaps.R (it groups programmes by coursetitle) and load the new equity_gaps_all_levels_long.csv.</p>`;
   if(state.page==='ranking')h=rankingPage();
   if(state.page==='map')h=mapPage();
+  if(state.page==='pri')h=priPage();
   if(state.page==='scan'){view.innerHTML=scanPage();addExportButtons();return}
   view.innerHTML=h;
   addExportButtons();
@@ -998,13 +1094,14 @@ function goArea(key){const a=AREAS[key];if(!a)return;
 /* ---------- Events ---------- */
 $('fTarget').innerHTML=TG.map(t=>`<option value="${t.id}">${t.id} · ${t.stage} · ${esc(t.hd)}</option>`).join('');
 document.querySelectorAll('.nav button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.page)));
-$('fFac').addEventListener('change',e=>{if(state.page==='ranking'||state.page==='map')state.rfac=e.target.value;else{state.fac=e.target.value;state.dept=null;state.prog=null}state.open=null;render()});
+$('fFac').addEventListener('change',e=>{if(state.page==='ranking'||state.page==='map'||state.page==='pri')state.rfac=e.target.value;else{state.fac=e.target.value;state.dept=null;state.prog=null}state.open=null;render()});
 $('fDept').addEventListener('change',e=>{state.dept=e.target.value;state.prog=null;state.open=null;render()});
 $('fProg').addEventListener('change',e=>{state.prog=e.target.value;state.open=null;render()});
 $('fTarget').addEventListener('change',e=>{state.target=e.target.value;render()});
 $('fLevel').addEventListener('change',e=>{state.level=e.target.value;render()});
 $('fRef').addEventListener('change',e=>{state.ref=e.target.value;render()});
 $('fSmall').addEventListener('change',e=>{state.hideSmall=e.target.checked;render()});
+$('fPriSig').addEventListener('change',e=>{state.priSig=e.target.checked;render()});
 $('fScanArea').addEventListener('change',e=>{state.scanArea=e.target.value;render()});
 $('fEthArea').addEventListener('change',e=>{state.ethArea=e.target.value;render()});
 $('fEthStage').addEventListener('change',e=>{state.ethStage=e.target.value;render()});
@@ -1033,11 +1130,12 @@ function act(e){
     try{navigator.clipboard.writeText(txt).then(()=>{note.textContent='Copied.'},sel)}catch(err){sel()}return true}
   const md=e.target.closest('[data-mode]');if(md){state.modes[modeKey()]=md.dataset.mode;render();return true}
   const g=e.target.closest('[data-go]');if(g){goArea(g.dataset.go);return true}
+  const pr=e.target.closest('tr[data-pri]');if(pr){state.priOpen=state.priOpen===pr.dataset.pri?null:pr.dataset.pri;render();return true}
   const s=e.target.closest('[data-sort]');if(s){const k=s.dataset.sort;state.sort=state.sort.k===k?{k,d:-state.sort.d}:{k,d:k==='name'?1:-1};render();return true}
   const o=e.target.closest('tr[data-open]');if(o){state.open=state.open===o.dataset.open?null:o.dataset.open;render();return true}
   return false}
 view.addEventListener('click',act);
-view.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('tr[data-open],th[data-sort]')){e.preventDefault();act(e)}});
+view.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('tr[data-open],tr[data-pri],th[data-sort]')){e.preventDefault();act(e)}});
 const tip=$('tip');
 document.addEventListener('mousemove',e=>{const el=e.target.closest&&e.target.closest('[data-tip]');
   if(!el){tip.hidden=true;return}
