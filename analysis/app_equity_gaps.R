@@ -10,7 +10,8 @@
 #      and whether each area is meeting the APP milestones
 #
 # Population: full-time, UK-domiciled undergraduates registered at Middlesex
-# (app_exclusion_reason = 0). First degree only by default; the check in
+# (app_exclusion_reason = 0). Set chosen_mode to "APPR" in section 0 to run the
+# same analyses for apprentices. First degree only by default; the check in
 # section 6 also runs first degree plus integrated masters for comparison.
 #
 # Rebuild rules follow the OfS guidance, "Rebuilding student outcome and
@@ -39,7 +40,19 @@ library(readr)
 data_dir  <- "C:/Users/David278/OneDrive - Middlesex University/APP Framework/Data/Indivisualised data for regression"
 data_file <- file.path(data_dir, "IND_2026_1_Core_10004351 - Tableau.xlsx")
 rds_file  <- file.path(data_dir, "IND_2026_1_Core_10004351.rds")   # fast copy, made on first run
-out_dir   <- file.path(data_dir, "outputs", "equity_gaps")
+
+# Mode of study (linked_engagement_starting_mode). "FT" is the APP population.
+# "APPR" runs the same analyses for apprentices, which the OfS measures with
+# the same rules as full-time students (continuation after 1 year, completion
+# after 4 years). Part-time uses different follow-up periods, so it is not
+# offered here. The APP targets and milestones were set for full-time students,
+# so for apprentices the target pages are a reference point only.
+chosen_mode <- "FT"     # "FT" or "APPR"
+if (!chosen_mode %in% c("FT", "APPR")) stop("chosen_mode must be \"FT\" or \"APPR\"")
+
+# Apprenticeship outputs go to their own folder, so the full-time files are kept
+out_dir   <- file.path(data_dir, "outputs",
+                       if (chosen_mode == "FT") "equity_gaps" else paste0("equity_gaps_", chosen_mode))
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
 mdx_ukprn <- 10004351
@@ -47,8 +60,11 @@ small_n   <- 10     # flag any gap where either group has fewer students than th
 
 level_options <- list(
   "First degree"                        = "DEG",
-  "First degree and integrated masters" = c("DEG", "PUGD"))
-chosen_level <- "First degree"   # used for the faculty, department and programme exports
+  "First degree and integrated masters" = c("DEG", "PUGD"),
+  "All undergraduate"                   = c("DEG", "PUGD", "OUG"))
+# Used for the faculty, department and programme exports. For apprentices,
+# "All undergraduate" keeps more students in each group, since numbers are small.
+chosen_level <- "First degree"
 
 # ---- 1. Import -------------------------------------------------------------------
 # Uses, in order: raw already in memory (e.g. from the continuation script),
@@ -91,7 +107,7 @@ base <- raw %>%
          across(all_of(chr_cols), as.character)) %>%
   filter(registering_ukprn == mdx_ukprn,
          app_exclusion_reason == 0,
-         linked_engagement_starting_mode == "FT") %>%
+         linked_engagement_starting_mode == chosen_mode) %>%
   mutate(
     # Entry qualifications (Annex B codes). A-level is codes 1 to 4, as in the
     # BTEC analyses workbook.
