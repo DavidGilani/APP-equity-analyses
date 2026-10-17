@@ -768,7 +768,10 @@ function addExportButtons(){
   view.querySelectorAll('section.panel').forEach(p=>{const d=document.createElement('div');d.className='exp';d.setAttribute('data-html2canvas-ignore','');
     d.innerHTML=`<button class="expbtn" aria-label="Download this panel" title="Download as image or PDF">${ICON}</button><div class="expmenu" hidden><button data-exp="png">Download image (PNG)</button><button data-exp="pdf">Download PDF</button>${p.dataset.xlsx?'<button data-exp="xlsx">Download Excel (XLSX)</button>':''}<small class="expnote"></small></div>`;p.appendChild(d)});
 }
-const slug=s=>s.replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,90);
+// Download names read like 'Science and Technology - Department snapshot - Most recent year'.
+// Only characters that Windows does not allow in file names are taken out.
+const fileName=parts=>parts.filter(Boolean).join(' - ').replace(/\s*·\s*/g,' - ').replace(/[\\/:*?"<>|]+/g,' ').replace(/\s+/g,' ').trim().slice(0,150);
+const sentence=t=>t?t.charAt(0)+t.slice(1).toLowerCase():'';
 async function exportPanel(panel,fmt,note){
   if(!window.html2canvas||(fmt==='pdf'&&!window.jspdf)){note.textContent='Downloads need an internet connection to load. Check you are online and reopen the page.';return}
   note.textContent='Preparing…';
@@ -793,7 +796,8 @@ async function exportPanel(panel,fmt,note){
     const mainT=tables.sort((a,b)=>b.getBoundingClientRect().height-a.getBoundingClientRect().height)[0];
     let hd=null;if(mainT){const r=mainT.tHead.getBoundingClientRect(),l=mainT.getBoundingClientRect();hd={y:Math.round((r.top-top)*S),h:Math.round(r.height*S),end:Math.round((l.bottom-top)*S),x:Math.round((l.left-wrap.getBoundingClientRect().left)*S),w:Math.round(l.width*S)}}
     const cv=await html2canvas(wrap,{scale:S,backgroundColor:'#ffffff',logging:false});
-    const name=slug(head+' '+title);
+    const [area,...view]=head.split(' · ');
+    const name=fileName([area,sentence(title),...view]);
     if(fmt==='png'){const a=document.createElement('a');a.href=cv.toDataURL('image/png');a.download=name+'.png';document.body.appendChild(a);a.click();a.remove()}
     else{
       const {jsPDF}=window.jspdf;const land=cv.width>cv.height*0.9;
@@ -847,7 +851,7 @@ function exportXlsx(note){
     ['Gap','Comparator rate minus target group rate. A positive gap means the target group does worse.']]);
   about['!cols']=[{wch:20},{wch:110}];
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Students affected');XLSX.utils.book_append_sheet(wb,about,'About');
-  XLSX.writeFile(wb,slug(PRIO.fac+' '+modeLabel()+' students affected')+'.xlsx');
+  XLSX.writeFile(wb,fileName([PRIO.fac,'Students affected',modeLabel()])+'.xlsx');
   note.textContent='Downloaded.';
   setTimeout(()=>{const m=note.closest('.expmenu');if(m){m.hidden=true;note.textContent=''}},1500);
 }
