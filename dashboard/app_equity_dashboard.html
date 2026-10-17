@@ -373,7 +373,7 @@ function metrics(serIn,baseline,t){
 const byLevel=l=>Object.values(AREAS).filter(a=>a.level===l).sort((x,y)=>x.name.localeCompare(y.name));
 
 /* ---------- Which view: most recent year or 4-year aggregate ---------- */
-const state={page:'overview',fac:null,dept:null,prog:null,target:'PTS_1',level:'Department',rfac:'',hideSmall:true,open:null,sort:{k:'name',d:1},scanArea:'U',scanStage:'all',scanApp:true,ethArea:'U',ethStage:'Continuation',ethMode:'year',ethHide:{Unknown:true},showN:false,fbHide:{},fbHideT:{},ref:'m',modes:{},summary:{}};
+const state={page:'overview',fac:null,dept:null,prog:null,target:'PTS_1',level:'Department',rfac:'',hideSmall:true,open:null,sort:{k:'name',d:1},scanArea:'U',scanStage:'all',scanApp:true,ethArea:'U',ethStage:'Continuation',ethMode:'year',ethHide:{Unknown:true},showN:false,fbHide:{},fbHideT:{},fbScale:'log',fbLab:'all',ref:'m',modes:{},summary:{}};
 function defMode(){const p=state.page;if(p==='department'||p==='programme')return 'agg';if(p==='ranking'||p==='map')return state.level==='Faculty'?'latest':'agg';return 'latest'}
 const modeKey=()=>state.page==='ranking'||state.page==='map'?state.page+':'+state.level:state.page;
 const mode=()=>state.modes[modeKey()]||defMode();
@@ -702,24 +702,32 @@ function priorityPanels(fac){
   const shown=depts.filter(a=>!state.fbHide[a.name]);
   const rows=[];shown.forEach(a=>TG.filter(t=>!state.fbHideT[t.id]).forEach(t=>{const o=cur(a.m[t.id]);if(o.val!=null&&!o.small)rows.push({a,t,o})}));
   const pts=rows.filter(r=>r.o.baseline!=null).map(r=>({...r,x:r.t.cur-r.o.val,y:r.o.baseline-r.o.val}));
-  const w=820,h=500,l=58,r=20,tp=20,b=48;
+  const w=820,h=580,l=58,r=20,tp=20,b=48,lg=state.fbScale==='log';
+  // Stretched scale: a symmetric log (sign × log(1 + |v|/2)), which spreads out results near zero.
+  // Gridlines keep their true values.
+  const tf=v=>lg?Math.sign(v)*Math.log1p(Math.abs(v)/2):v;
   const xr=Math.max(5,...pts.map(p=>Math.abs(p.x)))*1.15,yr=Math.max(5,...pts.map(p=>Math.abs(p.y)))*1.12;
-  const X=v=>l+(v+xr)/(2*xr)*(w-l-r),Y=v=>tp+(yr-v)/(2*yr)*(h-tp-b);
+  // Extra room at the edges on the stretched scale, so the outermost bubbles clear the corner labels
+  const TX=tf(xr)*(lg?1.12:1),TY=tf(yr)*(lg?1.14:1);
+  const X=v=>l+(tf(v)+TX)/(2*TX)*(w-l-r),Y=v=>tp+(TY-tf(v))/(2*TY)*(h-tp-b);
   const maxN=Math.max(1,...pts.map(p=>p.o.nT)),k=22/Math.sqrt(maxN),rad=n=>clamp(Math.sqrt(n)*k,3.5,22);
   let s=`<svg viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="Faculty priorities map">`;
   s+=`<rect x="${X(0)}" y="${tp}" width="${w-r-X(0)}" height="${Y(0)-tp}" fill="#6A9E9F" fill-opacity=".1"/><rect x="${l}" y="${Y(0)}" width="${X(0)-l}" height="${h-b-Y(0)}" fill="#8A4DB6" fill-opacity=".08"/>`;
   const ticks=rng=>{const st=rng>40?20:rng>20?10:rng>8?5:2;const o=[];for(let v=-Math.floor(rng/st)*st;v<=rng;v+=st)o.push(v);return o};
-  ticks(xr).forEach(v=>s+=`<line x1="${X(v)}" x2="${X(v)}" y1="${tp}" y2="${h-b}" stroke="${v===0?'#9A95AA':'#E2E0E8'}" ${v===0?'stroke-dasharray="3 3"':''}/><text x="${X(v)}" y="${h-b+16}" font-size="11" text-anchor="middle" fill="#77728A">${v>0?'+':''}${v}</text>`);
-  ticks(yr).forEach(v=>s+=`<line x1="${l}" x2="${w-r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${v===0?'#9A95AA':'#E2E0E8'}" ${v===0?'stroke-dasharray="3 3"':''}/><text x="${l-8}" y="${Y(v)+4}" font-size="11" text-anchor="end" fill="#77728A">${v>0?'+':''}${v}</text>`);
-  s+=`<text x="${(l+w-r)/2}" y="${h-8}" font-size="12" text-anchor="middle" fill="#4A4560">Gap below the ${CURL} (pp) · right is better</text>`;
-  s+=`<text transform="translate(14 ${(tp+h-b)/2}) rotate(-90)" font-size="12" text-anchor="middle" fill="#4A4560">Gap narrowed since baseline (pp) · up is better</text>`;
+  const lticks=rng=>{const o=[0];[2,5,10,20,40,80].filter(v=>v<=rng).forEach(v=>o.push(v,-v));return o};
+  const tk=lg?lticks:ticks;
+  tk(xr).forEach(v=>s+=`<line x1="${X(v)}" x2="${X(v)}" y1="${tp}" y2="${h-b}" stroke="${v===0?'#9A95AA':'#E2E0E8'}" ${v===0?'stroke-dasharray="3 3"':''}/><text x="${X(v)}" y="${h-b+16}" font-size="11" text-anchor="middle" fill="#77728A">${v>0?'+':''}${v}</text>`);
+  tk(yr).forEach(v=>s+=`<line x1="${l}" x2="${w-r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${v===0?'#9A95AA':'#E2E0E8'}" ${v===0?'stroke-dasharray="3 3"':''}/><text x="${l-8}" y="${Y(v)+4}" font-size="11" text-anchor="end" fill="#77728A">${v>0?'+':''}${v}</text>`);
+  s+=`<text x="${(l+w-r)/2}" y="${h-8}" font-size="12" text-anchor="middle" fill="#4A4560">Gap below the ${CURL} (pp) · right is better${lg?' · stretched near zero':''}</text>`;
+  s+=`<text transform="translate(14 ${(tp+h-b)/2}) rotate(-90)" font-size="12" text-anchor="middle" fill="#4A4560">Gap narrowed since baseline (pp) · up is better${lg?' · stretched near zero':''}</text>`;
   s+=`<text x="${w-r-8}" y="${tp+16}" font-size="12" text-anchor="end" fill="#2F6E70" font-weight="600">Ahead and narrowing</text><text x="${l+8}" y="${tp+16}" font-size="12" fill="#4A4560" font-weight="600">Behind, but narrowing</text><text x="${w-r-8}" y="${h-b-10}" font-size="12" text-anchor="end" fill="#4A4560" font-weight="600">Ahead, but widening</text><text x="${l+8}" y="${h-b-10}" font-size="12" fill="#6B3596" font-weight="600">Behind and widening</text>`;
   // Largest bubbles first, so smaller ones stay on top and can be selected
   pts.sort((p,q)=>q.o.nT-p.o.nT).forEach(p=>{const c=col[p.a.name],rr=rad(p.o.nT),sb=p.o.sig==='sigBehind';
     s+=`<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="${rr}" fill="${c}" fill-opacity=".6" stroke="${sb?'#2A2148':'#fff'}" stroke-width="${sb?2.5:1.5}" data-tip="${tipArea(p.a,p.t,p.o)}" data-go="${esc(p.a.key)}" style="cursor:pointer"/>`});
   // Labels: results behind the milestone first, then by size; a label is left off if it would overlap another
-  const boxes=[],hit=(a,b)=>a.x1<b.x2&&b.x1<a.x2&&a.y1<b.y2&&b.y1<a.y2;let unl=0;
-  pts.slice().sort((p,q)=>(affected(q.o)||0)-(affected(p.o)||0)||q.o.nT-p.o.nT).forEach(p=>{
+  // The four corner labels count as taken space
+  const boxes=[{x1:w-r-190,y1:tp,x2:w-r,y2:tp+22},{x1:l,y1:tp,x2:l+190,y2:tp+22},{x1:w-r-190,y1:h-b-26,x2:w-r,y2:h-b},{x1:l,y1:h-b-26,x2:l+190,y2:h-b}],hit=(a,b)=>a.x1<b.x2&&b.x1<a.x2&&a.y1<b.y2&&b.y1<a.y2;let unl=0;
+  pts.filter(p=>state.fbLab==='all'||p.x<0).sort((p,q)=>(affected(q.o)||0)-(affected(p.o)||0)||q.o.nT-p.o.nT).forEach(p=>{
     const rr=rad(p.o.nT),cx=X(p.x),cy=Y(p.y),txt=SHORT[p.t.id]+(p.o.sig==='sigBehind'?' !':''),tw=txt.length*6.1,th=12;
     const opts=[[cx+rr+3,cy-th/2,'start'],[cx-rr-3-tw,cy-th/2,'end'],[cx-tw/2,cy-rr-3-th,'middle'],[cx-tw/2,cy+rr+3,'middle']];
     const pick=opts.map(([x,y,an])=>({x1:x,y1:y,x2:x+tw,y2:y+th,an})).find(bx=>bx.x1>=l&&bx.x2<=w-r&&bx.y1>=tp&&bx.y2<=h-b&&!boxes.some(o=>hit(o,bx)));
@@ -734,7 +742,7 @@ function priorityPanels(fac){
   const leg=`<div class="legend fbleg" role="group" aria-label="Show or hide departments" style="margin-bottom:6px">${depts.map(a=>`<button data-fbd="${esc(a.name)}" aria-pressed="${!state.fbHide[a.name]}"><span class="chip" style="background:${col[a.name]};margin:0"></span>${esc(a.name)}</button>`).join('')}</div><div class="legend fbleg" role="group" aria-label="Show or hide targets" style="margin-bottom:6px">${TG.map(t=>`<button data-fbt="${t.id}" aria-pressed="${!state.fbHideT[t.id]}" title="${esc(t.id+' '+t.stage+', '+t.grp+' vs '+t.cmp)}">${SHORT[t.id]}</button>`).join('')}</div>`;
   const labs=`<div class="legend" style="margin-top:6px">${TG.map(t=>`<span><b>${SHORT[t.id]}</b> ${t.id} ${t.stage.toLowerCase()}, ${esc(t.grp)} vs ${esc(t.cmp)}</span>`).join('')}<span><b>!</b> and dark outline: significantly behind the milestone</span><span>Bubble area: ${esc('target-group')} students ${mode()==='agg'?'across the four years':'in the most recent year'} ${key}</span></div>`;
   const excl=rows.length-pts.length;
-  let out=`<section class="panel"><h3>Department priorities map</h3><p class="cap">Every APP target for each department in ${esc(FACm[fac].name)}, ${modeLabel().toLowerCase()}. Each bubble is one department and one target. Select a department or target below to show or hide it, or a bubble to open that department.${excl?` ${excl} results with no baseline are not shown.`:''} Results with fewer than 10 students in a group are left out.</p>${leg}${pts.length?s:'<p class="empty">No results to show.</p>'}${unl?`<p class="cap" style="margin-top:4px">${unl} ${plural(unl,'label is','labels are')} left off where bubbles overlap. Hide some departments or targets to see them, or use the table below.</p>`:''}${labs}</section>`;
+  let out=`<section class="panel"><h3>Department priorities map</h3><p class="cap">Every APP target for each department in ${esc(FACm[fac].name)}, ${modeLabel().toLowerCase()}. Each bubble is one department and one target. Select a department or target below to show or hide it, or a bubble to open that department.${excl?` ${excl} results with no baseline are not shown.`:''} Results with fewer than 10 students in a group are left out.${lg?' The axes are stretched near zero so that close results spread out; the gridlines show the true values.':''}</p>${leg}<div class="toolbar" data-html2canvas-ignore style="margin:4px 0 6px"><span class="tlab">Scale</span><button data-fbscale="log" aria-pressed="${lg}">Stretched near zero</button><button data-fbscale="lin" aria-pressed="${!lg}">Even</button><span class="tlab" style="margin-left:14px">Labels</span><button data-fblab="all" aria-pressed="${state.fbLab==='all'}">All</button><button data-fblab="behind" aria-pressed="${state.fbLab==='behind'}">Behind milestone only</button></div>${pts.length?s:'<p class="empty">No results to show.</p>'}${unl?`<p class="cap" style="margin-top:4px">${unl} ${plural(unl,'label is','labels are')} left off where bubbles overlap. Hide some departments or targets to see them, or use the table below.</p>`:''}${labs}</section>`;
   // Table: where the gap is behind the milestone and affects most students
   const pr=rows.map(r=>({...r,aff:affected(r.o)})).filter(r=>r.aff>0).sort((p,q)=>q.aff-p.aff);
   out+=`<section class="panel"><h3>Students affected</h3><p class="cap">Results behind the ${CURL}, largest first. Students affected is the number of target-group students multiplied by the distance behind the milestone: roughly how many more of them would need a successful outcome for the gap to reach the milestone. ${mode()==='agg'?'Counts cover all four years combined.':'Counts are for the most recent year.'}</p>`;
@@ -1089,6 +1097,8 @@ function act(e){
     const sel=()=>{const r=document.createRange();r.selectNodeContents($('sumText'));const w=getSelection();w.removeAllRanges();w.addRange(r);note.textContent='Text selected. Press Ctrl+C to copy.'};
     try{navigator.clipboard.writeText(txt).then(()=>{note.textContent='Copied.'},sel)}catch(err){sel()}return true}
   if(e.target.closest('[data-shown]')){state.showN=!state.showN;render();return true}
+  const fsc=e.target.closest('[data-fbscale]');if(fsc){state.fbScale=fsc.dataset.fbscale;render();return true}
+  const flb=e.target.closest('[data-fblab]');if(flb){state.fbLab=flb.dataset.fblab;render();return true}
   const ft=e.target.closest('[data-fbt]');if(ft){const t=ft.dataset.fbt;state.fbHideT[t]=!state.fbHideT[t];render();return true}
   const fb=e.target.closest('[data-fbd]');if(fb){const d=fb.dataset.fbd;state.fbHide[d]=!state.fbHide[d];render();return true}
   const md=e.target.closest('[data-mode]');if(md){state.modes[modeKey()]=md.dataset.mode;render();return true}
