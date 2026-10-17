@@ -87,6 +87,11 @@ td{padding:6px 8px;vertical-align:middle}
 .heat td.nm button{all:unset;cursor:pointer;border-bottom:1px dotted var(--ink2)}
 .heat td.nm button:focus-visible{outline:2px solid var(--purple)}
 .heat td.c{text-align:center;font-weight:600;min-width:64px;border-radius:2px;cursor:default}
+.heat td.c small.hn{display:block;font-weight:400;font-size:11px;line-height:1.2;margin-top:1px;opacity:.92}
+.hnrow{display:flex;justify-content:flex-end;margin:-4px 0 6px}
+.fbleg button{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border:1px solid var(--line,#ddd);border-radius:999px}
+.fbleg button[aria-pressed="false"]{opacity:.4;text-decoration:line-through}
+.fbleg button:focus-visible{outline:2px solid var(--purple)}
 .hatch{background:repeating-linear-gradient(135deg,#fff 0 4px,#DDDAE3 4px 7px)!important;color:var(--muted)!important;font-weight:400!important}
 .rank td{padding:5px 6px}
 .rank tr:nth-child(odd){background:var(--row-alt)}
@@ -368,7 +373,7 @@ function metrics(serIn,baseline,t){
 const byLevel=l=>Object.values(AREAS).filter(a=>a.level===l).sort((x,y)=>x.name.localeCompare(y.name));
 
 /* ---------- Which view: most recent year or 4-year aggregate ---------- */
-const state={page:'overview',fac:null,dept:null,prog:null,target:'PTS_1',level:'Department',rfac:'',hideSmall:true,open:null,sort:{k:'name',d:1},scanArea:'U',scanStage:'all',scanApp:true,ethArea:'U',ethStage:'Continuation',ethMode:'year',ethHide:{Unknown:true},ref:'m',modes:{},summary:{}};
+const state={page:'overview',fac:null,dept:null,prog:null,target:'PTS_1',level:'Department',rfac:'',hideSmall:true,open:null,sort:{k:'name',d:1},scanArea:'U',scanStage:'all',scanApp:true,ethArea:'U',ethStage:'Continuation',ethMode:'year',ethHide:{Unknown:true},showN:false,fbHide:{},fbHideT:{},ref:'m',modes:{},summary:{}};
 function defMode(){const p=state.page;if(p==='department'||p==='programme')return 'agg';if(p==='ranking'||p==='map')return state.level==='Faculty'?'latest':'agg';return 'latest'}
 const modeKey=()=>state.page==='ranking'||state.page==='map'?state.page+':'+state.level:state.page;
 const mode=()=>state.modes[modeKey()]||defMode();
@@ -527,13 +532,14 @@ const BINS=[[-Infinity,-5,'#2F6E70','#fff','5+ pp ahead'],[-5,-2,'#6A9E9F','#fff
 const bin=v=>BINS.find(b=>v>=b[0]&&v<b[1])||BINS[3];
 function heat(list){
   if(!list.length)return '<p class="empty">No areas to show.</p>';
-  let s=`<div class="scroll"><table class="heat"><thead><tr><th style="text-align:left">Area</th>${TG.map(t=>`<th>${t.stage}<small>${t.hd}</small></th>`).join('')}</tr></thead><tbody>`;
+  const sn=state.showN,nn=o=>sn?`<small class="hn">${r0(o.nT)} · ${r0(o.nC)}</small>`:'';
+  let s=`<div class="hnrow" data-html2canvas-ignore><button class="btn2 ghost" data-shown aria-pressed="${sn}">${sn?'Hide':'Show'} student numbers</button></div><div class="scroll"><table class="heat"><thead><tr><th style="text-align:left">Area</th>${TG.map(t=>`<th>${t.stage}<small>${t.hd}</small></th>`).join('')}</tr></thead><tbody>`;
   list.forEach(a=>{s+=`<tr><td class="nm"><button data-go="${esc(a.key)}">${esc(a.name)}</button></td>`;
     TG.forEach(t=>{const o=cur(a.m[t.id]);
-      if(o.small){s+=`<td class="c hatch" data-tip="${tipArea(a,t,o)}">${o.val==null?'–':'n&lt;10'}</td>`;return}
-      const bb=bin(o.dist);s+=`<td class="c" style="background:${bb[2]};color:${bb[3]}" data-tip="${tipArea(a,t,o)}">${f1(o.val)}${o.sig==='sigBehind'?' !':''}</td>`});
+      if(o.small){s+=`<td class="c hatch" data-tip="${tipArea(a,t,o)}">${o.val==null?'–':'n&lt;10'}${o.val==null?'':nn(o)}</td>`;return}
+      const bb=bin(o.dist);s+=`<td class="c" style="background:${bb[2]};color:${bb[3]}" data-tip="${tipArea(a,t,o)}">${f1(o.val)}${o.sig==='sigBehind'?' !':''}${nn(o)}</td>`});
     s+='</tr>'});
-  return s+`</tbody></table></div><div class="legend" style="margin-top:8px">${modeLabel()} gap, coloured by distance from the ${CURL}:${BINS.map(b=>`<span><i class="sw" style="background:${b[2]}"></i>${b[4]}</span>`).join('')}<span><i class="sw hatch" style="border:1px solid #ccc"></i>Fewer than 10 students, or no result</span><span><b>!</b> significantly behind</span></div>`;
+  return s+`</tbody></table></div><div class="legend" style="margin-top:8px">${modeLabel()} gap, coloured by distance from the ${CURL}:${BINS.map(b=>`<span><i class="sw" style="background:${b[2]}"></i>${b[4]}</span>`).join('')}<span><i class="sw hatch" style="border:1px solid #ccc"></i>Fewer than 10 students, or no result</span><span><b>!</b> significantly behind</span>${sn?`<span>Small numbers under each gap: target group · comparator students (${mode()==='agg'?'all four years':'most recent year'})</span>`:''}</div>`;
 }
 
 /* ---------- Tiles ---------- */
@@ -683,6 +689,57 @@ function mapPage(){
   return toolbar()+`<div class="tiles"><div class="tile"><div class="lab">Ahead and narrowing</div><div class="val">${q(v=>v>=0,v=>v>=0)}</div></div><div class="tile"><div class="lab">Behind, but narrowing</div><div class="val">${q(v=>v<0,v=>v>=0)}</div></div><div class="tile"><div class="lab">Ahead, but widening</div><div class="val">${q(v=>v>=0,v=>v<0)}</div></div><div class="tile"><div class="lab">Behind and widening</div><div class="val">${q(v=>v<0,v=>v<0)}</div></div></div>
   <section class="panel"><h3>Progress map</h3><p class="cap">${t.id} · ${t.stage}: ${t.grp} vs ${t.cmp}, ${modeLabel().toLowerCase()}. Bubble area shows the number of ${esc(t.grp)} students. Select a bubble to open that area.${excl?` ${excl} ${state.level.toLowerCase()}s with fewer than 10 students in a group, or no baseline, are not shown.`:''}</p>
   <div class="legend" style="margin-bottom:6px"><span><i class="sw" style="background:${COL.sigAhead};border-radius:50%"></i>Significantly ahead of the ${refL}</span><span><i class="sw" style="background:${COL.ns};border-radius:50%"></i>Not significant</span><span><i class="sw" style="background:${COL.sigBehind};border-radius:50%"></i>Significantly behind</span></div>${pts.length?s:'<p class="empty">No areas to show.</p>'}</section>`;
+}
+/* ---------- Faculty priorities: every department and target on one chart ---------- */
+const DPAL=['#2F6BC0','#C2513C','#1F8A6A','#B8901F','#8A4DB6','#D96F83','#3A9BB0','#5B5470'];
+const SHORT={PTS_1:'Cont BTEC',PTS_2:'Comp FSM',PTS_3:'Comp BTEC',PTS_4:'Att ABMO',PTS_5:'Att FSM',PTS_6:'Att IMD',PTS_7:'Att BTEC',PTP_2:'Prog BTEC'};
+// Target-group students who would need a different outcome for the gap to reach the milestone
+const affected=o=>o.small||o.dist==null?null:Math.max(0,o.dist)*o.nT/100;
+function priorityPanels(fac){
+  const depts=byLevel('Department').filter(a=>a.fac===fac);
+  if(!depts.length)return '';
+  const col=Object.fromEntries(depts.map((a,i)=>[a.name,DPAL[i%DPAL.length]]));
+  const shown=depts.filter(a=>!state.fbHide[a.name]);
+  const rows=[];shown.forEach(a=>TG.filter(t=>!state.fbHideT[t.id]).forEach(t=>{const o=cur(a.m[t.id]);if(o.val!=null&&!o.small)rows.push({a,t,o})}));
+  const pts=rows.filter(r=>r.o.baseline!=null).map(r=>({...r,x:r.t.cur-r.o.val,y:r.o.baseline-r.o.val}));
+  const w=820,h=500,l=58,r=20,tp=20,b=48;
+  const xr=Math.max(5,...pts.map(p=>Math.abs(p.x)))*1.15,yr=Math.max(5,...pts.map(p=>Math.abs(p.y)))*1.12;
+  const X=v=>l+(v+xr)/(2*xr)*(w-l-r),Y=v=>tp+(yr-v)/(2*yr)*(h-tp-b);
+  const maxN=Math.max(1,...pts.map(p=>p.o.nT)),k=22/Math.sqrt(maxN),rad=n=>clamp(Math.sqrt(n)*k,3.5,22);
+  let s=`<svg viewBox="0 0 ${w} ${h}" width="100%" role="img" aria-label="Faculty priorities map">`;
+  s+=`<rect x="${X(0)}" y="${tp}" width="${w-r-X(0)}" height="${Y(0)-tp}" fill="#6A9E9F" fill-opacity=".1"/><rect x="${l}" y="${Y(0)}" width="${X(0)-l}" height="${h-b-Y(0)}" fill="#8A4DB6" fill-opacity=".08"/>`;
+  const ticks=rng=>{const st=rng>40?20:rng>20?10:rng>8?5:2;const o=[];for(let v=-Math.floor(rng/st)*st;v<=rng;v+=st)o.push(v);return o};
+  ticks(xr).forEach(v=>s+=`<line x1="${X(v)}" x2="${X(v)}" y1="${tp}" y2="${h-b}" stroke="${v===0?'#9A95AA':'#E2E0E8'}" ${v===0?'stroke-dasharray="3 3"':''}/><text x="${X(v)}" y="${h-b+16}" font-size="11" text-anchor="middle" fill="#77728A">${v>0?'+':''}${v}</text>`);
+  ticks(yr).forEach(v=>s+=`<line x1="${l}" x2="${w-r}" y1="${Y(v)}" y2="${Y(v)}" stroke="${v===0?'#9A95AA':'#E2E0E8'}" ${v===0?'stroke-dasharray="3 3"':''}/><text x="${l-8}" y="${Y(v)+4}" font-size="11" text-anchor="end" fill="#77728A">${v>0?'+':''}${v}</text>`);
+  s+=`<text x="${(l+w-r)/2}" y="${h-8}" font-size="12" text-anchor="middle" fill="#4A4560">Gap below the ${CURL} (pp) · right is better</text>`;
+  s+=`<text transform="translate(14 ${(tp+h-b)/2}) rotate(-90)" font-size="12" text-anchor="middle" fill="#4A4560">Gap narrowed since baseline (pp) · up is better</text>`;
+  s+=`<text x="${w-r-8}" y="${tp+16}" font-size="12" text-anchor="end" fill="#2F6E70" font-weight="600">Ahead and narrowing</text><text x="${l+8}" y="${tp+16}" font-size="12" fill="#4A4560" font-weight="600">Behind, but narrowing</text><text x="${w-r-8}" y="${h-b-10}" font-size="12" text-anchor="end" fill="#4A4560" font-weight="600">Ahead, but widening</text><text x="${l+8}" y="${h-b-10}" font-size="12" fill="#6B3596" font-weight="600">Behind and widening</text>`;
+  // Largest bubbles first, so smaller ones stay on top and can be selected
+  pts.sort((p,q)=>q.o.nT-p.o.nT).forEach(p=>{const c=col[p.a.name],rr=rad(p.o.nT),sb=p.o.sig==='sigBehind';
+    s+=`<circle cx="${X(p.x)}" cy="${Y(p.y)}" r="${rr}" fill="${c}" fill-opacity=".6" stroke="${sb?'#2A2148':'#fff'}" stroke-width="${sb?2.5:1.5}" data-tip="${tipArea(p.a,p.t,p.o)}" data-go="${esc(p.a.key)}" style="cursor:pointer"/>`});
+  // Labels: results behind the milestone first, then by size; a label is left off if it would overlap another
+  const boxes=[],hit=(a,b)=>a.x1<b.x2&&b.x1<a.x2&&a.y1<b.y2&&b.y1<a.y2;let unl=0;
+  pts.slice().sort((p,q)=>(affected(q.o)||0)-(affected(p.o)||0)||q.o.nT-p.o.nT).forEach(p=>{
+    const rr=rad(p.o.nT),cx=X(p.x),cy=Y(p.y),txt=SHORT[p.t.id]+(p.o.sig==='sigBehind'?' !':''),tw=txt.length*6.1,th=12;
+    const opts=[[cx+rr+3,cy-th/2,'start'],[cx-rr-3-tw,cy-th/2,'end'],[cx-tw/2,cy-rr-3-th,'middle'],[cx-tw/2,cy+rr+3,'middle']];
+    const pick=opts.map(([x,y,an])=>({x1:x,y1:y,x2:x+tw,y2:y+th,an})).find(bx=>bx.x1>=l&&bx.x2<=w-r&&bx.y1>=tp&&bx.y2<=h-b&&!boxes.some(o=>hit(o,bx)));
+    if(!pick){unl++;return}boxes.push(pick);
+    const tx=pick.an==='start'?pick.x1:pick.an==='end'?pick.x2:(pick.x1+pick.x2)/2;
+    s+=`<text x="${tx}" y="${pick.y2-2}" font-size="10.5" font-weight="600" text-anchor="${pick.an}" fill="${col[p.a.name]}" stroke="#fff" stroke-width="3" paint-order="stroke" pointer-events="none">${txt}</text>`});
+  s+='</svg>';
+  // Size key: two round numbers of students, so the chart reads without hovering
+  const nice=v=>{const m=Math.pow(10,Math.floor(Math.log10(v)));return Math.max(1,Math.round(v/m)*m)};
+  const big=nice(maxN),small=nice(maxN/6);
+  const key=`<svg width="${2*rad(big)+2*rad(small)+150}" height="${2*rad(big)+4}" aria-hidden="true" style="vertical-align:middle">${[[small,rad(small)+2],[big,2*rad(small)+70+rad(big)]].map(([n,cx])=>`<circle cx="${cx}" cy="${rad(big)+2}" r="${rad(n)}" fill="none" stroke="#77728A"/><text x="${cx+rad(n)+4}" y="${rad(big)+6}" font-size="11" fill="#4A4560">${n}</text>`).join('')}</svg>`;
+  const leg=`<div class="legend fbleg" role="group" aria-label="Show or hide departments" style="margin-bottom:6px">${depts.map(a=>`<button data-fbd="${esc(a.name)}" aria-pressed="${!state.fbHide[a.name]}"><span class="chip" style="background:${col[a.name]};margin:0"></span>${esc(a.name)}</button>`).join('')}</div><div class="legend fbleg" role="group" aria-label="Show or hide targets" style="margin-bottom:6px">${TG.map(t=>`<button data-fbt="${t.id}" aria-pressed="${!state.fbHideT[t.id]}" title="${esc(t.id+' '+t.stage+', '+t.grp+' vs '+t.cmp)}">${SHORT[t.id]}</button>`).join('')}</div>`;
+  const labs=`<div class="legend" style="margin-top:6px">${TG.map(t=>`<span><b>${SHORT[t.id]}</b> ${t.id} ${t.stage.toLowerCase()}, ${esc(t.grp)} vs ${esc(t.cmp)}</span>`).join('')}<span><b>!</b> and dark outline: significantly behind the milestone</span><span>Bubble area: ${esc('target-group')} students ${mode()==='agg'?'across the four years':'in the most recent year'} ${key}</span></div>`;
+  const excl=rows.length-pts.length;
+  let out=`<section class="panel"><h3>Department priorities map</h3><p class="cap">Every APP target for each department in ${esc(FACm[fac].name)}, ${modeLabel().toLowerCase()}. Each bubble is one department and one target. Select a department or target below to show or hide it, or a bubble to open that department.${excl?` ${excl} results with no baseline are not shown.`:''} Results with fewer than 10 students in a group are left out.</p>${leg}${pts.length?s:'<p class="empty">No results to show.</p>'}${unl?`<p class="cap" style="margin-top:4px">${unl} ${plural(unl,'label is','labels are')} left off where bubbles overlap. Hide some departments or targets to see them, or use the table below.</p>`:''}${labs}</section>`;
+  // Table: where the gap is behind the milestone and affects most students
+  const pr=rows.map(r=>({...r,aff:affected(r.o)})).filter(r=>r.aff>0).sort((p,q)=>q.aff-p.aff);
+  out+=`<section class="panel"><h3>Students affected</h3><p class="cap">Results behind the ${CURL}, largest first. Students affected is the number of target-group students multiplied by the distance behind the milestone: roughly how many more of them would need a successful outcome for the gap to reach the milestone. ${mode()==='agg'?'Counts cover all four years combined.':'Counts are for the most recent year.'}</p>`;
+  out+=pr.length?`<div class="scroll"><table class="rank fixed"><colgroup><col style="width:19%"><col style="width:18%"><col style="width:7%"><col style="width:10%"><col style="width:9%"><col style="width:10%"><col style="width:9%"><col style="width:18%"></colgroup><thead><tr><th>Department</th><th>Target</th><th class="ctr">Gap</th><th class="ctr">Behind ${CURL}</th><th class="ctr">Target group students</th><th class="ctr">Comparator students</th><th class="ctr">Students affected</th><th class="ctr">Status</th></tr></thead><tbody>${pr.map(r=>`<tr data-tip="${tipArea(r.a,r.t,r.o)}"><td><button data-go="${esc(r.a.key)}" style="all:unset;cursor:pointer;font-weight:600"><span class="chip" style="background:${col[r.a.name]}"></span>${esc(r.a.name)}</button></td><td><b>${r.t.id}</b> ${r.t.stage}<span class="facname">${esc(r.t.grp)} vs ${esc(r.t.cmp)}</span></td><td class="ctr">${f1(r.o.val)}</td><td class="ctr">+${f1(r.o.dist)}</td><td class="ctr">${r0(r.o.nT)}</td><td class="ctr">${r0(r.o.nC)}</td><td class="ctr"><b>${r.aff<0.5?'&lt;1':r0(r.aff)}</b></td><td class="ctr">${pill(r.o.cstat)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="empty">No results are behind the milestone.</p>';
+  return out+'</section>';
 }
 function noLevel(){return `<p class="empty">There are no ${state.level.toLowerCase()} results in this file. If programmes are missing, rerun app_equity_gaps.R (it groups programmes by coursetitle) and load the new equity_gaps_all_levels_long.csv.</p>`}
 function startPage(err){return `<div class="startbox"><h3>Load your results</h3><p>This dashboard holds no data of its own. It fills in when you give it the long results file written by <code>app_equity_gaps.R</code>.</p><p>Drag <code>equity_gaps_all_levels_long.csv</code> onto this page, or use <b>Load results file</b> in the sidebar. You can add <code>equity_gaps_scan.csv</code> at the same time for the Other equity gaps page.</p><p>The file is read in your browser and stays on your computer. Nothing is uploaded. Reopening the page clears it, so load the file again each time.</p>${err?`<p style="color:#6B3596;font-weight:600">${esc(err)}</p>`:''}</div>`}
@@ -978,7 +1035,7 @@ function render(){
   if(!loaded()){view.innerHTML=startPage();return}
   let h='';
   if(state.page==='overview')h=areaPage(AREAS.U,'Faculty snapshot',byLevel('Faculty'));
-  if(state.page==='faculty')h=areaPage(AREAS['F:'+state.fac],'Department snapshot',byLevel('Department').filter(a=>a.fac===state.fac));
+  if(state.page==='faculty')h=areaPage(AREAS['F:'+state.fac],'Department snapshot',byLevel('Department').filter(a=>a.fac===state.fac))+priorityPanels(state.fac);
   if(state.page==='department')h=state.dept?areaPage(AREAS['D:'+state.dept],'Programme snapshot',byLevel('Programme').filter(a=>a.dept===state.dept)):'<p class="empty">No departments in this faculty.</p>';
   if(state.page==='programme')h=state.prog?areaPage(AREAS['P:'+state.prog]):`<p class="empty">There are no programme results in this file. Rerun app_equity_gaps.R (it groups programmes by coursetitle) and load the new equity_gaps_all_levels_long.csv.</p>`;
   if(state.page==='ranking')h=rankingPage();
@@ -1031,6 +1088,9 @@ function act(e){
   if(e.target.closest('#copySum')){const txt=$('sumText').textContent,note=$('copyNote');
     const sel=()=>{const r=document.createRange();r.selectNodeContents($('sumText'));const w=getSelection();w.removeAllRanges();w.addRange(r);note.textContent='Text selected. Press Ctrl+C to copy.'};
     try{navigator.clipboard.writeText(txt).then(()=>{note.textContent='Copied.'},sel)}catch(err){sel()}return true}
+  if(e.target.closest('[data-shown]')){state.showN=!state.showN;render();return true}
+  const ft=e.target.closest('[data-fbt]');if(ft){const t=ft.dataset.fbt;state.fbHideT[t]=!state.fbHideT[t];render();return true}
+  const fb=e.target.closest('[data-fbd]');if(fb){const d=fb.dataset.fbd;state.fbHide[d]=!state.fbHide[d];render();return true}
   const md=e.target.closest('[data-mode]');if(md){state.modes[modeKey()]=md.dataset.mode;render();return true}
   const g=e.target.closest('[data-go]');if(g){goArea(g.dataset.go);return true}
   const s=e.target.closest('[data-sort]');if(s){const k=s.dataset.sort;state.sort=state.sort.k===k?{k,d:-state.sort.d}:{k,d:k==='name'?1:-1};render();return true}
