@@ -691,6 +691,7 @@ function mapPage(){
   <div class="legend" style="margin-bottom:6px"><span><i class="sw" style="background:${COL.sigAhead};border-radius:50%"></i>Significantly ahead of the ${refL}</span><span><i class="sw" style="background:${COL.ns};border-radius:50%"></i>Not significant</span><span><i class="sw" style="background:${COL.sigBehind};border-radius:50%"></i>Significantly behind</span></div>${pts.length?s:'<p class="empty">No areas to show.</p>'}</section>`;
 }
 /* ---------- Faculty priorities: every department and target on one chart ---------- */
+let PRIO=null;
 const DPAL=['#2F6BC0','#C2513C','#1F8A6A','#B8901F','#8A4DB6','#D96F83','#3A9BB0','#5B5470'];
 const SHORT={PTS_1:'Cont BTEC',PTS_2:'Comp FSM',PTS_3:'Comp BTEC',PTS_4:'Att ABMO',PTS_5:'Att FSM',PTS_6:'Att IMD',PTS_7:'Att BTEC',PTP_2:'Prog BTEC'};
 // Target-group students who would need a different outcome for the gap to reach the milestone
@@ -745,7 +746,8 @@ function priorityPanels(fac){
   let out=`<section class="panel"><h3>Department priorities map</h3><p class="cap">Every APP target for each department in ${esc(FACm[fac].name)}, ${modeLabel().toLowerCase()}. Each bubble is one department and one target. Select a department or target below to show or hide it, or a bubble to open that department.${excl?` ${excl} results with no baseline are not shown.`:''} Results with fewer than 10 students in a group are left out.${lg?' The axes are stretched near zero so that close results spread out; the gridlines show the true values.':''}</p>${leg}<div class="toolbar" data-html2canvas-ignore style="margin:4px 0 6px"><span class="tlab">Scale</span><button data-fbscale="log" aria-pressed="${lg}">Stretched near zero</button><button data-fbscale="lin" aria-pressed="${!lg}">Even</button><span class="tlab" style="margin-left:14px">Labels</span><button data-fblab="all" aria-pressed="${state.fbLab==='all'}">All</button><button data-fblab="behind" aria-pressed="${state.fbLab==='behind'}">Behind milestone only</button></div>${pts.length?s:'<p class="empty">No results to show.</p>'}${unl?`<p class="cap" style="margin-top:4px">${unl} ${plural(unl,'label is','labels are')} left off where bubbles overlap. Hide some departments or targets to see them, or use the table below.</p>`:''}${labs}</section>`;
   // Table: where the gap is behind the milestone and affects most students
   const pr=rows.map(r=>({...r,aff:affected(r.o)})).filter(r=>r.aff>0).sort((p,q)=>q.aff-p.aff);
-  out+=`<section class="panel"><h3>Students affected</h3><p class="cap">Results behind the ${CURL}, largest first. Students affected is the number of target-group students multiplied by the distance behind the milestone: roughly how many more of them would need a successful outcome for the gap to reach the milestone. ${mode()==='agg'?'Counts cover all four years combined.':'Counts are for the most recent year.'}</p>`;
+  PRIO={fac:FACm[fac].name,rows:pr};
+  out+=`<section class="panel" data-xlsx="prio"><h3>Students affected</h3><p class="cap">Results behind the ${CURL}, largest first. Students affected is the number of target-group students multiplied by the distance behind the milestone: roughly how many more of them would need a successful outcome for the gap to reach the milestone. ${mode()==='agg'?'Counts cover all four years combined.':'Counts are for the most recent year.'}</p>`;
   out+=pr.length?`<div class="scroll"><table class="rank fixed"><colgroup><col style="width:19%"><col style="width:18%"><col style="width:7%"><col style="width:10%"><col style="width:9%"><col style="width:10%"><col style="width:9%"><col style="width:18%"></colgroup><thead><tr><th>Department</th><th>Target</th><th class="ctr">Gap</th><th class="ctr">Behind ${CURL}</th><th class="ctr">Target group students</th><th class="ctr">Comparator students</th><th class="ctr">Students affected</th><th class="ctr">Status</th></tr></thead><tbody>${pr.map(r=>`<tr data-tip="${tipArea(r.a,r.t,r.o)}"><td><button data-go="${esc(r.a.key)}" style="all:unset;cursor:pointer;font-weight:600"><span class="chip" style="background:${col[r.a.name]}"></span>${esc(r.a.name)}</button></td><td><b>${r.t.id}</b> ${r.t.stage}<span class="facname">${esc(r.t.grp)} vs ${esc(r.t.cmp)}</span></td><td class="ctr">${f1(r.o.val)}</td><td class="ctr">+${f1(r.o.dist)}</td><td class="ctr">${r0(r.o.nT)}</td><td class="ctr">${r0(r.o.nC)}</td><td class="ctr"><b>${r.aff<0.5?'&lt;1':r0(r.aff)}</b></td><td class="ctr">${pill(r.o.cstat)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="empty">No results are behind the milestone.</p>';
   return out+'</section>';
 }
@@ -764,7 +766,7 @@ function exportContext(){
 }
 function addExportButtons(){
   view.querySelectorAll('section.panel').forEach(p=>{const d=document.createElement('div');d.className='exp';d.setAttribute('data-html2canvas-ignore','');
-    d.innerHTML=`<button class="expbtn" aria-label="Download this panel" title="Download as image or PDF">${ICON}</button><div class="expmenu" hidden><button data-exp="png">Download image (PNG)</button><button data-exp="pdf">Download PDF</button><small class="expnote"></small></div>`;p.appendChild(d)});
+    d.innerHTML=`<button class="expbtn" aria-label="Download this panel" title="Download as image or PDF">${ICON}</button><div class="expmenu" hidden><button data-exp="png">Download image (PNG)</button><button data-exp="pdf">Download PDF</button>${p.dataset.xlsx?'<button data-exp="xlsx">Download Excel (XLSX)</button>':''}<small class="expnote"></small></div>`;p.appendChild(d)});
 }
 const slug=s=>s.replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,90);
 async function exportPanel(panel,fmt,note){
@@ -824,6 +826,30 @@ async function exportPanel(panel,fmt,note){
     setTimeout(()=>{const m=note.closest('.expmenu');if(m){m.hidden=true;note.textContent=''}},1500);
   }catch(err){note.textContent='The download did not work: '+err.message}
   finally{wrap.remove()}
+}
+
+// The Students affected table as an Excel workbook: the table, plus a sheet explaining it
+function exportXlsx(note){
+  if(!window.XLSX){note.textContent='Excel downloads need an internet connection to load. Check you are online and reopen the page.';return}
+  if(!PRIO||!PRIO.rows.length){note.textContent='There are no rows to download.';return}
+  const d1=v=>v==null||isNaN(v)?null:Math.round(v*10)/10;
+  const data=PRIO.rows.map(r=>({'Faculty':PRIO.fac,'Department':r.a.name,'Target':r.t.id,'Stage':r.t.stage,'Target group':r.t.grp,'Comparator':r.t.cmp,'Years':r.o.years,
+    'Gap (pp)':d1(r.o.val),[CURL+' (pp)']:r.t.cur,['Behind '+CURL+' (pp)']:d1(r.o.dist),'Margin of error (± pp)':d1(r.o.h),
+    'Target group students':Math.round(r.o.nT),'Comparator students':Math.round(r.o.nC),'Target group rate (%)':d1(r.o.rT),'Comparator rate (%)':d1(r.o.rC),
+    'Students affected':d1(r.aff),'Status':ST[r.o.cstat].l}));
+  const ws=XLSX.utils.json_to_sheet(data);
+  ws['!cols']=Object.keys(data[0]).map(k=>({wch:Math.max(10,Math.min(42,k.length+2,...data.map(r=>String(r[k]??'').length+2)))}));
+  const date=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  const about=XLSX.utils.aoa_to_sheet([['Students affected: '+PRIO.fac],['View',modeLabel()],['Downloaded',date],['Source','APP equity gaps, OfS individualised data'],[],
+    ['Students affected','Target-group students multiplied by the distance behind the '+CURL+', divided by 100: roughly how many more of them would need a successful outcome for the gap to reach the milestone.'],
+    ['Counts',mode()==='agg'?'Student numbers cover all four years combined.':'Student numbers are for the most recent year.'],
+    ['Included','Department results behind the milestone. Results with fewer than 10 students in either group are left out.'],
+    ['Gap','Comparator rate minus target group rate. A positive gap means the target group does worse.']]);
+  about['!cols']=[{wch:20},{wch:110}];
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Students affected');XLSX.utils.book_append_sheet(wb,about,'About');
+  XLSX.writeFile(wb,slug(PRIO.fac+' '+modeLabel()+' students affected')+'.xlsx');
+  note.textContent='Downloaded.';
+  setTimeout(()=>{const m=note.closest('.expmenu');if(m){m.hidden=true;note.textContent=''}},1500);
 }
 
 /* ---------- Other equity gaps (scan of every demographic group) ---------- */
@@ -1091,7 +1117,7 @@ function act(e){
   const em=e.target.closest('[data-ethmode]');if(em){state.ethMode=em.dataset.ethmode;render();return true}
   const eg=e.target.closest('[data-ethg]');if(eg){const g=eg.dataset.ethg;state.ethHide[g]=!state.ethHide[g];render();return true}
   const eb=e.target.closest('.expbtn');if(eb){const m=eb.nextElementSibling;view.querySelectorAll('.expmenu').forEach(x=>{if(x!==m)x.hidden=true});m.hidden=!m.hidden;return true}
-  const ex=e.target.closest('[data-exp]');if(ex){const menu=ex.closest('.expmenu');exportPanel(ex.closest('section.panel'),ex.dataset.exp,menu.querySelector('.expnote'));return true}
+  const ex=e.target.closest('[data-exp]');if(ex){const menu=ex.closest('.expmenu');if(ex.dataset.exp==='xlsx'){exportXlsx(menu.querySelector('.expnote'));return true}exportPanel(ex.closest('section.panel'),ex.dataset.exp,menu.querySelector('.expnote'));return true}
   const sm=e.target.closest('[data-summary]');if(sm){const k=sm.dataset.summary;state.summary[k]=!state.summary[k];render();return true}
   if(e.target.closest('#copySum')){const txt=$('sumText').textContent,note=$('copyNote');
     const sel=()=>{const r=document.createRange();r.selectNodeContents($('sumText'));const w=getSelection();w.removeAllRanges();w.addRange(r);note.textContent='Text selected. Press Ctrl+C to copy.'};
