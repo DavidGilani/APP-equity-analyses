@@ -27,6 +27,14 @@ University's gap for the same target. Targets for the same group of students
 students, so each group counts once. Targets with fewer than 20 students in
 either group are left out. The (i) button explains the method in full.
 
+The **Report builder** page puts sections from any page into one PDF, in the
+order you choose. Drag section types into a list and reorder them, set each
+section's filters and which parts to include, or add a panel straight from
+another page through its download menu. Titles, headings, captions and summaries
+can be edited in the preview. Templates include one section per faculty. The
+layout is kept in the browser and can be saved as a layout file; neither holds
+any results. Download PDF uses the browser's print window (A4 landscape).
+
 ## Student cohort comparison dashboard
 
 A single-page tool that compares a group of students against the whole student

@@ -188,6 +188,79 @@ table.fixed.narrow{min-width:560px}
 .ethchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--panel-line);background:var(--bg);border-radius:999px;padding:3px 10px 3px 6px;font-size:12px;color:var(--ink);cursor:pointer}
 .ethchip[aria-pressed="false"]{opacity:.45;text-decoration:line-through}
 .ethchip:focus-visible{outline:3px solid var(--purple);outline-offset:2px}
+/* Report builder */
+.vh{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.rbbar .rbsp{flex:1}
+.rbbar .rbfile{border:2px solid var(--side);background:var(--bg);color:var(--side);padding:6px 14px;font-size:13px;cursor:pointer;border-radius:2px}
+.rbbar input:focus-visible + .rbfile{outline:3px solid var(--purple);outline-offset:2px}
+.rbwrap{display:grid;grid-template-columns:320px minmax(0,1fr);gap:18px;align-items:start}
+.rbwrap.nostruct{grid-template-columns:minmax(0,1fr)}
+.rbwrap.nostruct .rbside{display:none}
+.rbside{position:sticky;top:12px;max-height:calc(100vh - 24px);overflow:auto;display:flex;flex-direction:column;gap:10px;background:var(--panel);border:1px solid var(--panel-line);padding:12px}
+.rbside h4{margin:6px 0 0;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink2)}
+.rbpal{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.rbpal [data-rbnew]{border:1px solid var(--side);background:var(--bg);padding:6px 8px;font-size:12px;cursor:grab;border-radius:2px;color:var(--side)}
+.rbpal [data-rbnew]:hover{background:var(--side);color:#fff}
+.rbpal [data-rbnew]:focus-visible{outline:3px solid var(--purple);outline-offset:2px}
+.rbout{display:flex;flex-direction:column;gap:6px}
+.rbcard{background:var(--bg);border:1px solid var(--panel-line);border-radius:2px}
+.rbcard.open{border-color:var(--side)}
+.rbcard.dragging{opacity:.4}
+.rbcard.dropbefore{box-shadow:0 -3px 0 var(--purple)}
+.rbcard.dropafter{box-shadow:0 3px 0 var(--purple)}
+.rbch{display:flex;align-items:center;gap:4px;padding:6px 6px 6px 2px}
+.grip{cursor:grab;color:var(--muted);font-size:16px;padding:0 4px}
+.rbct{flex:1;min-width:0;cursor:pointer}
+.rbct b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rbct small{font-size:11px;color:var(--muted)}
+.rbib{flex:none;border:1px solid var(--panel-line);background:var(--bg);width:24px;height:24px;cursor:pointer;color:var(--ink2);border-radius:2px;font-size:11px;padding:0}
+.rbib:hover:not(:disabled){border-color:var(--side);color:var(--side)}
+.rbib:disabled{opacity:.35;cursor:default}
+.rbcf{padding:8px 10px 10px;border-top:1px solid var(--panel-line);display:flex;flex-direction:column;gap:8px}
+.rbf{display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--ink2)}
+.rbf select{font-size:13px;padding:4px;max-width:100%}
+.rbk{font-size:12px;display:flex;gap:6px;align-items:flex-start;color:var(--ink2)}
+.rbparts{border:1px solid var(--panel-line);padding:6px 8px;display:flex;flex-direction:column;gap:4px;margin:0}
+.rbparts legend{font-size:12px;color:var(--ink2);padding:0 4px}
+.rbend{border:2px dashed var(--grid);padding:12px;text-align:center;font-size:12px;color:var(--muted)}
+.rbend.dropat{border-color:var(--purple);color:var(--purple-dk)}
+.rbpv{background:#E9E8EE;padding:16px;border:1px solid var(--panel-line);overflow:hidden}
+.rbpaper{width:1080px;background:#fff;margin:0 auto;padding:24px 24px 40px;box-shadow:0 2px 12px rgba(30,20,60,.14)}
+.rbcover{border-top:8px solid var(--side);padding:56px 0 20px;display:flex;flex-direction:column;gap:10px}
+.rbbrand{font-size:13px;letter-spacing:.3em;text-transform:uppercase;color:var(--ink2);font-weight:600}
+.rbcover h1{margin:0;font-size:34px;line-height:1.15;color:var(--ink)}
+.rbsub{margin:0;font-size:19px;font-weight:300;color:var(--ink2)}
+.rbdate{margin:0;font-size:13px;color:var(--muted)}
+.rbtoc h3{margin:18px 0 6px;font-size:13px;letter-spacing:.3em;text-transform:uppercase}
+.rbtoc ol{margin:0;padding-left:22px;line-height:1.8}
+.rbblock{margin-top:30px;display:flex;flex-direction:column;gap:14px}
+.rbblock.pb{border-top:2px dashed var(--grid);padding-top:26px}
+.rbblock.pb::before{content:"New page";font-size:11px;color:var(--muted);margin:-22px 0 0;letter-spacing:.15em;text-transform:uppercase}
+.rbblock h2{margin:0;font-size:24px;font-weight:700;color:var(--ink);border-left:6px solid var(--side);padding-left:12px}
+.rbintro,.rbtext{margin:0;white-space:pre-wrap;max-width:95ch;line-height:1.55;color:var(--ink2)}
+.rbtext{color:var(--ink)}
+.rbbody{display:flex;flex-direction:column;gap:14px}
+.rsum{background:var(--bg);border:1px solid var(--panel-line);border-left:4px solid var(--side);padding:12px 16px}
+.rsum p{margin:0;line-height:1.55;max-width:95ch}
+.rbpaper [contenteditable]{border-radius:2px;cursor:text}
+.rbpaper [contenteditable]:hover{outline:1px dashed #B5B1C2;outline-offset:2px}
+.rbpaper [contenteditable]:focus{outline:2px solid var(--purple);outline-offset:2px}
+[data-ph]:empty::before{content:attr(data-ph);color:var(--muted);font-style:italic;font-weight:400}
+#printRoot{display:none}
+@media print{
+  @page{size:A4 landscape;margin:12mm}
+  body.printing .app,body.printing .tip,body.printing .overlay{display:none!important}
+  body.printing #printRoot{display:block}
+  #printRoot{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  #printRoot .scroll{overflow:visible}
+  #printRoot .rbcover{break-after:page;padding-top:40mm}
+  #printRoot .rbblock{margin-top:22px}
+  #printRoot .rbblock.pb{break-before:page;border-top:0;padding-top:0;margin-top:0}
+  #printRoot .rbblock.pb::before{content:none}
+  #printRoot h2,#printRoot h3,#printRoot .cap,#printRoot .rbintro{break-after:avoid}
+  #printRoot section.panel,#printRoot .rsum{break-inside:avoid}
+  #printRoot tr,#printRoot .tile,#printRoot svg,#printRoot .legend,#printRoot .rsum,#printRoot .tiles{break-inside:avoid}
+}
 </style>
 </head>
 <body>
@@ -205,6 +278,7 @@ table.fixed.narrow{min-width:560px}
       <button data-page="eth">Ethnicity over time</button>
       <button data-page="map">Progress map</button>
       <button data-page="pri">Largest department gaps</button>
+      <button data-page="rb">Report builder</button>
     </nav>
     <h2 id="fHead">Filters</h2>
     <div class="filters">
@@ -238,6 +312,7 @@ table.fixed.narrow{min-width:560px}
     <div id="view" style="display:flex;flex-direction:column;gap:18px"></div>
   </main>
 </div>
+<div id="printRoot"></div>
 <div class="tip" id="tip" hidden></div>
 <div class="overlay" id="about" hidden>
   <div class="about" role="dialog" aria-labelledby="aboutH">
@@ -291,6 +366,16 @@ table.fixed.narrow{min-width:560px}
       <li><b>!</b> marks a gap that is wider than the University's by more than its 95% margin of error. For a combined group, the margin comes from the margins of each target, weighted in the same way.</li>
     </ul>
     <p>Small departments are more likely to top a list by chance, because their gaps move more. The option to count only significant gaps ranks departments on the gaps where the difference is larger than the margin of error.</p>
+    <h3>Report builder</h3>
+    <p>The report builder puts sections from any page into one PDF, in the order you choose.</p>
+    <ul>
+      <li>Drag a section type from <b>Add a section</b> into the list, or select it to add it to the end. Drag sections in the list, or use the arrows, to change the order.</li>
+      <li>Each section has its own options (the cog): which area, target and view to show, which parts to include, and whether it starts on a new page.</li>
+      <li>On any other page, the download button on each panel can also add that panel, or the whole page, to the report with the filters already chosen.</li>
+      <li>Select any title, heading, caption, summary or introduction in the preview to edit it. Changing a section's options resets the edited headings inside that section, but keeps its title and introduction.</li>
+      <li><b>Download PDF</b> opens the print window. Choose Save as PDF. Pages are A4 landscape.</li>
+      <li>The layout and edited text are kept in this browser, so the report is still there next time. Load the results files again to fill it. <b>Save layout</b> and <b>Open layout</b> move a layout between computers or keep several versions. A layout file holds no results.</li>
+    </ul>
     <h3>Student numbers</h3>
     <p>Tables show the number of students in the target group and in the comparison group separately. For example, 27 BTEC and 16 A-level entrants.</p>
   </div>
@@ -724,8 +809,8 @@ function exportContext(){
   return `${nm} · ${modeLabel()}`;
 }
 function addExportButtons(){
-  view.querySelectorAll('section.panel').forEach(p=>{const d=document.createElement('div');d.className='exp';d.setAttribute('data-html2canvas-ignore','');
-    d.innerHTML=`<button class="expbtn" aria-label="Download this panel" title="Download as image or PDF">${ICON}</button><div class="expmenu" hidden><button data-exp="png">Download image (PNG)</button><button data-exp="pdf">Download PDF</button><small class="expnote"></small></div>`;p.appendChild(d)});
+  view.querySelectorAll('section.panel').forEach((p,i)=>{const d=document.createElement('div');d.className='exp';d.setAttribute('data-html2canvas-ignore','');
+    d.innerHTML=`<button class="expbtn" aria-label="Download this panel" title="Download as image or PDF">${ICON}</button><div class="expmenu" hidden><button data-exp="png">Download image (PNG)</button><button data-exp="pdf">Download PDF</button><button data-rbadd="${i}">Add this panel to the report</button><button data-rbadd="page">Add this page to the report</button><small class="expnote"></small></div>`;p.appendChild(d)});
 }
 const slug=s=>s.replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,90);
 async function exportPanel(panel,fmt,note){
@@ -1036,11 +1121,260 @@ function priPage(){
   return s;
 }
 
+/* ---------- Report builder ---------- */
+// The layout (sections, filters and edited text) is kept in this browser only.
+// No results are stored: each section is drawn from the loaded files.
+const RB_KEY='appEquityReportLayout';
+const RBT={
+ area:{l:'Area summary',d:'Written summary, headline figures and target table for the University, a faculty, department or programme',parts:[['summary','Written summary'],['tiles','Headline figures'],['targets','Target progress table'],['children','Breakdown by the next level down'],['details','Year-by-year detail for each target']]},
+ ranking:{l:'Target by area',d:'How each area stands against one APP target',parts:[['status','Where areas stand (chart)'],['table','Table of all areas']]},
+ map:{l:'Progress map',d:'Distance from the milestone against change since the baseline',parts:[['tiles','Counts by quarter'],['chart','Progress map chart']]},
+ scan:{l:'Other equity gaps',d:'Gaps for every demographic group in the OfS file',parts:[['tiles','Counts by priority'],['grid','All equity gaps grid'],['monitor','Gaps to monitor table']]},
+ eth:{l:'Ethnicity over time',d:'Rates and gaps to White students for each ethnic group',parts:[['rate','Rate by ethnicity chart'],['gap','Gap to White students chart'],['table','Data table']]},
+ pri:{l:'Largest department gaps',d:'Departments ranked by their widest gap, by faculty',parts:[['method','How the ranking works'],['tables','Department tables']]},
+ text:{l:'Text',d:'A heading and your own commentary',parts:[]}
+};
+const LVPAGE={University:'overview',Faculty:'faculty',Department:'department',Programme:'programme'};
+const rbId=()=>'b'+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+let RB=(()=>{try{const v=JSON.parse(localStorage.getItem(RB_KEY));if(v&&v.report&&Array.isArray(v.blocks))return v}catch(e){}return null})()||{report:{title:'APP equity gaps report',subtitle:'Progress against Access and Participation Plan targets',intro:'',cover:true,contents:true},blocks:[]};
+RB.ui={struct:true,open:null};
+function rbSave(){try{localStorage.setItem(RB_KEY,JSON.stringify({report:RB.report,blocks:RB.blocks}))}catch(e){}}
+function rbNew(type){
+  const f=FAC[0].code;
+  const p={area:{level:'Faculty',fac:f,dept:null,prog:null,mode:'latest'},ranking:{target:'PTS_1',level:'Department',fac:'',mode:'agg',hideSmall:true,sort:'name'},map:{target:'PTS_1',level:'Department',fac:'',mode:'agg',ref:'m'},scan:{area:'U',stage:'all',app:true},eth:{area:'U',stage:'Continuation',emode:'year'},pri:{fac:'',sig:false},text:{}}[type];
+  const parts={};RBT[type].parts.forEach(([k])=>parts[k]=k!=='details');
+  return {id:rbId(),type,p,parts,title:type==='text'?'Commentary':null,intro:'',body:'',newPage:type!=='text',edits:{}};
+}
+function rbNorm(b){
+  if(b.type!=='area'||!loaded())return;const p=b.p;
+  if(!FACm[p.fac])p.fac=FAC[0].code;
+  if(p.level==='Department'||p.level==='Programme'){const d=DEPTS[p.fac]||[];if(!d.includes(p.dept))p.dept=d[0]||null}
+  if(p.level==='Programme'){const ps=PROGS[p.dept]||[];if(!ps.includes(p.prog))p.prog=ps[0]||null}
+}
+// Run a page's drawing code with a block's filters, then put the page state back
+function withState(over,fn){const saved=JSON.stringify(state);Object.assign(state,over);
+  try{return fn()}finally{const o=JSON.parse(saved);Object.keys(state).forEach(k=>delete state[k]);Object.assign(state,o)}}
+const facName=c=>c&&FACm[c]?FACm[c].name:'';
+const areaLabel=c=>c==='U'?'Middlesex University':facName(c);
+function rbArea(p){return p.level==='University'?AREAS.U:p.level==='Faculty'?AREAS['F:'+p.fac]:p.level==='Department'?AREAS['D:'+p.dept]:AREAS['P:'+p.prog]}
+function rbAutoTitle(b){const p=b.p,t=TGm[p.target]||TG[0];
+  switch(b.type){
+    case 'area':{const a=loaded()?rbArea(p):null;return a?a.name:p.level==='University'?'Middlesex University':(p.level==='Faculty'?facName(p.fac):p.level==='Department'?p.dept:p.prog)||p.level}
+    case 'ranking':return `${t.id} ${t.stage}: ${t.grp} vs ${t.cmp}, by ${p.level.toLowerCase()}${p.fac?' in '+facName(p.fac):''}`;
+    case 'map':return `Progress map: ${t.id} ${t.stage}, by ${p.level.toLowerCase()}${p.fac?' in '+facName(p.fac):''}`;
+    case 'scan':return `Other equity gaps: ${areaLabel(p.area)}`;
+    case 'eth':return `${p.stage} by ethnicity: ${areaLabel(p.area)}`;
+    case 'pri':return `Largest department gaps${p.fac?': '+facName(p.fac):''}`;
+    default:return 'Commentary'}}
+const rbTitle=b=>b.title!=null?b.title:rbAutoTitle(b);
+const rbMsg=m=>`<p class="empty">${m}</p>`;
+function rbParts(html,pick){const d=document.createElement('div');d.innerHTML=html;const kids=[...d.children];
+  const panels=kids.filter(e=>e.matches('section.panel')),first=sel=>kids.find(e=>e.matches(sel));
+  return pick(panels,first).filter(Boolean).map(e=>e.outerHTML).join('')}
+function rbRender(b){
+  const p=b.p,on=b.parts,needMain='Load equity_gaps_all_levels_long.csv to fill this section.';
+  if(b.type==='area'){
+    if(!loaded())return rbMsg(needMain);
+    const pg=LVPAGE[p.level];
+    return withState({page:pg,fac:p.fac,dept:p.dept,prog:p.prog,open:null,modes:{[pg]:p.mode}},()=>{
+      const a=rbArea(p);if(!a)return rbMsg('This area is not in the loaded file.');
+      const ch=p.level==='University'?['Faculty snapshot',byLevel('Faculty')]:p.level==='Faculty'?['Department snapshot',byLevel('Department').filter(x=>x.fac===p.fac)]:p.level==='Department'?['Programme snapshot',byLevel('Programme').filter(x=>x.dept===p.dept)]:null;
+      let s='';
+      if(on.summary)s+=`<div class="rsum"><p>${esc(summaryText(a))}</p></div>`;
+      if(on.tiles)s+=tiles(a);
+      if(on.targets)s+=`<section class="panel"><h3>Target progress</h3><p class="cap">${esc(a.name)} · ${modeLabel().toLowerCase()} compared with the 4-year baseline</p>${targetTable(a)}</section>`;
+      if(on.children&&ch)s+=`<section class="panel"><h3>${ch[0]}</h3><p class="cap">${modeLabel()} gap for each target.</p>${heat(ch[1])}</section>`;
+      if(on.details)TG.forEach(t=>s+=`<section class="panel"><h3>${t.id} · ${t.stage}: ${esc(t.grp)} vs ${esc(t.cmp)}</h3><p class="cap">${esc(a.name)} · rates, gaps and headcounts for each year</p>${detail(a,t)}</section>`);
+      return s});
+  }
+  if(b.type==='ranking'||b.type==='map'||b.type==='pri'){if(!loaded())return rbMsg(needMain)}
+  if(b.type==='ranking')return withState({page:'ranking',target:p.target,level:p.level,rfac:p.fac,hideSmall:p.hideSmall,sort:{k:p.sort,d:p.sort==='name'?1:-1},modes:{['ranking:'+p.level]:p.mode}},
+    ()=>rbParts(rankingPage(),P=>[on.status&&P[0],on.table&&P[1]]))||rbMsg(`There are no ${p.level.toLowerCase()} results in the loaded file.`);
+  if(b.type==='map')return withState({page:'map',target:p.target,level:p.level,rfac:p.fac,ref:p.ref,modes:{['map:'+p.level]:p.mode}},
+    ()=>rbParts(mapPage(),(P,f)=>[on.tiles&&f('.tiles'),on.chart&&P[0]]))||rbMsg(`There are no ${p.level.toLowerCase()} results in the loaded file.`);
+  if(b.type==='scan'){if(!SCAN)return rbMsg('Load equity_gaps_scan.csv to fill this section.');
+    return withState({page:'scan',scanArea:p.area,scanStage:p.stage,scanApp:p.app},()=>rbParts(scanPage(),(P,f)=>[on.tiles&&f('.tiles'),on.grid&&P[0],on.monitor&&P[1]]))||rbMsg('No scan results for this area.')}
+  if(b.type==='eth'){if(!ETH)return rbMsg('Load ethnicity_outcomes_by_year.csv to fill this section.');
+    return withState({page:'eth',ethArea:p.area,ethStage:p.stage,ethMode:p.emode},()=>rbParts(ethPage(),(P,f)=>[(on.rate||on.gap)&&f('.ethleg'),on.rate&&P[0],on.gap&&P[1],on.table&&P[2]]))}
+  if(b.type==='pri')return withState({page:'pri',rfac:p.fac,priSig:p.sig,priOpen:null},()=>rbParts(priPage(),(P,f)=>[on.method&&f('.method'),...(on.tables?P:[])]));
+  return '';
+}
+// Strip the parts of a page that only work on screen
+const DROP_ATTR=['data-go','data-open','data-pri','data-sort','tabindex','aria-sort','aria-expanded','aria-pressed','data-ethg','data-summary','data-mode'];
+function rbClean(el){
+  el.querySelectorAll('.exp,.toolbar,[data-html2canvas-ignore],tr[hidden],.ethchip[aria-pressed="false"]').forEach(e=>e.remove());
+  el.querySelectorAll('button').forEach(bt=>{const s=document.createElement('span');s.className=bt.className;s.innerHTML=bt.innerHTML;bt.replaceWith(s)});
+  el.querySelectorAll(DROP_ATTR.map(a=>'['+a+']').join(',')).forEach(e=>DROP_ATTR.forEach(a=>e.removeAttribute(a)));
+  el.querySelectorAll('tr').forEach(r=>r.style.cursor='');
+  el.querySelectorAll('p.cap,.method p,.ethleg .uni').forEach(p=>{
+    p.innerHTML=p.innerHTML.split(/(?<=\.)\s+/).filter(x=>!/^(Select|Hover|The \(i\))/.test(x.replace(/<[^>]+>/g,''))).join(' ')});
+}
+const rbSel=(i,k,val,opts,label)=>`<label class="rbf"><span>${label}</span><select data-rbi="${i}" data-rbk="${k}">${opts.map(([v,l])=>`<option value="${esc(v)}"${String(v)===String(val)?' selected':''}>${esc(l)}</option>`).join('')}</select></label>`;
+const rbChk=(i,k,val,label)=>`<label class="rbk"><input type="checkbox" data-rbi="${i}" data-rbk="${k}"${val?' checked':''}> <span>${label}</span></label>`;
+function rbControls(b,i){
+  const p=b.p,facO=FAC.map(f=>[f.code,f.name]),allFac=[['','All faculties'],...facO],areaO=[['U','Middlesex University'],...facO];
+  const tO=TG.map(t=>[t.id,`${t.id} · ${t.stage} · ${t.hd}`]),mO=[['latest','Most recent year'],['agg','4-year aggregate']],lvO=['Faculty','Department','Programme'].map(v=>[v,v]);
+  let s='';
+  if(b.type==='area'){
+    s+=rbSel(i,'level',p.level,['University','Faculty','Department','Programme'].map(v=>[v,v]),'Level');
+    if(p.level!=='University')s+=rbSel(i,'fac',p.fac,facO,'Faculty');
+    if(p.level==='Department'||p.level==='Programme'){const d=DEPTS[p.fac]||[];s+=rbSel(i,'dept',p.dept||'',d.length?d.map(v=>[v,v]):[['','(load the results file to choose)']],'Department')}
+    if(p.level==='Programme'){const pr=PROGS[p.dept]||[];s+=rbSel(i,'prog',p.prog||'',pr.length?pr.map(v=>[v,v]):[['','(none)']],'Programme')}
+    s+=rbSel(i,'mode',p.mode,mO,'Show');
+  }
+  if(b.type==='ranking'){s+=rbSel(i,'target',p.target,tO,'Equity gap target')+rbSel(i,'level',p.level,lvO,'Compare')+rbSel(i,'fac',p.fac,allFac,'Faculty')+rbSel(i,'mode',p.mode,mO,'Show')
+    +rbSel(i,'sort',p.sort,[['name','Area name, A to Z'],['val','Largest gap first'],['dist','Furthest above the milestone first'],['change','Most widened since the baseline first']],'Order')+rbChk(i,'hideSmall',p.hideSmall,'Hide areas where either group has fewer than 10 students')}
+  if(b.type==='map')s+=rbSel(i,'target',p.target,tO,'Equity gap target')+rbSel(i,'level',p.level,lvO,'Compare')+rbSel(i,'fac',p.fac,allFac,'Faculty')+rbSel(i,'ref',p.ref,[['m','2026-27 milestone'],['t','2028-29 target']],'Judge against')+rbSel(i,'mode',p.mode,mO,'Show');
+  if(b.type==='scan')s+=rbSel(i,'area',p.area,areaO,'Area')+rbSel(i,'stage',p.stage,[['all','All stages'],...STAGES.map(v=>[v,v])],'Stage (gaps to monitor)')+rbChk(i,'app',p.app,'Include gaps that are already APP targets');
+  if(b.type==='eth')s+=rbSel(i,'area',p.area,areaO,'Area')+rbSel(i,'stage',p.stage,ETH_STAGES.map(v=>[v,v]),'Measure')+rbSel(i,'emode',p.emode,[['year','Each year'],['roll','4-year rolling']],'Show');
+  if(b.type==='pri')s+=rbSel(i,'fac',p.fac,allFac,'Faculty')+rbChk(i,'sig',p.sig,'Only count gaps significantly wider than the University’s');
+  const parts=RBT[b.type].parts.filter(([k])=>!(b.type==='area'&&k==='children'&&p.level==='Programme'));
+  if(parts.length)s+=`<fieldset class="rbparts"><legend>Include</legend>${parts.map(([k,l])=>{
+    if(b.type==='area'&&k==='children')l=({University:'Faculty',Faculty:'Department',Department:'Programme'})[p.level]+' snapshot';
+    return `<label class="rbk"><input type="checkbox" data-rbi="${i}" data-rbpart="${k}"${b.parts[k]?' checked':''}> <span>${l}</span></label>`}).join('')}</fieldset>`;
+  return s+rbChk(i,'newPage',b.newPage,'Start on a new page');
+}
+function rbPreview(){
+  const R=RB.report,date=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
+  let s='';
+  if(R.cover)s+=`<section class="rbcover"><div class="rbbrand">Middlesex University</div><h1 contenteditable="true" data-edr="title" data-ph="Report title">${esc(R.title)}</h1><p class="rbsub" contenteditable="true" data-edr="subtitle" data-ph="Subtitle (optional)">${esc(R.subtitle)}</p><p class="rbdate">${date} · OfS individualised student data</p><p class="rbintro" contenteditable="true" data-edr="intro" data-ph="Add an introduction to the report (optional)">${esc(R.intro)}</p>${R.contents&&RB.blocks.length?`<div class="rbtoc"><h3>Contents</h3><ol>${RB.blocks.map((b,i)=>`<li data-rbt="${i}">${esc(rbTitle(b))}</li>`).join('')}</ol></div>`:''}</section>`;
+  if(!RB.blocks.length)s+=`<p class="empty rbonly" style="padding:30px 0">Add sections from the panel on the left, or start from a template above. Drag a section into the list to place it, then drag sections up and down to change the order.</p>`;
+  RB.blocks.forEach((b,i)=>{
+    const body=b.type==='text'?`<p class="rbtext" contenteditable="true" data-ed="body" data-ph="Write your commentary here">${esc(b.body||'')}</p>`:(rbRender(b)||`<p class="empty rbonly">Nothing is selected for this section. Choose what to include in its options.</p>`);
+    s+=`<article class="rbblock${b.newPage&&i>0?' pb':''}" data-rbb="${i}"><h2 contenteditable="true" data-ed="title" data-ph="Section title">${esc(rbTitle(b))}</h2>${b.type==='text'?'':`<p class="rbintro" contenteditable="true" data-ed="intro" data-ph="Add an introduction to this section (optional)">${esc(b.intro||'')}</p>`}<div class="rbbody">${body}</div></article>`;
+  });
+  return s;
+}
+function rbPage(){
+  RB.blocks.forEach(rbNorm);
+  const st=RB.ui.struct;
+  let s=`<div class="toolbar rbbar"><span class="tlab">Start from</span><button data-rbtpl="fac">Faculty summaries</button><button data-rbtpl="unifac">University and faculties</button><button data-rbtpl="pri">Reverse mentoring shortlist</button>
+    <span class="rbsp"></span><button data-rbcmd="struct">${st?'Hide':'Show'} sections</button><button data-rbcmd="save">Save layout</button><input type="file" id="rbFile" accept=".json,application/json" class="vh"><label for="rbFile" class="rbfile">Open layout</label><button data-rbcmd="clear">Clear</button><button class="btn2" data-rbcmd="pdf">Download PDF</button>
+    <span class="tnote">Download PDF opens the print window: choose Save as PDF as the destination. Select any title, heading, caption or summary in the preview to edit it. Your layout is kept in this browser; the data is not.</span></div>`;
+  s+=`<div class="rbwrap${st?'':' nostruct'}"><aside class="rbside" id="rbSide"><h4>Add a section</h4><div class="rbpal">${Object.entries(RBT).map(([k,v])=>`<div role="button" tabindex="0" draggable="true" data-rbnew="${k}" title="${esc(v.d)}">${esc(v.l)}</div>`).join('')}</div>
+    <h4>Report sections</h4><div class="rbout">${RB.blocks.map((b,i)=>{const open=RB.ui.open===b.id;
+      return `<div class="rbcard${open?' open':''}" draggable="true" data-rbi="${i}"><div class="rbch"><span class="grip" aria-hidden="true">⠿</span><div class="rbct" data-rbact="go" data-rbi="${i}" title="Show in the preview"><b data-rbt="${i}">${esc(rbTitle(b))}</b><small>${esc(RBT[b.type].l)}${b.newPage&&i>0?' · new page':''}</small></div>
+        <button class="rbib" data-rbact="up" data-rbi="${i}" aria-label="Move up" title="Move up"${i?'':' disabled'}>▲</button><button class="rbib" data-rbact="down" data-rbi="${i}" aria-label="Move down" title="Move down"${i<RB.blocks.length-1?'':' disabled'}>▼</button>
+        <button class="rbib" data-rbact="edit" data-rbi="${i}" aria-expanded="${open}" aria-label="Options" title="Options">⚙</button><button class="rbib" data-rbact="dup" data-rbi="${i}" aria-label="Duplicate" title="Duplicate">⧉</button><button class="rbib" data-rbact="del" data-rbi="${i}" aria-label="Remove" title="Remove">✕</button></div>
+        ${open?`<div class="rbcf">${rbControls(b,i)}</div>`:''}</div>`}).join('')}<div class="rbend" data-rbend="1">Drag a section here, or select one above to add it to the end</div></div>
+    <h4>Cover</h4><label class="rbk"><input type="checkbox" data-rbr="cover"${RB.report.cover?' checked':''}> <span>Cover page</span></label><label class="rbk"><input type="checkbox" data-rbr="contents"${RB.report.contents?' checked':''}> <span>Contents list on the cover</span></label></aside>
+    <div class="rbpv" id="rbPreview"><div class="rbpaper" id="rbPaper">${rbPreview()}</div></div></div>`;
+  return s;
+}
+function rbZoom(){const pv=$('rbPreview'),pp=$('rbPaper');if(pv&&pp)pp.style.zoom=Math.min(1,(pv.clientWidth-34)/1080)}
+function rbAfter(){
+  const paper=$('rbPaper');if(!paper)return;
+  paper.querySelectorAll('article[data-rbb]').forEach(art=>{const b=RB.blocks[+art.dataset.rbb],body=art.querySelector('.rbbody');if(!b||b.type==='text')return;
+    rbClean(body);
+    body.querySelectorAll('h3,p.cap,.rsum p,.method p').forEach((el,k)=>{el.setAttribute('contenteditable','true');el.dataset.ed='e'+k;if(b.edits['e'+k]!=null)el.textContent=b.edits['e'+k]})});
+  rbZoom();
+}
+function rbFromPage(idx){
+  const pg=state.page,one=idx!=null;let b;
+  if(LVPAGE[{overview:'University',faculty:'Faculty',department:'Department',programme:'Programme'}[pg]]){
+    b=rbNew('area');Object.assign(b.p,{level:{overview:'University',faculty:'Faculty',department:'Department',programme:'Programme'}[pg],fac:state.fac,dept:state.dept,prog:state.prog,mode:mode()});
+    if(one)b.parts={summary:false,tiles:false,targets:idx===0,children:idx===1,details:false};
+  }else if(pg==='ranking'){b=rbNew('ranking');Object.assign(b.p,{target:state.target,level:state.level,fac:state.rfac,mode:mode(),hideSmall:state.hideSmall,sort:['name','val','dist','change'].includes(state.sort.k)?state.sort.k:'name'});if(one)b.parts={status:idx===0,table:idx===1}}
+  else if(pg==='map'){b=rbNew('map');Object.assign(b.p,{target:state.target,level:state.level,fac:state.rfac,mode:mode(),ref:state.ref});if(one)b.parts={tiles:false,chart:true}}
+  else if(pg==='scan'){b=rbNew('scan');b.p={area:state.scanArea,stage:state.scanStage,app:state.scanApp};if(one)b.parts={tiles:false,grid:idx===0,monitor:idx===1}}
+  else if(pg==='eth'){b=rbNew('eth');b.p={area:state.ethArea,stage:state.ethStage,emode:state.ethMode};if(one)b.parts={rate:idx===0,gap:idx===1,table:idx===2}}
+  else if(pg==='pri'){b=rbNew('pri');b.p={fac:one?(state.rfac||FAC[idx].code):state.rfac,sig:state.priSig};if(one)b.parts={method:false,tables:true}}
+  return b||null;
+}
+function rbTemplate(k){
+  if(RB.blocks.length&&!confirm('Replace the current report sections with this template?'))return;
+  const area=(lv,fac)=>{const b=rbNew('area');Object.assign(b.p,{level:lv,fac,mode:'latest'});return b};
+  const R=RB.report;R.intro='';
+  if(k==='fac'){R.title='APP equity gaps by faculty';R.subtitle='Progress against Access and Participation Plan targets in each faculty';RB.blocks=FAC.map(f=>area('Faculty',f.code))}
+  if(k==='unifac'){R.title='APP equity gaps report';R.subtitle='University and faculty progress against Access and Participation Plan targets';RB.blocks=[area('University',FAC[0].code),...FAC.map(f=>area('Faculty',f.code))]}
+  if(k==='pri'){R.title='Reverse mentoring pilot: departments to approach';R.subtitle='Departments with the widest equity gaps in each faculty';RB.blocks=[rbNew('pri')]}
+  RB.ui.open=null;rbSave();render();
+}
+function rbDownload(){
+  const blob=new Blob([JSON.stringify({layout:'APP equity gaps report',version:1,report:RB.report,blocks:RB.blocks},null,1)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=slug(RB.report.title||'report')+'_layout.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function rbOpen(f){const rd=new FileReader();rd.onload=()=>{try{const v=JSON.parse(rd.result);if(!v.report||!Array.isArray(v.blocks))throw 0;
+    v.blocks.forEach(b=>{if(!RBT[b.type])throw 0;b.id=b.id||rbId();b.edits=b.edits||{};b.parts=b.parts||{}});
+    RB.report=v.report;RB.blocks=v.blocks;RB.ui.open=null;rbSave();render()}catch(e){alert('That file is not a saved report layout.')}};rd.readAsText(f)}
+function rbPrint(){
+  const paper=$('rbPaper'),root=$('printRoot');if(!paper)return;
+  root.innerHTML=paper.innerHTML;
+  root.querySelectorAll('[contenteditable]').forEach(e=>{e.removeAttribute('contenteditable');if(!e.textContent.trim()&&e.matches('.rbintro,.rbsub,.rbtext'))e.remove()});
+  root.querySelectorAll('.rbonly').forEach(e=>e.remove());
+  const old=document.title;document.title=RB.report.title||'APP equity gaps report';   // the suggested PDF file name
+  document.body.classList.add('printing');
+  const done=()=>{document.body.classList.remove('printing');root.innerHTML='';document.title=old;window.removeEventListener('afterprint',done)};
+  window.addEventListener('afterprint',done);
+  setTimeout(()=>window.print(),60);
+}
+// Typing in the preview updates the layout without redrawing the page
+function rbInput(e){const el=e.target.closest&&e.target.closest('[contenteditable]');if(!el)return;
+  let txt=el.innerText.replace(/\n+$/,'');if(!txt.trim()){txt='';if(el.innerHTML)el.innerHTML=''}
+  if(el.dataset.edr)RB.report[el.dataset.edr]=txt;
+  else{const art=el.closest('[data-rbb]');if(!art)return;const i=+art.dataset.rbb,b=RB.blocks[i],k=el.dataset.ed;
+    if(k==='title'){b.title=txt||null;document.querySelectorAll(`[data-rbt="${i}"]`).forEach(x=>x.textContent=txt||rbAutoTitle(b))}
+    else if(k==='intro')b.intro=txt;else if(k==='body')b.body=txt;else if(k)b.edits[k]=txt}
+  rbSave()}
+function rbChange(e){const el=e.target;
+  if(el.id==='rbFile'){if(el.files[0])rbOpen(el.files[0]);el.value='';return}
+  if(el.dataset.rbr){RB.report[el.dataset.rbr]=el.checked;rbSave();render();return}
+  if(el.dataset.rbi==null)return;
+  const b=RB.blocks[+el.dataset.rbi];if(!b)return;
+  if(el.dataset.rbpart){b.parts[el.dataset.rbpart]=el.checked;b.edits={}}
+  else{const k=el.dataset.rbk,v=el.type==='checkbox'?el.checked:el.value;
+    if(k==='newPage')b.newPage=v;
+    else{b.p[k]=v;b.edits={};
+      if(k==='level'&&b.type==='area')b.p.mode=v==='Department'||v==='Programme'?'agg':'latest';
+      if(k==='fac'&&b.type==='area'){b.p.dept=null;b.p.prog=null}
+      if(k==='dept')b.p.prog=null}}
+  rbNorm(b);rbSave();render()}
+// Drag a new section from the palette, or drag a section to a new place
+let rbDrag=null;
+function rbDropTarget(e){const t=e.target.closest&&e.target.closest('.rbcard,.rbend');if(!t)return null;
+  if(t.classList.contains('rbend'))return {el:t,at:RB.blocks.length};
+  const r=t.getBoundingClientRect(),after=e.clientY>r.top+r.height/2;return {el:t,at:+t.dataset.rbi+(after?1:0),after}}
+view.addEventListener('dragstart',e=>{const n=e.target.closest&&e.target.closest('[data-rbnew]'),c=e.target.closest&&e.target.closest('.rbcard');
+  if(n)rbDrag={type:n.dataset.rbnew};else if(c&&!e.target.closest('select,input'))rbDrag={from:+c.dataset.rbi};else return;
+  e.dataTransfer.effectAllowed=n?'copy':'move';e.dataTransfer.setData('text/plain',n?n.dataset.rbnew:'section');if(c&&!n)c.classList.add('dragging')});
+view.addEventListener('dragover',e=>{if(!rbDrag)return;const d=rbDropTarget(e);view.querySelectorAll('.dropbefore,.dropafter,.dropat').forEach(x=>x.classList.remove('dropbefore','dropafter','dropat'));
+  if(!d)return;e.preventDefault();d.el.classList.add(d.el.classList.contains('rbend')?'dropat':d.after?'dropafter':'dropbefore')});
+view.addEventListener('drop',e=>{if(!rbDrag)return;e.preventDefault();e.stopPropagation();const d=rbDropTarget(e);
+  if(d){let at=d.at;if(rbDrag.type){const b=rbNew(rbDrag.type);rbNorm(b);RB.blocks.splice(at,0,b);RB.ui.open=b.id}
+    else{const f=rbDrag.from,[b]=RB.blocks.splice(f,1);if(f<at)at--;RB.blocks.splice(at,0,b)}rbSave()}
+  rbDrag=null;render()});
+view.addEventListener('dragend',()=>{if(rbDrag){rbDrag=null;render()}});
+view.addEventListener('input',rbInput);
+view.addEventListener('change',rbChange);
+// Keep headings on one line, and paste as plain text
+view.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.isContentEditable&&e.target.matches('h1,h2,h3,.cap,.rbsub'))e.preventDefault()});
+view.addEventListener('paste',e=>{if(!e.target.closest||!e.target.closest('[contenteditable]'))return;e.preventDefault();document.execCommand('insertText',false,(e.clipboardData||window.clipboardData).getData('text/plain'))});
+window.addEventListener('resize',()=>{if(state.page==='rb')rbZoom()});
+function rbAct(e){
+  const n=e.target.closest('[data-rbnew]');if(n){const b=rbNew(n.dataset.rbnew);rbNorm(b);RB.blocks.push(b);RB.ui.open=b.id;rbSave();render();return true}
+  const a=e.target.closest('[data-rbact]');if(a){const i=+a.dataset.rbi,k=a.dataset.rbact,B=RB.blocks;
+    if(k==='go'){const t=$('rbPaper')&&$('rbPaper').querySelector(`[data-rbb="${i}"]`);if(t)t.scrollIntoView({behavior:'smooth',block:'start'});return true}
+    if(k==='up'&&i>0)[B[i-1],B[i]]=[B[i],B[i-1]];
+    if(k==='down'&&i<B.length-1)[B[i+1],B[i]]=[B[i],B[i+1]];
+    if(k==='dup'){const c=JSON.parse(JSON.stringify(B[i]));c.id=rbId();B.splice(i+1,0,c)}
+    if(k==='del')B.splice(i,1);
+    if(k==='edit')RB.ui.open=RB.ui.open===B[i].id?null:B[i].id;
+    rbSave();render();return true}
+  const t=e.target.closest('[data-rbtpl]');if(t){rbTemplate(t.dataset.rbtpl);return true}
+  const c=e.target.closest('[data-rbcmd]');if(c){const k=c.dataset.rbcmd;
+    if(k==='pdf')rbPrint();if(k==='save')rbDownload();if(k==='struct'){RB.ui.struct=!RB.ui.struct;render()}
+    if(k==='clear'&&RB.blocks.length&&confirm('Remove every section from the report?')){RB.blocks=[];rbSave();render()}return true}
+  const ad=e.target.closest('[data-rbadd]');if(ad){const note=ad.closest('.expmenu').querySelector('.expnote');
+    const b=rbFromPage(ad.dataset.rbadd==='page'?null:+ad.dataset.rbadd);
+    if(b){rbNorm(b);RB.blocks.push(b);rbSave();note.textContent=`Added. The report has ${RB.blocks.length} section${RB.blocks.length===1?'':'s'}: open Report builder to arrange them.`}return true}
+  return false;
+}
+
 /* ---------- Render ---------- */
 
 
-const TITLES={overview:['APP EQUITY GAPS 2026','University progress against Access and Participation Plan targets'],faculty:['FACULTY VIEW',''],department:['DEPARTMENT VIEW',''],programme:['PROGRAMME VIEW',''],ranking:['TARGET BY AREA','How each area stands against one APP target'],scan:['OTHER EQUITY GAPS','Gaps for every demographic group, beyond the formal APP targets'],eth:['ETHNICITY OVER TIME','Rates and gaps to White students for every ethnic group'],map:['PROGRESS MAP','Distance from the milestone against change since the baseline'],pri:['LARGEST DEPARTMENT GAPS','Departments with the widest equity gaps, for the reverse mentoring pilot']};
-const SHOW={overview:[],faculty:['fFacW'],department:['fFacW','fDeptW'],programme:['fFacW','fDeptW','fProgW'],ranking:['fTargetW','fLevelW','fFacW','fSmallW'],map:['fTargetW','fLevelW','fRefW','fFacW'],scan:['fScanAreaW','fScanStageW','fScanAppW'],eth:['fEthAreaW','fEthStageW'],pri:['fFacW','fPriSigW']};
+const TITLES={overview:['APP EQUITY GAPS 2026','University progress against Access and Participation Plan targets'],faculty:['FACULTY VIEW',''],department:['DEPARTMENT VIEW',''],programme:['PROGRAMME VIEW',''],ranking:['TARGET BY AREA','How each area stands against one APP target'],scan:['OTHER EQUITY GAPS','Gaps for every demographic group, beyond the formal APP targets'],eth:['ETHNICITY OVER TIME','Rates and gaps to White students for every ethnic group'],map:['PROGRESS MAP','Distance from the milestone against change since the baseline'],pri:['LARGEST DEPARTMENT GAPS','Departments with the widest equity gaps, for the reverse mentoring pilot'],rb:['REPORT BUILDER','Put together a PDF report from any page, in the order you want']};
+const SHOW={overview:[],faculty:['fFacW'],department:['fFacW','fDeptW'],programme:['fFacW','fDeptW','fProgW'],ranking:['fTargetW','fLevelW','fFacW','fSmallW'],map:['fTargetW','fLevelW','fRefW','fFacW'],scan:['fScanAreaW','fScanStageW','fScanAppW'],eth:['fEthAreaW','fEthStageW'],pri:['fFacW','fPriSigW'],rb:[]};
 const loaded=()=>!!AREAS.U;
 function fillSelects(){
   const rankLike=state.page==='ranking'||state.page==='map'||state.page==='pri';
@@ -1068,6 +1402,7 @@ function render(){
   $('pTitle').textContent=ti;$('pSub').textContent=sub;
   $('trendGuide').innerHTML=trendGuide();
   $('sigEx').textContent=sigExample();
+  if(state.page==='rb'){const sd=$('rbSide'),sc=sd?sd.scrollTop:0;view.innerHTML=rbPage();rbAfter();if($('rbSide'))$('rbSide').scrollTop=sc;return}
   if(state.page==='eth'){$('pTitle').textContent=ti;$('pSub').textContent=sub;view.innerHTML=ethPage();addExportButtons();return}
   if(state.page==='scan'){$('pTitle').textContent=ti;$('pSub').textContent=sub;view.innerHTML=scanPage();addExportButtons();return}
   if(!loaded()){view.innerHTML=startPage();return}
@@ -1116,10 +1451,11 @@ function loadFile(f){if(!f)return;const rd=new FileReader(),isXL=/\.xlsx?$/i.tes
 // First sheet of an Excel file, as rows keyed by the header row
 function xlRows(buf){const wb=XLSX.read(buf,{type:'array'});return parseCSV(XLSX.utils.sheet_to_csv(wb.Sheets[wb.SheetNames[0]]))}
 $('fileIn').addEventListener('change',e=>{[...e.target.files].forEach(loadFile);e.target.value=''});
-['dragenter','dragover'].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();document.body.classList.add('dragging')}));
+['dragenter','dragover'].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();if(e.dataTransfer&&[...e.dataTransfer.types].includes('Files'))document.body.classList.add('dragging')}));
 ['dragleave','drop'].forEach(ev=>document.addEventListener(ev,e=>{e.preventDefault();if(ev==='drop'||!e.relatedTarget)document.body.classList.remove('dragging')}));
 document.addEventListener('drop',e=>{if(e.dataTransfer)[...e.dataTransfer.files].forEach(loadFile)});
 function act(e){
+  if(rbAct(e))return true;
   const em=e.target.closest('[data-ethmode]');if(em){state.ethMode=em.dataset.ethmode;render();return true}
   const eg=e.target.closest('[data-ethg]');if(eg){const g=eg.dataset.ethg;state.ethHide[g]=!state.ethHide[g];render();return true}
   const eb=e.target.closest('.expbtn');if(eb){const m=eb.nextElementSibling;view.querySelectorAll('.expmenu').forEach(x=>{if(x!==m)x.hidden=true});m.hidden=!m.hidden;return true}
@@ -1135,7 +1471,7 @@ function act(e){
   const o=e.target.closest('tr[data-open]');if(o){state.open=state.open===o.dataset.open?null:o.dataset.open;render();return true}
   return false}
 view.addEventListener('click',act);
-view.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('tr[data-open],tr[data-pri],th[data-sort]')){e.preventDefault();act(e)}});
+view.addEventListener('keydown',e=>{if((e.key==='Enter'||e.key===' ')&&e.target.matches('tr[data-open],tr[data-pri],th[data-sort],[data-rbnew]')){e.preventDefault();act(e)}});
 const tip=$('tip');
 document.addEventListener('mousemove',e=>{const el=e.target.closest&&e.target.closest('[data-tip]');
   if(!el){tip.hidden=true;return}
