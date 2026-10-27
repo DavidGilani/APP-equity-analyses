@@ -236,6 +236,8 @@ table.fixed.narrow{min-width:560px}
 .rbblock{margin-top:30px;display:flex;flex-direction:column;gap:14px}
 .rbblock.pb{border-top:2px dashed var(--grid);padding-top:26px}
 .rbblock.pb::before{content:"New page";font-size:11px;color:var(--muted);margin:-22px 0 0;letter-spacing:.15em;text-transform:uppercase}
+.rbmode{margin:-4px 0 0}
+.rbmode .tnote{flex-basis:auto;margin-left:6px}
 .rbblock h2{margin:0;font-size:24px;font-weight:700;color:var(--ink);border-left:6px solid var(--side);padding-left:12px}
 .rbintro,.rbtext{margin:0;white-space:pre-wrap;max-width:95ch;line-height:1.55;color:var(--ink2)}
 .rbtext{color:var(--ink)}
@@ -372,7 +374,8 @@ table.fixed.narrow{min-width:560px}
       <li>Drag a section type from <b>Add a section</b> into the list, or select it to add it to the end. Drag sections in the list, or use the arrows, to change the order.</li>
       <li>Each section has its own options (the cog): which area, target and view to show, which parts to include, and whether it starts on a new page.</li>
       <li>On any other page, the download button on each panel can also add that panel, or the whole page, to the report with the filters already chosen.</li>
-      <li>Select any title, heading, caption, summary or introduction in the preview to edit it. Changing a section's options resets the edited headings inside that section, but keeps its title and introduction.</li>
+      <li>Select any title, heading, caption, summary or introduction in the preview to edit it. Changing a section's options resets the edited headings inside that section, but keeps its title and introduction. This includes switching between the most recent year and the 4-year aggregate, so an edited summary never quotes the other view's figures.</li>
+      <li>Area summaries, Target by area and Progress map sections have a switch under their title for the most recent year or the 4-year aggregate, and Ethnicity over time sections for each year or 4-year rolling. <b>Set all sections to</b> in the top bar changes every section at once (4-year aggregate also sets ethnicity sections to 4-year rolling). The switches are not printed.</li>
       <li><b>Download PDF</b> opens the print window. Choose Save as PDF. Pages are A4 landscape.</li>
       <li>The layout and edited text are kept in this browser, so the report is still there next time. Load the results files again to fill it. <b>Save layout</b> and <b>Open layout</b> move a layout between computers or keep several versions. A layout file holds no results.</li>
     </ul>
@@ -1166,6 +1169,15 @@ function rbAutoTitle(b){const p=b.p,t=TGm[p.target]||TG[0];
     case 'eth':return `${p.stage} by ethnicity: ${areaLabel(p.area)}`;
     case 'pri':return `Largest department gaps${p.fac?': '+facName(p.fac):''}`;
     default:return 'Commentary'}}
+// Sections that can show the most recent year or the 4-year aggregate
+const RB_MODE=['area','ranking','map'];
+const rbModeLabel=b=>RB_MODE.includes(b.type)?(b.p.mode==='agg'?'4-year aggregate':'most recent year'):b.type==='eth'?(b.p.emode==='roll'?'4-year rolling':'each year'):'';
+function rbSwitch(b,i){
+  const sw=(k,opts,cur)=>`<div class="toolbar rbonly rbmode" role="group" aria-label="Which results to show"><span class="tlab">Show</span>${opts.map(([v,l])=>`<button data-rbsw="${k}" data-rbv="${v}" data-rbi="${i}" aria-pressed="${cur===v}">${l}</button>`).join('')}<span class="tnote">This switch is not printed.</span></div>`;
+  if(RB_MODE.includes(b.type))return sw('mode',[['latest','Most recent year'],['agg','4-year aggregate']],b.p.mode);
+  if(b.type==='eth')return sw('emode',[['year','Each year'],['roll','4-year rolling']],b.p.emode);
+  return '';
+}
 const rbTitle=b=>b.title!=null?b.title:rbAutoTitle(b);
 const rbMsg=m=>`<p class="empty">${m}</p>`;
 function rbParts(html,pick){const d=document.createElement('div');d.innerHTML=html;const kids=[...d.children];
@@ -1241,7 +1253,7 @@ function rbPreview(){
   if(!RB.blocks.length)s+=`<p class="empty rbonly" style="padding:30px 0">Add sections from the panel on the left, or start from a template above. Drag a section into the list to place it, then drag sections up and down to change the order.</p>`;
   RB.blocks.forEach((b,i)=>{
     const body=b.type==='text'?`<p class="rbtext" contenteditable="true" data-ed="body" data-ph="Write your commentary here">${esc(b.body||'')}</p>`:(rbRender(b)||`<p class="empty rbonly">Nothing is selected for this section. Choose what to include in its options.</p>`);
-    s+=`<article class="rbblock${b.newPage&&i>0?' pb':''}" data-rbb="${i}"><h2 contenteditable="true" data-ed="title" data-ph="Section title">${esc(rbTitle(b))}</h2>${b.type==='text'?'':`<p class="rbintro" contenteditable="true" data-ed="intro" data-ph="Add an introduction to this section (optional)">${esc(b.intro||'')}</p>`}<div class="rbbody">${body}</div></article>`;
+    s+=`<article class="rbblock${b.newPage&&i>0?' pb':''}" data-rbb="${i}"><h2 contenteditable="true" data-ed="title" data-ph="Section title">${esc(rbTitle(b))}</h2>${rbSwitch(b,i)}${b.type==='text'?'':`<p class="rbintro" contenteditable="true" data-ed="intro" data-ph="Add an introduction to this section (optional)">${esc(b.intro||'')}</p>`}<div class="rbbody">${body}</div></article>`;
   });
   return s;
 }
@@ -1249,11 +1261,11 @@ function rbPage(){
   RB.blocks.forEach(rbNorm);
   const st=RB.ui.struct;
   let s=`<div class="toolbar rbbar"><span class="tlab">Start from</span><button data-rbtpl="fac">Faculty summaries</button><button data-rbtpl="unifac">University and faculties</button><button data-rbtpl="pri">Reverse mentoring shortlist</button>
-    <span class="rbsp"></span><button data-rbcmd="struct">${st?'Hide':'Show'} sections</button><button data-rbcmd="save">Save layout</button><input type="file" id="rbFile" accept=".json,application/json" class="vh"><label for="rbFile" class="rbfile">Open layout</label><button data-rbcmd="clear">Clear</button><button class="btn2" data-rbcmd="pdf">Download PDF</button>
+    <span class="rbsp"></span><span class="tlab">Set all sections to</span><button data-rbcmd="allLatest">Most recent year</button><button data-rbcmd="allAgg">4-year aggregate</button><button data-rbcmd="struct">${st?'Hide':'Show'} sections</button><button data-rbcmd="save">Save layout</button><input type="file" id="rbFile" accept=".json,application/json" class="vh"><label for="rbFile" class="rbfile">Open layout</label><button data-rbcmd="clear">Clear</button><button class="btn2" data-rbcmd="pdf">Download PDF</button>
     <span class="tnote">Download PDF opens the print window: choose Save as PDF as the destination. Select any title, heading, caption or summary in the preview to edit it. Your layout is kept in this browser; the data is not.</span></div>`;
   s+=`<div class="rbwrap${st?'':' nostruct'}"><aside class="rbside" id="rbSide"><h4>Add a section</h4><div class="rbpal">${Object.entries(RBT).map(([k,v])=>`<div role="button" tabindex="0" draggable="true" data-rbnew="${k}" title="${esc(v.d)}">${esc(v.l)}</div>`).join('')}</div>
     <h4>Report sections</h4><div class="rbout">${RB.blocks.map((b,i)=>{const open=RB.ui.open===b.id;
-      return `<div class="rbcard${open?' open':''}" draggable="true" data-rbi="${i}"><div class="rbch"><span class="grip" aria-hidden="true">⠿</span><div class="rbct" data-rbact="go" data-rbi="${i}" title="Show in the preview"><b data-rbt="${i}">${esc(rbTitle(b))}</b><small>${esc(RBT[b.type].l)}${b.newPage&&i>0?' · new page':''}</small></div>
+      return `<div class="rbcard${open?' open':''}" draggable="true" data-rbi="${i}"><div class="rbch"><span class="grip" aria-hidden="true">⠿</span><div class="rbct" data-rbact="go" data-rbi="${i}" title="Show in the preview"><b data-rbt="${i}">${esc(rbTitle(b))}</b><small>${esc(RBT[b.type].l)}${rbModeLabel(b)?' · '+rbModeLabel(b):''}${b.newPage&&i>0?' · new page':''}</small></div>
         <button class="rbib" data-rbact="up" data-rbi="${i}" aria-label="Move up" title="Move up"${i?'':' disabled'}>▲</button><button class="rbib" data-rbact="down" data-rbi="${i}" aria-label="Move down" title="Move down"${i<RB.blocks.length-1?'':' disabled'}>▼</button>
         <button class="rbib" data-rbact="edit" data-rbi="${i}" aria-expanded="${open}" aria-label="Options" title="Options">⚙</button><button class="rbib" data-rbact="dup" data-rbi="${i}" aria-label="Duplicate" title="Duplicate">⧉</button><button class="rbib" data-rbact="del" data-rbi="${i}" aria-label="Remove" title="Remove">✕</button></div>
         ${open?`<div class="rbcf">${rbControls(b,i)}</div>`:''}</div>`}).join('')}<div class="rbend" data-rbend="1">Drag a section here, or select one above to add it to the end</div></div>
@@ -1352,6 +1364,7 @@ view.addEventListener('paste',e=>{if(!e.target.closest||!e.target.closest('[cont
 window.addEventListener('resize',()=>{if(state.page==='rb')rbZoom()});
 function rbAct(e){
   const n=e.target.closest('[data-rbnew]');if(n){const b=rbNew(n.dataset.rbnew);rbNorm(b);RB.blocks.push(b);RB.ui.open=b.id;rbSave();render();return true}
+  const sw=e.target.closest('[data-rbsw]');if(sw){const b=RB.blocks[+sw.dataset.rbi];if(b){b.p[sw.dataset.rbsw]=sw.dataset.rbv;b.edits={};rbSave();render()}return true}
   const a=e.target.closest('[data-rbact]');if(a){const i=+a.dataset.rbi,k=a.dataset.rbact,B=RB.blocks;
     if(k==='go'){const t=$('rbPaper')&&$('rbPaper').querySelector(`[data-rbb="${i}"]`);if(t)t.scrollIntoView({behavior:'smooth',block:'start'});return true}
     if(k==='up'&&i>0)[B[i-1],B[i]]=[B[i],B[i-1]];
@@ -1363,6 +1376,7 @@ function rbAct(e){
   const t=e.target.closest('[data-rbtpl]');if(t){rbTemplate(t.dataset.rbtpl);return true}
   const c=e.target.closest('[data-rbcmd]');if(c){const k=c.dataset.rbcmd;
     if(k==='pdf')rbPrint();if(k==='save')rbDownload();if(k==='struct'){RB.ui.struct=!RB.ui.struct;render()}
+    if(k==='allLatest'||k==='allAgg'){RB.blocks.forEach(b=>{const m=k==='allAgg'?'agg':'latest',em=k==='allAgg'?'roll':'year';if(RB_MODE.includes(b.type)&&b.p.mode!==m){b.p.mode=m;b.edits={}}if(b.type==='eth'&&b.p.emode!==em){b.p.emode=em;b.edits={}}});rbSave();render()}
     if(k==='clear'&&RB.blocks.length&&confirm('Remove every section from the report?')){RB.blocks=[];rbSave();render()}return true}
   const ad=e.target.closest('[data-rbadd]');if(ad){const note=ad.closest('.expmenu').querySelector('.expnote');
     const b=rbFromPage(ad.dataset.rbadd==='page'?null:+ad.dataset.rbadd);
