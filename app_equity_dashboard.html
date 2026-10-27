@@ -190,7 +190,9 @@ table.fixed.narrow{min-width:560px}
 .ethchip:focus-visible{outline:3px solid var(--purple);outline-offset:2px}
 /* Report builder */
 .vh{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
-.rbbar .rbsp{flex:1}
+.rbbar .rbrow{flex-basis:100%;height:0}
+.toolbar button.btn2{background:var(--side);color:#fff}
+.rbbar .btn2{margin-left:auto}
 .rbbar .rbfile{border:2px solid var(--side);background:var(--bg);color:var(--side);padding:6px 14px;font-size:13px;cursor:pointer;border-radius:2px}
 .rbbar input:focus-visible + .rbfile{outline:3px solid var(--purple);outline-offset:2px}
 .rbwrap{display:grid;grid-template-columns:320px minmax(0,1fr);gap:18px;align-items:start}
@@ -367,6 +369,7 @@ table.fixed.narrow{min-width:560px}
       <li>A target is left out where either group has fewer than 20 students over the four years.</li>
       <li><b>!</b> marks a gap that is wider than the University's by more than its 95% margin of error. For a combined group, the margin comes from the margins of each target, weighted in the same way.</li>
     </ul>
+    <p>The page opens on the 4-year aggregate. <b>Most recent year</b> ranks on the latest single year instead, compared with the University in the same year, and leaves out targets where either group has fewer than 10 students. Single years rest on far fewer students, so their margins of error are much wider.</p>
     <p>Small departments are more likely to top a list by chance, because their gaps move more. The option to count only significant gaps ranks departments on the gaps where the difference is larger than the margin of error.</p>
     <h3>Report builder</h3>
     <p>The report builder puts sections from any page into one PDF, in the order you choose.</p>
@@ -375,7 +378,7 @@ table.fixed.narrow{min-width:560px}
       <li>Each section has its own options (the cog): which area, target and view to show, which parts to include, and whether it starts on a new page.</li>
       <li>On any other page, the download button on each panel can also add that panel, or the whole page, to the report with the filters already chosen.</li>
       <li>Select any title, heading, caption, summary or introduction in the preview to edit it. Changing a section's options resets the edited headings inside that section, but keeps its title and introduction. This includes switching between the most recent year and the 4-year aggregate, so an edited summary never quotes the other view's figures.</li>
-      <li>Area summaries, Target by area and Progress map sections have a switch under their title for the most recent year or the 4-year aggregate, and Ethnicity over time sections for each year or 4-year rolling. <b>Set all sections to</b> in the top bar changes every section at once (4-year aggregate also sets ethnicity sections to 4-year rolling). The switches are not printed.</li>
+      <li>Area summaries, Target by area, Progress map and Largest department gaps sections have a switch under their title for the most recent year or the 4-year aggregate, and Ethnicity over time sections for each year or 4-year rolling. The switches are not printed.</li>
       <li><b>Download PDF</b> opens the print window. Choose Save as PDF. Pages are A4 landscape.</li>
       <li>The layout and edited text are kept in this browser, so the report is still there next time. Load the results files again to fill it. <b>Save layout</b> and <b>Open layout</b> move a layout between computers or keep several versions. A layout file holds no results.</li>
     </ul>
@@ -482,7 +485,7 @@ const byLevel=l=>Object.values(AREAS).filter(a=>a.level===l).sort((x,y)=>x.name.
 
 /* ---------- Which view: most recent year or 4-year aggregate ---------- */
 const state={page:'overview',fac:null,dept:null,prog:null,target:'PTS_1',level:'Department',rfac:'',hideSmall:true,open:null,sort:{k:'name',d:1},scanArea:'U',scanStage:'all',scanApp:true,ethArea:'U',ethStage:'Continuation',ethMode:'year',ethHide:{Unknown:true},ref:'m',modes:{},summary:{},priSig:false,priOpen:null};
-function defMode(){const p=state.page;if(p==='department'||p==='programme')return 'agg';if(p==='ranking'||p==='map')return state.level==='Faculty'?'latest':'agg';return 'latest'}
+function defMode(){const p=state.page;if(p==='department'||p==='programme'||p==='pri')return 'agg';if(p==='ranking'||p==='map')return state.level==='Faculty'?'latest':'agg';return 'latest'}
 const modeKey=()=>state.page==='ranking'||state.page==='map'?state.page+':'+state.level:state.page;
 const mode=()=>state.modes[modeKey()]||defMode();
 const cur=m=>m.v[mode()];
@@ -805,7 +808,7 @@ const ICON='<svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><
 function exportContext(){
   const t=TGm[state.target];
   if(state.page==='eth')return `${state.ethStage} by ethnicity · ${state.ethArea==='U'?'Middlesex University':FACm[state.ethArea].name} · ${state.ethMode==='year'?'each year':'4-year rolling'}`;
-  if(state.page==='pri')return `Largest department gaps · latest four years combined${state.priSig?' · significant gaps only':''}`;
+  if(state.page==='pri')return `Largest department gaps · ${modeLabel()}${state.priSig?' · significant gaps only':''}`;
   if(state.page==='scan')return `Other equity gaps · ${scanAreaName()} · latest four years combined`;
   if(state.page==='ranking'||state.page==='map')return `${t.id} · ${t.stage}: ${t.grp} vs ${t.cmp} · ${modeLabel()} by ${state.level.toLowerCase()}${state.rfac?' · '+FACm[state.rfac].name:''}`;
   const nm=state.page==='overview'?'Middlesex University':state.page==='faculty'?FACm[state.fac].name:state.page==='department'?state.dept:state.prog;
@@ -1063,10 +1066,16 @@ const DEMOG=[
  {k:'eth',l:'Ethnicity (ABMO)',short:'ABMO',ids:['PTS_4'],mentor:'An Asian, Black, mixed or other ethnicity student'},
  {k:'imd',l:'Deprivation (IMD Q1-2)',short:'IMD Q1-2',ids:['PTS_6'],mentor:'A student from an IMD quintile 1 or 2 area'}];
 const PRI_MIN=20;   // students in each group over the four years
+// A single year rests on about a quarter of the students, so it uses the
+// dashboard's usual single-year minimum instead
+const priAgg=()=>mode()==='agg';
+const priMin=()=>priAgg()?PRI_MIN:SMALL;
+const priSpan=()=>priAgg()?'latest four years combined':'most recent year';
+const priOver=()=>priAgg()?'over the four years':'in the year';
 // One target: the department's 4-year gap against the University's
 function priTarget(a,t){
-  const o=a.m[t.id].v.agg,u=AREAS.U.m[t.id].v.agg;
-  const ok=o.val!=null&&u.val!=null&&o.h!=null&&o.nT>=PRI_MIN&&o.nC>=PRI_MIN;
+  const v=priAgg()?'agg':'latest',o=a.m[t.id].v[v],u=AREAS.U.m[t.id].v[v],mn=priMin();
+  const ok=o.val!=null&&u.val!=null&&o.h!=null&&o.nT>=mn&&o.nC>=mn;
   return {t,o,u,ok,ex:ok?o.val-u.val:null};
 }
 // One group of students: targets combined, weighted by target group headcount
@@ -1088,7 +1097,7 @@ const pm=v=>v==null?'–':(v>0?'+':'')+f1(v);
 const PBIN=['5+ pp narrower','2 to 5 narrower','1 to 2 narrower','Within 1 pp','1 to 2 wider','2 to 5 wider','5+ pp wider'];
 function priTip(a,x){
   let s=`<b>${a.name}</b> · ${x.d.l}<br>`;
-  s+=x.score==null?`Fewer than ${PRI_MIN} students in a group for every target`:`<b>${pm(x.score)} pp</b> ±${f1(x.h)} against the University${x.sig?' (significant)':''}`;
+  s+=x.score==null?`Fewer than ${priMin()} students in a group for every target`:`<b>${pm(x.score)} pp</b> ±${f1(x.h)} against the University${x.sig?' (significant)':''}`;
   x.ts.forEach(y=>{s+=`<br>${y.t.id} ${y.t.stage}: `+(y.ok?`${f1(y.o.val)} pp vs University ${f1(y.u.val)} pp (${r0(y.o.nT)} ${y.t.grp}, ${r0(y.o.nC)} ${y.t.cmp})`:`too few students (${r0(y.o.nT)} ${y.t.grp}, ${r0(y.o.nC)} ${y.t.cmp})`)});
   return esc(s);
 }
@@ -1096,7 +1105,7 @@ function priDetail(r){
   let s=`<div class="scroll"><table style="font-size:12px"><thead><tr><th>Group</th><th>Target</th><th class="num">Department gap</th><th class="num">University gap</th><th class="num">Difference</th><th class="num">Margin ±</th><th class="num">Target group</th><th class="num">Comparison group</th></tr></thead><tbody>`;
   r.ds.forEach(x=>x.ts.forEach((y,i)=>{
     s+=`<tr><td>${i?'':`<b>${esc(x.d.l)}</b>`}</td><td>${y.t.id} · ${y.t.stage}<span class="uni" style="display:block">${esc(y.t.grp)} vs ${esc(y.t.cmp)}</span></td><td class="num">${f1(y.o.val)}</td><td class="num">${f1(y.u.val)}</td><td class="num"><b>${y.ok?pm(y.ex):'–'}</b></td><td class="num">${y.ok?f1(y.o.h):'–'}</td><td class="num"><span style="${y.o.nT<PRI_MIN?'color:#8A4DB6;font-weight:700':''}">${r0(y.o.nT)}</span></td><td class="num"><span style="${y.o.nC<PRI_MIN?'color:#8A4DB6;font-weight:700':''}">${r0(y.o.nC)}</span></td></tr>`}));
-  return s+`</tbody></table></div><p class="cap" style="margin:6px 0 0">Gaps in percentage points, latest four years combined. Headcounts are students over the four years; those below ${PRI_MIN} are shown in purple and left out of the ranking.</p>`;
+  return s+`</tbody></table></div><p class="cap" style="margin:6px 0 0">Gaps in percentage points, ${priSpan()}. Headcounts are students ${priOver()}; those below ${priMin()} are shown in purple and left out of the ranking.</p>`;
 }
 function priTable(fac){
   const rows=areaList('Department',fac).map(priDept);
@@ -1107,18 +1116,18 @@ function priTable(fac){
   rows.forEach(r=>{const a=r.a,open=state.priOpen===a.key,t=r.top;
     s+=`<tr class="prow${open?' open':''}" tabindex="0" data-pri="${esc(a.key)}" aria-expanded="${open}"><td class="rk">${t?++rank:'–'}</td><td class="an">${areaName(a)}</td>`;
     s+=t?`<td class="lg"><b>${esc(t.d.l)}</b>${pm(t.score)} pp${t.sig?' !':''}<small class="yr">±${f1(t.h)} pp margin of error</small></td><td>${esc(t.d.mentor)}</td>`
-        :`<td colspan="2" class="uni" style="white-space:normal">${r.rep?'No gap significantly wider than the University’s':`Fewer than ${PRI_MIN} students in a group for every target`}</td>`;
+        :`<td colspan="2" class="uni" style="white-space:normal">${r.rep?'No gap significantly wider than the University’s':`Fewer than ${priMin()} students in a group for every target`}</td>`;
     r.ds.forEach(x=>{
-      if(x.score==null){s+=`<td class="hc hatch" data-tip="${priTip(a,x)}">n&lt;${PRI_MIN}</td>`;return}
+      if(x.score==null){s+=`<td class="hc hatch" data-tip="${priTip(a,x)}">n&lt;${priMin()}</td>`;return}
       const bb=bin(x.score);s+=`<td class="hc${t===x?' top':''}" style="background:${bb[2]};color:${bb[3]}" data-tip="${priTip(a,x)}">${pm(x.score)}${x.sig?' !':''}</td>`});
     s+=`<td class="ctr">${r.rep?`${r.wider} of ${r.rep}<small class="yr" style="white-space:normal">groups, by 1 pp or more</small>`:'–'}</td></tr>`;
     s+=open?`<tr class="detail"><td colspan="${5+DEMOG.length}">${priDetail(r)}</td></tr>`:'';
   });
-  return s+`</tbody></table></div><div class="legend" style="margin-top:8px">Department gap minus the University gap, latest four years combined:${BINS.map((b,i)=>`<span><i class="sw" style="background:${b[2]}"></i>${PBIN[i]}</span>`).join('')}<span><i class="sw hatch" style="border:1px solid #ccc"></i>Fewer than ${PRI_MIN} students in a group</span><span><b>!</b> significantly wider</span><span><i class="sw" style="outline:2px solid var(--tick);outline-offset:-2px;background:#fff"></i>largest gap</span></div>`;
+  return s+`</tbody></table></div><div class="legend" style="margin-top:8px">Department gap minus the University gap, ${priSpan()}:${BINS.map((b,i)=>`<span><i class="sw" style="background:${b[2]}"></i>${PBIN[i]}</span>`).join('')}<span><i class="sw hatch" style="border:1px solid #ccc"></i>Fewer than ${priMin()} students in a group</span><span><b>!</b> significantly wider</span><span><i class="sw" style="outline:2px solid var(--tick);outline-offset:-2px;background:#fff"></i>largest gap</span></div>`;
 }
 function priPage(){
-  const u=AREAS.U,yrs=TG[0].years;
-  let s=`<div class="method"><p>Departments are ranked within each faculty by their widest equity gap, to help choose departments for the reverse mentoring pilot. Each gap uses the latest four years combined (${yrs[3]} to ${yrs[6]} for continuation, and the equivalent four years for the other measures) and is compared with the University's gap for the same target. A positive number means the department's gap is wider than the University's.</p><p>Targets for the same group of students are combined, weighted by the number of students in each, so BTEC and free school meals count once each alongside ethnicity and deprivation. Targets where either group has fewer than ${PRI_MIN} students over the four years are left out. Small departments can top a list by chance, so check the margin of error and the <b>!</b> marker before approaching a department. Select a row to see each target.</p></div>`;
+  const u=AREAS.U,yrs=TG[0].years,md=mode();
+  let s=`<div class="toolbar" role="group" aria-label="Which results to show"><span class="tlab">Show</span><button data-mode="latest" aria-pressed="${md==='latest'}">Most recent year</button><button data-mode="agg" aria-pressed="${md==='agg'}">4-year aggregate</button><span class="tnote">${md==='agg'?'The latest four years combined. Steadier where student numbers are small, so this page opens on it.':'The latest single year for each measure, compared with the University in the same year.'}</span></div><div class="method"><p>Departments are ranked within each faculty by their widest equity gap, to help choose departments for the reverse mentoring pilot. ${priAgg()?`Each gap uses the latest four years combined (${yrs[3]} to ${yrs[6]} for continuation, and the equivalent four years for the other measures)`:`Each gap uses the most recent year of data (${yrs[6]} for continuation, and the equivalent year for the other measures)`} and is compared with the University's gap for the same target. A positive number means the department's gap is wider than the University's.</p><p>Targets for the same group of students are combined, weighted by the number of students in each, so BTEC and free school meals count once each alongside ethnicity and deprivation. Targets where either group has fewer than ${priMin()} students ${priOver()} are left out.${priAgg()?'':' A single year rests on far fewer students than four years combined, so margins of error are wider and more departments fall below the minimum.'} Small departments can top a list by chance, so check the margin of error and the <b>!</b> marker before approaching a department. Select a row to see each target.</p></div>`;
   const facs=state.rfac?[FACm[state.rfac]]:FAC;
   facs.forEach(f=>{s+=`<section class="panel"><h3>${esc(f.name)}</h3><p class="cap">Departments ranked by their largest gap against the University${state.priSig?', counting only gaps significantly wider than the University’s':''}. Hover over a cell for each target's figures.</p>${priTable(f.code)}</section>`});
   return s;
@@ -1144,11 +1153,12 @@ RB.ui={struct:true,open:null};
 function rbSave(){try{localStorage.setItem(RB_KEY,JSON.stringify({report:RB.report,blocks:RB.blocks}))}catch(e){}}
 function rbNew(type){
   const f=FAC[0].code;
-  const p={area:{level:'Faculty',fac:f,dept:null,prog:null,mode:'latest'},ranking:{target:'PTS_1',level:'Department',fac:'',mode:'agg',hideSmall:true,sort:'name'},map:{target:'PTS_1',level:'Department',fac:'',mode:'agg',ref:'m'},scan:{area:'U',stage:'all',app:true},eth:{area:'U',stage:'Continuation',emode:'year'},pri:{fac:'',sig:false},text:{}}[type];
+  const p={area:{level:'Faculty',fac:f,dept:null,prog:null,mode:'latest'},ranking:{target:'PTS_1',level:'Department',fac:'',mode:'agg',hideSmall:true,sort:'name'},map:{target:'PTS_1',level:'Department',fac:'',mode:'agg',ref:'m'},scan:{area:'U',stage:'all',app:true},eth:{area:'U',stage:'Continuation',emode:'year'},pri:{fac:'',sig:false,mode:'agg'},text:{}}[type];
   const parts={};RBT[type].parts.forEach(([k])=>parts[k]=k!=='details');
   return {id:rbId(),type,p,parts,title:type==='text'?'Commentary':null,intro:'',body:'',newPage:type!=='text',edits:{}};
 }
 function rbNorm(b){
+  if(b.type==='pri'&&!b.p.mode)b.p.mode='agg';   // layouts saved before this choice existed
   if(b.type!=='area'||!loaded())return;const p=b.p;
   if(!FACm[p.fac])p.fac=FAC[0].code;
   if(p.level==='Department'||p.level==='Programme'){const d=DEPTS[p.fac]||[];if(!d.includes(p.dept))p.dept=d[0]||null}
@@ -1170,7 +1180,7 @@ function rbAutoTitle(b){const p=b.p,t=TGm[p.target]||TG[0];
     case 'pri':return `Largest department gaps${p.fac?': '+facName(p.fac):''}`;
     default:return 'Commentary'}}
 // Sections that can show the most recent year or the 4-year aggregate
-const RB_MODE=['area','ranking','map'];
+const RB_MODE=['area','ranking','map','pri'];
 const rbModeLabel=b=>RB_MODE.includes(b.type)?(b.p.mode==='agg'?'4-year aggregate':'most recent year'):b.type==='eth'?(b.p.emode==='roll'?'4-year rolling':'each year'):'';
 function rbSwitch(b,i){
   const sw=(k,opts,cur)=>`<div class="toolbar rbonly rbmode" role="group" aria-label="Which results to show"><span class="tlab">Show</span>${opts.map(([v,l])=>`<button data-rbsw="${k}" data-rbv="${v}" data-rbi="${i}" aria-pressed="${cur===v}">${l}</button>`).join('')}<span class="tnote">This switch is not printed.</span></div>`;
@@ -1208,7 +1218,7 @@ function rbRender(b){
     return withState({page:'scan',scanArea:p.area,scanStage:p.stage,scanApp:p.app},()=>rbParts(scanPage(),(P,f)=>[on.tiles&&f('.tiles'),on.grid&&P[0],on.monitor&&P[1]]))||rbMsg('No scan results for this area.')}
   if(b.type==='eth'){if(!ETH)return rbMsg('Load ethnicity_outcomes_by_year.csv to fill this section.');
     return withState({page:'eth',ethArea:p.area,ethStage:p.stage,ethMode:p.emode},()=>rbParts(ethPage(),(P,f)=>[(on.rate||on.gap)&&f('.ethleg'),on.rate&&P[0],on.gap&&P[1],on.table&&P[2]]))}
-  if(b.type==='pri')return withState({page:'pri',rfac:p.fac,priSig:p.sig,priOpen:null},()=>rbParts(priPage(),(P,f)=>[on.method&&f('.method'),...(on.tables?P:[])]));
+  if(b.type==='pri')return withState({page:'pri',rfac:p.fac,priSig:p.sig,priOpen:null,modes:{pri:p.mode||'agg'}},()=>rbParts(priPage(),(P,f)=>[on.method&&f('.method'),...(on.tables?P:[])]));
   return '';
 }
 // Strip the parts of a page that only work on screen
@@ -1239,7 +1249,7 @@ function rbControls(b,i){
   if(b.type==='map')s+=rbSel(i,'target',p.target,tO,'Equity gap target')+rbSel(i,'level',p.level,lvO,'Compare')+rbSel(i,'fac',p.fac,allFac,'Faculty')+rbSel(i,'ref',p.ref,[['m','2026-27 milestone'],['t','2028-29 target']],'Judge against')+rbSel(i,'mode',p.mode,mO,'Show');
   if(b.type==='scan')s+=rbSel(i,'area',p.area,areaO,'Area')+rbSel(i,'stage',p.stage,[['all','All stages'],...STAGES.map(v=>[v,v])],'Stage (gaps to monitor)')+rbChk(i,'app',p.app,'Include gaps that are already APP targets');
   if(b.type==='eth')s+=rbSel(i,'area',p.area,areaO,'Area')+rbSel(i,'stage',p.stage,ETH_STAGES.map(v=>[v,v]),'Measure')+rbSel(i,'emode',p.emode,[['year','Each year'],['roll','4-year rolling']],'Show');
-  if(b.type==='pri')s+=rbSel(i,'fac',p.fac,allFac,'Faculty')+rbChk(i,'sig',p.sig,'Only count gaps significantly wider than the University’s');
+  if(b.type==='pri')s+=rbSel(i,'fac',p.fac,allFac,'Faculty')+rbSel(i,'mode',p.mode||'agg',mO,'Show')+rbChk(i,'sig',p.sig,'Only count gaps significantly wider than the University’s');
   const parts=RBT[b.type].parts.filter(([k])=>!(b.type==='area'&&k==='children'&&p.level==='Programme'));
   if(parts.length)s+=`<fieldset class="rbparts"><legend>Include</legend>${parts.map(([k,l])=>{
     if(b.type==='area'&&k==='children')l=({University:'Faculty',Faculty:'Department',Department:'Programme'})[p.level]+' snapshot';
@@ -1261,7 +1271,7 @@ function rbPage(){
   RB.blocks.forEach(rbNorm);
   const st=RB.ui.struct;
   let s=`<div class="toolbar rbbar"><span class="tlab">Start from</span><button data-rbtpl="fac">Faculty summaries</button><button data-rbtpl="unifac">University and faculties</button><button data-rbtpl="pri">Reverse mentoring shortlist</button>
-    <span class="rbsp"></span><span class="tlab">Set all sections to</span><button data-rbcmd="allLatest">Most recent year</button><button data-rbcmd="allAgg">4-year aggregate</button><button data-rbcmd="struct">${st?'Hide':'Show'} sections</button><button data-rbcmd="save">Save layout</button><input type="file" id="rbFile" accept=".json,application/json" class="vh"><label for="rbFile" class="rbfile">Open layout</label><button data-rbcmd="clear">Clear</button><button class="btn2" data-rbcmd="pdf">Download PDF</button>
+    <span class="rbrow"></span><span class="tlab">Report</span><button data-rbcmd="struct">${st?'Hide':'Show'} sections</button><button data-rbcmd="save">Save layout</button><input type="file" id="rbFile" accept=".json,application/json" class="vh"><label for="rbFile" class="rbfile">Open layout</label><button data-rbcmd="clear">Clear</button><button class="btn2" data-rbcmd="pdf">Download PDF</button>
     <span class="tnote">Download PDF opens the print window: choose Save as PDF as the destination. Select any title, heading, caption or summary in the preview to edit it. Your layout is kept in this browser; the data is not.</span></div>`;
   s+=`<div class="rbwrap${st?'':' nostruct'}"><aside class="rbside" id="rbSide"><h4>Add a section</h4><div class="rbpal">${Object.entries(RBT).map(([k,v])=>`<div role="button" tabindex="0" draggable="true" data-rbnew="${k}" title="${esc(v.d)}">${esc(v.l)}</div>`).join('')}</div>
     <h4>Report sections</h4><div class="rbout">${RB.blocks.map((b,i)=>{const open=RB.ui.open===b.id;
@@ -1290,7 +1300,7 @@ function rbFromPage(idx){
   else if(pg==='map'){b=rbNew('map');Object.assign(b.p,{target:state.target,level:state.level,fac:state.rfac,mode:mode(),ref:state.ref});if(one)b.parts={tiles:false,chart:true}}
   else if(pg==='scan'){b=rbNew('scan');b.p={area:state.scanArea,stage:state.scanStage,app:state.scanApp};if(one)b.parts={tiles:false,grid:idx===0,monitor:idx===1}}
   else if(pg==='eth'){b=rbNew('eth');b.p={area:state.ethArea,stage:state.ethStage,emode:state.ethMode};if(one)b.parts={rate:idx===0,gap:idx===1,table:idx===2}}
-  else if(pg==='pri'){b=rbNew('pri');b.p={fac:one?(state.rfac||FAC[idx].code):state.rfac,sig:state.priSig};if(one)b.parts={method:false,tables:true}}
+  else if(pg==='pri'){b=rbNew('pri');b.p={fac:one?(state.rfac||FAC[idx].code):state.rfac,sig:state.priSig,mode:mode()};if(one)b.parts={method:false,tables:true}}
   return b||null;
 }
 function rbTemplate(k){
@@ -1376,7 +1386,6 @@ function rbAct(e){
   const t=e.target.closest('[data-rbtpl]');if(t){rbTemplate(t.dataset.rbtpl);return true}
   const c=e.target.closest('[data-rbcmd]');if(c){const k=c.dataset.rbcmd;
     if(k==='pdf')rbPrint();if(k==='save')rbDownload();if(k==='struct'){RB.ui.struct=!RB.ui.struct;render()}
-    if(k==='allLatest'||k==='allAgg'){RB.blocks.forEach(b=>{const m=k==='allAgg'?'agg':'latest',em=k==='allAgg'?'roll':'year';if(RB_MODE.includes(b.type)&&b.p.mode!==m){b.p.mode=m;b.edits={}}if(b.type==='eth'&&b.p.emode!==em){b.p.emode=em;b.edits={}}});rbSave();render()}
     if(k==='clear'&&RB.blocks.length&&confirm('Remove every section from the report?')){RB.blocks=[];rbSave();render()}return true}
   const ad=e.target.closest('[data-rbadd]');if(ad){const note=ad.closest('.expmenu').querySelector('.expnote');
     const b=rbFromPage(ad.dataset.rbadd==='page'?null:+ad.dataset.rbadd);
