@@ -35,6 +35,16 @@ can be edited in the preview. Templates include one section per faculty. The
 layout is kept in the browser and can be saved as a layout file; neither holds
 any results. Download PDF uses the browser's print window (A4 landscape).
 
+Each report has its own tab, so several can be kept side by side; **+ New
+report** starts a blank one. In an area summary, the Targets buttons above the
+section close or add back individual targets (or show only the BTEC, free school
+meals, ethnicity or IMD targets), and the rows of the snapshot below can be
+closed or added back in the same way. These buttons are not printed. The
+**APP Interventions Fund** report is set up as a tab the first time the page
+opens, and is also available under Start from. Reports use Middlesex University
+colours and type; the colour values sit together at the end of the page's styles
+so they can be updated.
+
 ## Student cohort comparison dashboard
 
 A single-page tool that compares a group of students against the whole student
