@@ -257,7 +257,12 @@ table.fixed.narrow{min-width:560px}
 [data-ph]:empty::before{content:attr(data-ph);color:var(--muted);font-style:italic;font-weight:400}
 #printRoot{display:none}
 @media print{
-  @page{size:A4 landscape;margin:12mm}
+  /* The report sets its own page margins: only a page number, bottom right. Defining these boxes
+     stops Chrome and Edge printing their own title, date and web address in the margins. */
+  @page{size:A4 landscape;margin:12mm 12mm 14mm;
+    @top-left{content:""}@top-center{content:""}@top-right{content:""}
+    @bottom-left{content:""}@bottom-center{content:""}
+    @bottom-right{content:counter(page);font-family:"Fira Sans Condensed","Source Sans 3",Arial,sans-serif;font-size:10pt;color:#4A4560}}
   body.printing .app,body.printing .tip,body.printing .overlay{display:none!important}
   body.printing #printRoot{display:block}
   #printRoot{-webkit-print-color-adjust:exact;print-color-adjust:exact}
