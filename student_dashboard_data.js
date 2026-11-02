@@ -1,135 +1,731 @@
-// Baked-in population reference for the student-cohort comparison dashboard.
-// Population = whole student population 2025/26 (14,256 students), derived from
-// institutional EDI data. No personal records here: percentages and counts only.
-// Replace this file to refresh the baseline. Keep it in the same folder as
-// student_dashboard.html.
+// Built-in population baseline for the student cohort comparison dashboard.
+// Population = whole student population 2025/26 (14,023 students), built from the
+// student number download by analysis/build_dashboard_baseline.js. No personal records
+// here: counts and percentages only, with categories under 10 students combined.
+// Rebuild with that script to refresh. Keep it in the same folder as student_dashboard.html.
 window.DASHBOARD_DATA = {
  "META": {
-  "generated": "2026-09-04",
+  "generated": "2026-11-02",
   "minCell": 10,
-  "popTotal": 14256,
+  "popTotal": 14023,
   "populationLabel": "Whole student population (2025/26)",
   "dimensions": [
-   "Gender",
+   "Faculty",
+   "Department",
+   "Level of study",
+   "Mode of study",
+   "Residency",
+   "Sex",
+   "Age on entry",
+   "Age group",
+   "Ethnicity (BAME grouping)",
    "Ethnicity (broad)",
    "Ethnicity (detailed)",
    "Disability",
    "First generation in HE",
-   "Age group",
-   "Residency",
-   "Religion",
-   "Sexual orientation",
-   "Care leaver status"
+   "Parental HE",
+   "Care leaver",
+   "IMD quintile",
+   "Widening participation flag",
+   "Prior qualifications (A-level and BTEC flags)",
+   "Entry route",
+   "Apprenticeship",
+   "Religion"
   ],
-  // Which CSV column headers map to each dimension. Matching is case- and
-  // punctuation-insensitive, so "Gender Identity" matches "gender identity".
-  // Add your own header names here if your CSV uses different labels.
   "columnAliases": {
-   "Gender": ["gender", "sex", "gender identity"],
-   "Ethnicity (broad)": ["ethnicity", "ethnicity broad", "broad ethnicity", "ethnic group"],
-   "Ethnicity (detailed)": ["ethnicity detailed", "detailed ethnicity", "ethnicity detail"],
-   "Disability": ["disability", "disability status", "disabled"],
-   "First generation in HE": ["first generation in he", "first generation", "first gen", "firstgen", "first in family"],
-   "Age group": ["age group", "agegroup", "age band", "age"],
-   "Residency": ["residency", "fee status", "domicile", "residence"],
-   "Religion": ["religion", "religion or belief", "faith"],
-   "Sexual orientation": ["sexual orientation", "orientation", "sexuality"],
-   "Care leaver status": ["care leaver status", "care leaver", "care experienced", "careleaver"]
+   "Faculty": [
+    "faculty",
+    "programme faculty"
+   ],
+   "Department": [
+    "department"
+   ],
+   "Level of study": [
+    "level of study",
+    "level",
+    "student level"
+   ],
+   "Mode of study": [
+    "mode of study",
+    "mode"
+   ],
+   "Residency": [
+    "residency",
+    "fee status",
+    "domicile"
+   ],
+   "Sex": [
+    "sex",
+    "gender"
+   ],
+   "Age on entry": [
+    "age on entry",
+    "age",
+    "mature"
+   ],
+   "Age group": [
+    "age group"
+   ],
+   "Ethnicity (BAME grouping)": [
+    "bame",
+    "bame grouping",
+    "ethnicity bame"
+   ],
+   "Ethnicity (broad)": [
+    "ethnicity",
+    "ethnicity broad",
+    "broad ethnicity",
+    "ethnic group"
+   ],
+   "Ethnicity (detailed)": [
+    "ethnicity detailed",
+    "detailed ethnicity",
+    "ethnicity description"
+   ],
+   "Disability": [
+    "disability",
+    "disability flag",
+    "disabled"
+   ],
+   "First generation in HE": [
+    "first generation in he",
+    "first generation",
+    "first gen"
+   ],
+   "Parental HE": [
+    "parental he"
+   ],
+   "Care leaver": [
+    "care leaver",
+    "care experienced"
+   ],
+   "IMD quintile": [
+    "imd quintile",
+    "imd"
+   ],
+   "Widening participation flag": [
+    "widening participation flag"
+   ],
+   "Prior qualifications (A-level and BTEC flags)": [
+    "prior qualifications",
+    "prior qualification",
+    "entry qualification"
+   ],
+   "Entry route": [
+    "entry route"
+   ],
+   "Apprenticeship": [
+    "apprenticeship"
+   ],
+   "Religion": [
+    "religion",
+    "religion or belief"
+   ]
   },
-  "disclosure": "Population figures are the 2025/26 whole-student-population distributions (14,256 students). Your uploaded cohort is compared against these. Groups with fewer than 10 students in your cohort are suppressed and not tested. Significance is a two-proportion z-test at the 95% level. Category labels in your CSV must match the population labels exactly to line up (see the notes under each chart)."
+  "disclosure": "Population figures are the 2025/26 whole student population (14,023 students), from the student number download filtered as in the EDI report. Your uploaded cohort is compared against these. Groups with fewer than 10 students in your cohort are suppressed and not tested. Significance is a two-proportion z-test at the 95% level. Category labels in your file must match the population labels exactly to line up (see the notes under each chart)."
  },
  "POPULATION": {
-  "Gender": [
-   {"category": "Female", "pct": 56.1, "n": 7996},
-   {"category": "Male", "pct": 43.2, "n": 6162},
-   {"category": "O", "pct": 0.5, "n": 75},
-   {"category": "Not known", "pct": 0.1, "n": 13},
-   {"category": "Not available", "pct": 0.1, "n": 10}
+  "Faculty": [
+   {
+    "category": "Business and Law",
+    "n": 4513,
+    "pct": 32.2
+   },
+   {
+    "category": "Science and Technology",
+    "n": 4165,
+    "pct": 29.7
+   },
+   {
+    "category": "Health, Social Care and Education",
+    "n": 3794,
+    "pct": 27.1
+   },
+   {
+    "category": "Arts and Creative Industries",
+    "n": 1514,
+    "pct": 10.8
+   },
+   {
+    "category": "No faculty",
+    "n": 37,
+    "pct": 0.3
+   }
   ],
-  "Ethnicity (broad)": [
-   {"category": "Asian", "pct": 36.1, "n": 5142},
-   {"category": "Black", "pct": 21.0, "n": 2996},
-   {"category": "White", "pct": 18.1, "n": 2574},
-   {"category": "Not known", "pct": 8.4, "n": 1196},
-   {"category": "Arab", "pct": 5.3, "n": 758},
-   {"category": "Mixed", "pct": 4.3, "n": 619},
-   {"category": "Chinese", "pct": 3.1, "n": 442},
-   {"category": "Other/Not Known", "pct": 2.2, "n": 316},
-   {"category": "Not Known", "pct": 1.5, "n": 211}
+  "Department": [
+   {
+    "category": "Strategy, Leadership and Operations",
+    "n": 2654,
+    "pct": 18.9
+   },
+   {
+    "category": "Adult, Child and Midwifery",
+    "n": 2002,
+    "pct": 14.3
+   },
+   {
+    "category": "Computer Science",
+    "n": 1446,
+    "pct": 10.3
+   },
+   {
+    "category": "Mental Health and Social Work",
+    "n": 1083,
+    "pct": 7.7
+   },
+   {
+    "category": "Natural Sciences",
+    "n": 1078,
+    "pct": 7.7
+   },
+   {
+    "category": "School of Design",
+    "n": 962,
+    "pct": 6.9
+   },
+   {
+    "category": "Psychology",
+    "n": 946,
+    "pct": 6.7
+   },
+   {
+    "category": "Law and Social Sciences",
+    "n": 728,
+    "pct": 5.2
+   },
+   {
+    "category": "Education",
+    "n": 709,
+    "pct": 5.1
+   },
+   {
+    "category": "Accounting, Finance and Economics",
+    "n": 592,
+    "pct": 4.2
+   },
+   {
+    "category": "Marketing, Enterprise and Tourism",
+    "n": 538,
+    "pct": 3.8
+   },
+   {
+    "category": "Sports",
+    "n": 394,
+    "pct": 2.8
+   },
+   {
+    "category": "School of Arts",
+    "n": 305,
+    "pct": 2.2
+   },
+   {
+    "category": "Design Engineering and Mathematics",
+    "n": 282,
+    "pct": 2
+   },
+   {
+    "category": "School of Film",
+    "n": 247,
+    "pct": 1.8
+   },
+   {
+    "category": "Academic Registry",
+    "n": 30,
+    "pct": 0.2
+   },
+   {
+    "category": "Research Degree Committee",
+    "n": 19,
+    "pct": 0.1
+   },
+   {
+    "category": "Groups under 10 combined",
+    "n": 8,
+    "pct": 0.1
+   }
   ],
-  "Ethnicity (detailed)": [
-   {"category": "Asian-Indian", "pct": 20.3, "n": 2900},
-   {"category": "Black-African", "pct": 18.1, "n": 2583},
-   {"category": "White", "pct": 10.4, "n": 1476},
-   {"category": "Other Asian Background", "pct": 7.4, "n": 1054},
-   {"category": "White-British", "pct": 7.1, "n": 1016},
-   {"category": "Arab", "pct": 5.7, "n": 810},
-   {"category": "Asian-Pakistani", "pct": 5.1, "n": 727},
-   {"category": "Asian-Bangladeshi", "pct": 4.4, "n": 632},
-   {"category": "Other White Background", "pct": 3.6, "n": 508},
-   {"category": "Black-Caribbean", "pct": 3.3, "n": 470},
-   {"category": "Chinese", "pct": 3.1, "n": 449},
-   {"category": "Other Ethnic Background", "pct": 2.4, "n": 336},
-   {"category": "Other Mixed Background", "pct": 2.1, "n": 304},
-   {"category": "Other Black Background", "pct": 1.2, "n": 178},
-   {"category": "Mixed-White/Black Caribbean", "pct": 1.2, "n": 169},
-   {"category": "Mixed-White/Black African", "pct": 1.0, "n": 141},
-   {"category": "Refused to answer", "pct": 0.8, "n": 113},
-   {"category": "Not Given", "pct": 0.7, "n": 103},
-   {"category": "Mixed-White/Asian", "pct": 0.7, "n": 96},
-   {"category": "White-Irish", "pct": 0.5, "n": 73},
-   {"category": "Not known", "pct": 0.3, "n": 41},
-   {"category": "Not given", "pct": 0.2, "n": 30},
-   {"category": "Refused to Answer", "pct": 0.1, "n": 17}
+  "Level of study": [
+   {
+    "category": "Undergraduate",
+    "n": 9805,
+    "pct": 69.9
+   },
+   {
+    "category": "Postgraduate taught",
+    "n": 3405,
+    "pct": 24.3
+   },
+   {
+    "category": "Postgraduate research",
+    "n": 804,
+    "pct": 5.7
+   },
+   {
+    "category": "Groups under 10 combined",
+    "n": 9,
+    "pct": 0.1
+   }
   ],
-  "Disability": [
-   {"category": "N", "pct": 93.2, "n": 11028},
-   {"category": "Y", "pct": 6.8, "n": 803}
-  ],
-  "First generation in HE": [
-   {"category": "Yes", "pct": 54.0, "n": 7693},
-   {"category": "No", "pct": 37.8, "n": 5384},
-   {"category": "Not known", "pct": 8.3, "n": 1179}
-  ],
-  "Age group": [
-   {"category": "16-20", "pct": 38.2, "n": 5449},
-   {"category": "21-24", "pct": 23.1, "n": 3300},
-   {"category": "30+", "pct": 19.4, "n": 2762},
-   {"category": "25-29", "pct": 11.0, "n": 1565},
-   {"category": "Not known", "pct": 8.3, "n": 1179}
+  "Mode of study": [
+   {
+    "category": "Full time",
+    "n": 11866,
+    "pct": 84.6
+   },
+   {
+    "category": "Part time",
+    "n": 2157,
+    "pct": 15.4
+   }
   ],
   "Residency": [
-   {"category": "United Kingdom", "pct": 64.5, "n": 9202},
-   {"category": "Overseas", "pct": 35.1, "n": 5008},
-   {"category": "EU", "pct": 0.1, "n": 11},
-   {"category": "Not known", "pct": 0.1, "n": 11}
+   {
+    "category": "UK",
+    "n": 9254,
+    "pct": 66
+   },
+   {
+    "category": "Overseas",
+    "n": 4725,
+    "pct": 33.7
+   },
+   {
+    "category": "EU",
+    "n": 27,
+    "pct": 0.2
+   },
+   {
+    "category": "Other or not resolved",
+    "n": 11,
+    "pct": 0.1
+   }
+  ],
+  "Sex": [
+   {
+    "category": "Female",
+    "n": 8129,
+    "pct": 58
+   },
+   {
+    "category": "Male",
+    "n": 5817,
+    "pct": 41.5
+   },
+   {
+    "category": "Other",
+    "n": 77,
+    "pct": 0.5
+   }
+  ],
+  "Age on entry": [
+   {
+    "category": "21 and over",
+    "n": 8120,
+    "pct": 57.9
+   },
+   {
+    "category": "Under 21",
+    "n": 5903,
+    "pct": 42.1
+   }
+  ],
+  "Age group": [
+   {
+    "category": "16-20",
+    "n": 5903,
+    "pct": 42.1
+   },
+   {
+    "category": "30+",
+    "n": 3466,
+    "pct": 24.7
+   },
+   {
+    "category": "21-24",
+    "n": 3068,
+    "pct": 21.9
+   },
+   {
+    "category": "25-29",
+    "n": 1586,
+    "pct": 11.3
+   }
+  ],
+  "Ethnicity (BAME grouping)": [
+   {
+    "category": "BAME",
+    "n": 10293,
+    "pct": 73.4
+   },
+   {
+    "category": "White",
+    "n": 3473,
+    "pct": 24.8
+   },
+   {
+    "category": "Unknown",
+    "n": 257,
+    "pct": 1.8
+   }
+  ],
+  "Ethnicity (broad)": [
+   {
+    "category": "Asian",
+    "n": 5464,
+    "pct": 39
+   },
+   {
+    "category": "White",
+    "n": 3476,
+    "pct": 24.8
+   },
+   {
+    "category": "Black",
+    "n": 3020,
+    "pct": 21.5
+   },
+   {
+    "category": "Other",
+    "n": 1114,
+    "pct": 7.9
+   },
+   {
+    "category": "Mixed",
+    "n": 692,
+    "pct": 4.9
+   },
+   {
+    "category": "Not known",
+    "n": 257,
+    "pct": 1.8
+   }
+  ],
+  "Ethnicity (detailed)": [
+   {
+    "category": "Asian-Indian",
+    "n": 2436,
+    "pct": 17.4
+   },
+   {
+    "category": "Black-African",
+    "n": 2408,
+    "pct": 17.2
+   },
+   {
+    "category": "White",
+    "n": 1611,
+    "pct": 11.5
+   },
+   {
+    "category": "White-British",
+    "n": 1165,
+    "pct": 8.3
+   },
+   {
+    "category": "Other Asian Background",
+    "n": 1032,
+    "pct": 7.4
+   },
+   {
+    "category": "Arab",
+    "n": 784,
+    "pct": 5.6
+   },
+   {
+    "category": "Chinese",
+    "n": 738,
+    "pct": 5.3
+   },
+   {
+    "category": "Asian-Pakistani",
+    "n": 678,
+    "pct": 4.8
+   },
+   {
+    "category": "Asian-Bangladeshi",
+    "n": 580,
+    "pct": 4.1
+   },
+   {
+    "category": "Other White Background",
+    "n": 563,
+    "pct": 4
+   },
+   {
+    "category": "Black-Caribbean",
+    "n": 437,
+    "pct": 3.1
+   },
+   {
+    "category": "Other Ethnic Background",
+    "n": 330,
+    "pct": 2.4
+   },
+   {
+    "category": "Other Mixed Background",
+    "n": 295,
+    "pct": 2.1
+   },
+   {
+    "category": "Other Black Background",
+    "n": 175,
+    "pct": 1.2
+   },
+   {
+    "category": "Mixed-White/Black Caribbean",
+    "n": 154,
+    "pct": 1.1
+   },
+   {
+    "category": "Mixed-White/Black African",
+    "n": 139,
+    "pct": 1
+   },
+   {
+    "category": "Not Given",
+    "n": 139,
+    "pct": 1
+   },
+   {
+    "category": "Refused to answer",
+    "n": 113,
+    "pct": 0.8
+   },
+   {
+    "category": "Mixed-White/Asian",
+    "n": 104,
+    "pct": 0.7
+   },
+   {
+    "category": "White-Irish",
+    "n": 99,
+    "pct": 0.7
+   },
+   {
+    "category": "White Welsh",
+    "n": 18,
+    "pct": 0.1
+   },
+   {
+    "category": "White-Scottish",
+    "n": 17,
+    "pct": 0.1
+   },
+   {
+    "category": "Groups under 10 combined",
+    "n": 8,
+    "pct": 0.1
+   }
+  ],
+  "Disability": [
+   {
+    "category": "No reported disability",
+    "n": 11682,
+    "pct": 83.3
+   },
+   {
+    "category": "Reported disability",
+    "n": 2341,
+    "pct": 16.7
+   }
+  ],
+  "First generation in HE": [
+   {
+    "category": "Yes",
+    "n": 8142,
+    "pct": 58.1
+   },
+   {
+    "category": "No",
+    "n": 5871,
+    "pct": 41.9
+   }
+  ],
+  "Parental HE": [
+   {
+    "category": "No",
+    "n": 6132,
+    "pct": 44.4
+   },
+   {
+    "category": "Yes",
+    "n": 5871,
+    "pct": 42.5
+   },
+   {
+    "category": "Don't know",
+    "n": 851,
+    "pct": 6.2
+   },
+   {
+    "category": "Not Applicable",
+    "n": 504,
+    "pct": 3.7
+   },
+   {
+    "category": "Information refused",
+    "n": 238,
+    "pct": 1.7
+   },
+   {
+    "category": "No Response Given",
+    "n": 202,
+    "pct": 1.5
+   }
+  ],
+  "Care leaver": [
+   {
+    "category": "Not a care leaver",
+    "n": 5050,
+    "pct": 98.1
+   },
+   {
+    "category": "Care leaver",
+    "n": 98,
+    "pct": 1.9
+   }
+  ],
+  "IMD quintile": [
+   {
+    "category": "Quintile 2",
+    "n": 2810,
+    "pct": 33.4
+   },
+   {
+    "category": "Quintile 1 (most deprived)",
+    "n": 1892,
+    "pct": 22.5
+   },
+   {
+    "category": "Quintile 3",
+    "n": 1835,
+    "pct": 21.8
+   },
+   {
+    "category": "Quintile 4",
+    "n": 1154,
+    "pct": 13.7
+   },
+   {
+    "category": "Quintile 5 (least deprived)",
+    "n": 711,
+    "pct": 8.5
+   }
+  ],
+  "Widening participation flag": [
+   {
+    "category": "Yes",
+    "n": 13424,
+    "pct": 96.1
+   },
+   {
+    "category": "No",
+    "n": 540,
+    "pct": 3.9
+   }
+  ],
+  "Prior qualifications (A-level and BTEC flags)": [
+   {
+    "category": "Neither",
+    "n": 10783,
+    "pct": 79.1
+   },
+   {
+    "category": "A-levels",
+    "n": 1282,
+    "pct": 9.4
+   },
+   {
+    "category": "BTEC",
+    "n": 1197,
+    "pct": 8.8
+   },
+   {
+    "category": "A-levels and BTEC",
+    "n": 363,
+    "pct": 2.7
+   }
+  ],
+  "Entry route": [
+   {
+    "category": "Not through UCAS",
+    "n": 8097,
+    "pct": 57.7
+   },
+   {
+    "category": "UCAS main cycle",
+    "n": 4106,
+    "pct": 29.3
+   },
+   {
+    "category": "UCAS Clearing",
+    "n": 1820,
+    "pct": 13
+   }
+  ],
+  "Apprenticeship": [
+   {
+    "category": "Not an apprentice",
+    "n": 13169,
+    "pct": 93.9
+   },
+   {
+    "category": "Apprentice",
+    "n": 854,
+    "pct": 6.1
+   }
   ],
   "Religion": [
-   {"category": "Christian", "pct": 27.7, "n": 3953},
-   {"category": "Muslim", "pct": 24.3, "n": 3460},
-   {"category": "No religion or belief", "pct": 14.1, "n": 2012},
-   {"category": "Hindu", "pct": 14.0, "n": 1990},
-   {"category": "Not known", "pct": 10.8, "n": 1542},
-   {"category": "I prefer not to say", "pct": 3.1, "n": 446},
-   {"category": "Buddhist", "pct": 1.6, "n": 234},
-   {"category": "Any other religion or belief", "pct": 1.2, "n": 170},
-   {"category": "Spiritual", "pct": 1.1, "n": 159},
-   {"category": "Jewish", "pct": 0.6, "n": 90}
-  ],
-  "Sexual orientation": [
-   {"category": "Heterosexual", "pct": 68.0, "n": 9699},
-   {"category": "I prefer not to say", "pct": 12.4, "n": 1762},
-   {"category": "Not known", "pct": 11.0, "n": 1574},
-   {"category": "Bisexual", "pct": 3.7, "n": 525},
-   {"category": "Other", "pct": 3.6, "n": 513},
-   {"category": "Gay man", "pct": 0.7, "n": 101},
-   {"category": "Gay woman/lesbian", "pct": 0.6, "n": 82}
-  ],
-  "Care leaver status": [
-   {"category": "Not known", "pct": 56.4, "n": 8045},
-   {"category": "Not a care leaver", "pct": 35.2, "n": 5017},
-   {"category": "Not Known", "pct": 7.7, "n": 1099},
-   {"category": "In care for more than 3 months", "pct": 0.7, "n": 95}
+   {
+    "category": "Christian",
+    "n": 4388,
+    "pct": 32.4
+   },
+   {
+    "category": "Muslim",
+    "n": 3357,
+    "pct": 24.8
+   },
+   {
+    "category": "No religion or belief",
+    "n": 2663,
+    "pct": 19.7
+   },
+   {
+    "category": "Hindu",
+    "n": 1721,
+    "pct": 12.7
+   },
+   {
+    "category": "I prefer not to say",
+    "n": 521,
+    "pct": 3.8
+   },
+   {
+    "category": "Buddhist",
+    "n": 231,
+    "pct": 1.7
+   },
+   {
+    "category": "Spiritual",
+    "n": 197,
+    "pct": 1.5
+   },
+   {
+    "category": "Any other religion or belief",
+    "n": 191,
+    "pct": 1.4
+   },
+   {
+    "category": "Sikh",
+    "n": 170,
+    "pct": 1.3
+   },
+   {
+    "category": "Jewish",
+    "n": 95,
+    "pct": 0.7
+   }
   ]
  }
 };

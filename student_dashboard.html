@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Student cohort comparison</title>
 <script src="student_dashboard_data.js"></script>
+<script src="lib/jszip.min.js"></script>
+<script src="student_dashboard_mis.js"></script>
 <style>
   :root{
     --ink:#1d2530; --ink-soft:#55606f; --line:#e2e6ec; --paper:#f7f8fa;
@@ -175,22 +177,22 @@
   <!-- upload zone -->
   <div id="uploadZone">
     <div class="droprow">
-      <div class="drop" id="dropPop" tabindex="0" role="button" aria-label="Upload the population CSV">
+      <div class="drop" id="dropPop" tabindex="0" role="button" aria-label="Upload the population file">
         <span class="tag">Optional</span>
         <h2>Population file (everyone)</h2>
-        <p>One row per student: a student ID column plus demographic columns.</p>
+        <p>The student number download (Excel or CSV), or any file with one row per student: a student ID column plus demographic columns.</p>
         <p>Provides the demographics, looked up by ID, so labels always match.</p>
-        <span class="btn">Choose population CSV</span>
-        <input type="file" id="filePop" accept=".csv,text/csv">
+        <span class="btn">Choose population file</span>
+        <input type="file" id="filePop" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
         <div class="loadedname" id="popLoaded"></div>
       </div>
-      <div class="drop" id="dropCohort" tabindex="0" role="button" aria-label="Upload the cohort or service CSV">
+      <div class="drop" id="dropCohort" tabindex="0" role="button" aria-label="Upload the cohort or service file">
         <span class="tag req">Required</span>
         <h2>Cohort / service file</h2>
         <p>The students you want to compare: a student ID column, plus optional service or sub-group columns.</p>
         <p>If you skip the population file, include demographic columns here instead.</p>
-        <span class="btn">Choose cohort CSV</span>
-        <input type="file" id="fileCohort" accept=".csv,text/csv">
+        <span class="btn">Choose cohort file</span>
+        <input type="file" id="fileCohort" accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
         <div class="loadedname" id="cohortLoaded"></div>
       </div>
     </div>
@@ -207,6 +209,7 @@
     <div class="card" id="popMapCard">
       <h2>Population file: which column is which?</h2>
       <p class="note" id="popMapIntro"></p>
+      <p class="note hidden" id="popYearLine"><label>Academic year to compare against <select id="popYear"></select></label></p>
       <div style="overflow-x:auto">
         <table class="map-table"><thead><tr>
           <th>Column</th><th>Example values</th><th>Treat this column as…</th>
@@ -312,7 +315,10 @@
   function svgEl(tag,a){var el=document.createElementNS(NS,tag);for(var k in a)el.setAttribute(k,a[k]);return el;}
   function pinChartWidth(svg,w){svg.style.minWidth=w+'px';}
   function normHeader(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();}
-  function normId(v){return String(v==null?'':v).trim().toLowerCase();}
+  // Student numbers match with or without the leading M and zeros (M01093680, 1093680
+  // and 01093680 are the same student), since Excel often drops leading zeros.
+  function normId(v){var s=String(v==null?'':v).trim().toLowerCase();
+    var m=/^m?0*(\d+)$/.exec(s);return m?m[1]:s;}
 
   var FLAGGY_NEG={'':1,'0':1,'no':1,'n':1,'false':1,'none':1,'na':1,'n/a':1,'not applicable':1,'-':1};
   function truthy(v){return !FLAGGY_NEG.hasOwnProperty(String(v==null?'':v).trim().toLowerCase());}
@@ -548,7 +554,18 @@
     if(hasPop){
       document.getElementById('popMapIntro').textContent=
         POPCSV.rows.length.toLocaleString()+' students in '+POPCSV.fileName+'. Mark the student ID column and the demographic columns to compare on.';
+      var mis=POPCSV.mis, yl=document.getElementById('popYearLine');
+      yl.classList.toggle('hidden',!mis);
+      if(mis){
+        var ys=document.getElementById('popYear');ys.textContent='';
+        mis.years.forEach(function(y){ys.appendChild(opt(y,MISPreset.yearLabel(y)));});
+        ys.value=mis.year;
+        document.getElementById('popMapIntro').textContent=
+          'Recognised as the student number download. '+POPCSV.rows.length.toLocaleString()+' students in '+MISPreset.yearLabel(mis.year)+
+          '. Characteristics are grouped as in the EDI report. Switch any on or off below.';
+      }
       buildMapTable('popMapBody',POPCSV,popOptions,function(h,info){
+        if(mis&&mis.defaults[h]) return mis.defaults[h];
         if(looksLikeId(h,info,POPCSV.rows.length)) return 'id';
         return (info.distinct>=1&&info.distinct<=60&&info.nonEmpty>0)?'dim':'ignore';
       });
@@ -764,7 +781,7 @@
     var userLabel=(state.marker==='ALL')?'Your cohort':groupLabel;
     document.getElementById('legUsers').textContent=userLabel;
 
-    var popName=(POP.source==='file'&&POPCSV)?POPCSV.fileName:'built-in baseline';
+    var popName=(POP.source==='file'&&POPCSV)?POPCSV.fileName+(POPCSV.mis?' ('+MISPreset.yearLabel(POPCSV.mis.year)+')':''):'built-in baseline';
     document.getElementById('fileStrip').innerHTML=
       '<span class="pill">'+esc(COHORTCSV.fileName)+'</span>'+
       '<span style="color:var(--ink-soft)">'+COHORTCSV.rows.length.toLocaleString()+' in cohort · compared with '+
@@ -869,7 +886,7 @@
   function buildReport(scope){
     var host=document.getElementById('report');host.innerHTML='';
     var keys=scope==='current'?[state.marker]:MARKERS.map(function(m){return m.key;});
-    var popName=(POP.source==='file'&&POPCSV)?POPCSV.fileName:'the built-in 2025/26 baseline';
+    var popName=(POP.source==='file'&&POPCSV)?POPCSV.fileName+(POPCSV.mis?' ('+MISPreset.yearLabel(POPCSV.mis.year)+')':''):'the built-in baseline ('+(D.META.populationLabel||'')+')';
     var dateStr=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
 
     var cover=document.createElement('section');cover.className='rep-cover';
@@ -948,27 +965,49 @@
     document.getElementById('uploadZone').classList.remove('hidden');refreshContinue();
   }
 
-  function readFile(file,cb){
+  function isXlsx(file){return /\.xlsx$/i.test(file.name);}
+  function popFromRows(rows,fileName){
+    var headers=rows[0].map(function(h){return String(h).trim();}),body=rows.slice(1);
+    if(!window.MISPreset||!MISPreset.detect(headers)) return makeCsv(headers,body,fileName);
+    var ys=MISPreset.years(headers,body);
+    var mis={headers:headers,rows:body,years:ys,year:ys[ys.length-1]};
+    return misYear(mis,fileName);
+  }
+  function misYear(mis,fileName){
+    var t=MISPreset.transform(mis.headers,mis.rows,mis.year);
+    var csv=makeCsv(t.headers,t.rows,fileName);mis.defaults=t.defaults;csv.mis=mis;return csv;
+  }
+  function readFile(file,cb,which){
+    function done(rows){
+      if(rows.length<2){showError('That file has no data rows under its header.');return;}
+      if(which==='pop'){cb(popFromRows(rows,file.name));return;}
+      cb(makeCsv(rows[0].map(function(h){return String(h).trim();}),rows.slice(1),file.name));
+    }
+    if(isXlsx(file)){
+      var br=new FileReader();
+      br.onload=function(){MISPreset.readXlsx(br.result).then(done,function(e){showError('Could not read that Excel file: '+e.message);});};
+      br.onerror=function(){showError('Could not read the file.');};
+      br.readAsArrayBuffer(file);return;
+    }
     var reader=new FileReader();
     reader.onload=function(){
-      try{var rows=parseCSV(String(reader.result));
-        if(rows.length<2){showError('That CSV has no data rows under its header.');return;}
-        cb(makeCsv(rows[0].map(function(h){return String(h).trim();}),rows.slice(1),file.name));
+      try{done(parseCSV(String(reader.result)));
       }catch(e){showError('Could not read that CSV: '+e.message);}
     };
     reader.onerror=function(){showError('Could not read the file.');};
     reader.readAsText(file);
   }
-  function isCsv(file){return /\.csv$/i.test(file.name)||file.type==='text/csv';}
+  function isCsv(file){return /\.csv$/i.test(file.name)||file.type==='text/csv'||isXlsx(file);}
 
   function wireDrop(dropId,inputId,which){
     var drop=document.getElementById(dropId),input=document.getElementById(inputId);
-    function take(file){ if(!file)return; if(!isCsv(file)){showError('Please choose a .csv file. Got "'+file.name+'".');return;}
+    function take(file){ if(!file)return; if(!isCsv(file)){showError('Please choose a .csv or .xlsx file. Got "'+file.name+'".');return;}
+      document.getElementById(which==='pop'?'popLoaded':'cohortLoaded').textContent='Reading '+file.name+'…';
       readFile(file,function(csv){
-        if(which==='pop'){POPCSV=csv;document.getElementById('popLoaded').textContent='✓ '+csv.fileName+' ('+csv.rows.length.toLocaleString()+' rows)';document.getElementById('dropPop').classList.add('loaded');}
+        if(which==='pop'){POPCSV=csv;document.getElementById('popLoaded').textContent='✓ '+csv.fileName+' ('+csv.rows.length.toLocaleString()+' rows'+(csv.mis?' in '+MISPreset.yearLabel(csv.mis.year)+', student number download recognised':'')+')';document.getElementById('dropPop').classList.add('loaded');}
         else{COHORTCSV=csv;document.getElementById('cohortLoaded').textContent='✓ '+csv.fileName+' ('+csv.rows.length.toLocaleString()+' rows)';document.getElementById('dropCohort').classList.add('loaded');}
         document.getElementById('errBox').innerHTML='';refreshContinue();
-      });
+      },which);
     }
     drop.addEventListener('click',function(){input.click();});
     drop.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();input.click();}});
@@ -978,6 +1017,8 @@
     drop.addEventListener('drop',function(e){take(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]);});
   }
   wireDrop('dropPop','filePop','pop');
+  document.getElementById('popYear').addEventListener('change',function(e){
+    if(!POPCSV||!POPCSV.mis)return;POPCSV.mis.year=e.target.value;POPCSV=misYear(POPCSV.mis,POPCSV.fileName);showMapping();});
   wireDrop('dropCohort','fileCohort','cohort');
 
   // ---- init ----------------------------------------------------------------

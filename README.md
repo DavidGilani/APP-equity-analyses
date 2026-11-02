@@ -56,11 +56,51 @@ population, overall and by sub-group, using a dumbbell-chart style.
   uploaded CSV(s) in the browser and does the maths locally; nothing is uploaded
   anywhere.
 - `student_dashboard_data.js` — the built-in **fallback baseline** (the 2025/26
-  whole-population distributions, 14,256 students). Percentages and counts only,
-  no personal records. Used only when no population file is uploaded.
+  whole student population, 14,023 students, built from the student number
+  download). Percentages and counts only, with categories under 10 students
+  combined. Used only when no population file is uploaded.
+- `student_dashboard_mis.js` — reads Excel files and recognises the student number
+  download (see below). Holds no data.
+- `lib/jszip.min.js` — used to read Excel files.
 
 No student data is kept in this repository. Uploaded CSVs are read entirely in
 the browser and never leave the viewer's device.
+
+### The student number download as the population file
+
+The recommended population file is the student number download from
+`MDX_STUDENT_NUMBERS_SV`, filtered as in the planning team's EDI report
+(EnrolmentStatus ES, IN or NA; Hendon campus; collaboration type blank or Joint;
+StudentStatus AS; DegreeStatus SO, FN or PF). It can be uploaded as the Excel file
+straight from the download, or as a CSV.
+
+When its headers are recognised, the dashboard:
+
+- fills down the Student Id, which the download leaves blank on a student's second
+  year;
+- asks which academic year to compare against (the latest by default), since the
+  download holds two years;
+- groups each characteristic as the EDI report does, so totals match that report
+  exactly (2025/26: 14,023 students, 10,293 BAME, 5,903 under 21, 2,341 with a
+  reported disability). Sex is Female, Male or Other (blank counts as Other). Age
+  on entry is under 21 (16-20) or 21 and over. BAME grouping counts Gypsy or
+  Traveller as BAME and Irish Traveller as White, as the report does;
+- adds the wider characteristics in the download: faculty, level and mode of
+  study, residency, first generation in HE, care leaver, IMD quintile (from the
+  home postcode decile), and prior qualifications from the A-level and BTEC flags.
+  Department, detailed ethnicity, religion, parental HE, entry route and
+  apprenticeship are available too and can be switched on in the column mapping.
+
+Values shown as `*` in the download are treated as not known and left out of the
+comparison for that characteristic. Student numbers match with or without the
+leading M and zeros, so `M01093680`, `01093680` and `1093680` are the same
+student.
+
+To refresh the built-in baseline from a new download:
+
+```bash
+node analysis/build_dashboard_baseline.js "path/to/Student_number_data.xlsx"
+```
 
 ### Two ways to use it
 
@@ -111,9 +151,38 @@ graphics and the report is built entirely in the browser, like everything else.
 
 ### Refreshing the built-in baseline
 
-Edit `student_dashboard_data.js`. Each dimension under `POPULATION` is a list of
-`{category, pct, n}`. This only affects quick mode; the two-file mode uses the
-uploaded population file instead.
+Run `analysis/build_dashboard_baseline.js` on the latest student number download
+(see above). This only affects quick mode; the two-file mode uses the uploaded
+population file instead.
+
+### Hosting on the APP LibGuides pages
+
+The page and its scripts hold no student data, so they can sit on a page anyone
+can open. The data is the part that needs MDX sign-in. Three routes, in order of
+how much setup they need:
+
+1. **Tool on LibGuides, population file on SharePoint.** Put the tool on the
+   LibGuides page and keep the student number download in a SharePoint or Teams
+   folder that only the right staff can open. Staff sign in to SharePoint with
+   their MDX account, download the file, and drop it into the tool alongside their
+   own list of students. Nothing is uploaded anywhere. This works without any
+   IT changes.
+2. **Tool on LibGuides, data read from SharePoint automatically.** The page signs
+   staff in with their MDX (Microsoft) account and reads the population file
+   straight from SharePoint through Microsoft Graph, so staff only upload their
+   own list. This needs IT to register an app in Microsoft Entra ID with the
+   LibGuides address as its redirect, with delegated permission to read files.
+   SharePoint permissions still decide who can see the data.
+3. **Restricting the LibGuides page itself.** LibGuides can hide or restrict a
+   guide, but the student number download should not be uploaded to LibGuides,
+   which is run by an external company (Springshare). Restricting the page alone
+   does not keep the data within MDX systems.
+
+To put the tool on a LibGuides page, either add an HTML or widget box that loads
+the page in an `<iframe>` from wherever the files are hosted, or ask the LibGuides
+administrators whether custom scripts can be added to a page's content. The files
+need to stay together: `student_dashboard.html`, `student_dashboard_data.js`,
+`student_dashboard_mis.js` and `lib/jszip.min.js`.
 
 ### Embedding on a SharePoint page
 
