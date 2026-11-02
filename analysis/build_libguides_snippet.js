@@ -11,6 +11,7 @@
 // their browser only, as when the page is opened directly.
 'use strict';
 const fs = require('fs');
+const zlib = require('zlib');
 const path = require('path');
 const root = path.join(__dirname, '..');
 const out = process.argv[2];
@@ -29,7 +30,8 @@ for (const [from, to] of swaps) {
   page = page.replace(from, () => to);
 }
 
-const b64 = Buffer.from(page, 'utf8').toString('base64');
+// Compressed so the block fits LibGuides' 65,535-character limit on embed code.
+const b64 = zlib.gzipSync(Buffer.from(page, 'utf8'), { level: 9 }).toString('base64');
 const snippet = `<!-- Student cohort comparison tool. Built by analysis/build_libguides_snippet.js; rebuild rather than editing. -->
 <div id="mdx-cohort-tool">
   <iframe id="mdx-cohort-frame" title="Student cohort comparison tool" style="width:100%;min-height:900px;border:0;display:block"></iframe>
@@ -40,7 +42,9 @@ const snippet = `<!-- Student cohort comparison tool. Built by analysis/build_li
   var frame = document.getElementById('mdx-cohort-frame');
   var b64 = '${b64}';
   var bytes = Uint8Array.from(atob(b64), function (c) { return c.charCodeAt(0); });
-  frame.srcdoc = new TextDecoder('utf-8').decode(bytes);
+  new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).text()
+    .then(function (html) { frame.srcdoc = html; })
+    .catch(function () { frame.outerHTML = '<p>This tool needs an up-to-date browser (Chrome, Edge, Firefox or Safari).</p>'; });
   function fit() {
     try {
       var d = frame.contentDocument;
@@ -57,4 +61,5 @@ const snippet = `<!-- Student cohort comparison tool. Built by analysis/build_li
 </script>
 `;
 fs.writeFileSync(out, snippet);
-console.log(`Wrote ${out} (${Math.round(snippet.length / 1024)} KB).`);
+console.log(`Wrote ${out}: ${snippet.length.toLocaleString('en-GB')} characters (LibGuides limit 65,535).`);
+if (snippet.length > 65535) { console.error('Too long for a LibGuides widget box.'); process.exit(1); }

@@ -186,7 +186,8 @@ node analysis/build_libguides_snippet.js libguides_cohort_tool.html
 ```
 
 The block holds the page, the built-in baseline (counts only) and the Excel preset.
-It runs the tool in a frame so LibGuides styles do not affect it, and loads the
+It is compressed to fit the 65,535-character limit on embed code, runs the tool in
+a frame so LibGuides styles do not affect it, and loads the
 Excel reader from cdnjs. Rebuild it whenever the dashboard or baseline changes.
 
 Alternatively, add an HTML or widget box that loads
