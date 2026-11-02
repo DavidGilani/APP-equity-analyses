@@ -178,7 +178,18 @@ how much setup they need:
    which is run by an external company (Springshare). Restricting the page alone
    does not keep the data within MDX systems.
 
-To put the tool on a LibGuides page, either add an HTML or widget box that loads
+To try the tool on a LibGuides page without hosting any files, build a single
+block of HTML and paste it into a **Media / Widget** box:
+
+```bash
+node analysis/build_libguides_snippet.js libguides_cohort_tool.html
+```
+
+The block holds the page, the built-in baseline (counts only) and the Excel preset.
+It runs the tool in a frame so LibGuides styles do not affect it, and loads the
+Excel reader from cdnjs. Rebuild it whenever the dashboard or baseline changes.
+
+Alternatively, add an HTML or widget box that loads
 the page in an `<iframe>` from wherever the files are hosted, or ask the LibGuides
 administrators whether custom scripts can be added to a page's content. The files
 need to stay together: `student_dashboard.html`, `student_dashboard_data.js`,
