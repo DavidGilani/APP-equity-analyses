@@ -1271,12 +1271,22 @@ const RM_WORDS={btec:/btec/i,fsm:/free school|fsm/i,eth:/ethnic|abmo|black|asian
 const RM_WHO={btec:'students who entered with BTECs',fsm:'students who were eligible for free school meals',eth:'Asian, Black, mixed and other ethnicity students',imd:'students from IMD quintile 1 and 2 areas'};
 const RM_STAGE={continuation:'Continuation',completion:'Completion',attainment:'Attainment',progression:'Progression'};
 // Groups and targets named in a request, e.g. 'BTEC - Completion' or 'Attainment ethnicity, BTEC as well'
-function rmAsked(txt){const t=String(txt||''),ks=DEMOG.filter(d=>RM_WORDS[d.k].test(t)).map(d=>d.k);
+function rmAsked(txt){const t=String(txt||''),ks=DEMOG.filter(d=>RM_WORDS[d.k].test(t)).map(d=>d.k).sort((a,b)=>t.search(RM_WORDS[a])-t.search(RM_WORDS[b]));
   const st=Object.keys(RM_STAGE).filter(w=>new RegExp(w,'i').test(t)).map(w=>RM_STAGE[w]);
   const ids=DEMOG.filter(d=>ks.includes(d.k)).flatMap(d=>d.ids.filter(id=>!st.length||st.includes(TGm[id].stage)||d.ids.length===1));
   return {ks,ids}}
 function rmFind(e){const all=byLevel('Department'),hit=rbMatch(all.map(a=>a.name),e.dept);return hit?all.find(a=>a.name===hit):null}
 const rmName=e=>e.label&&rbKey(e.label)!==rbKey(e.dept)?`${e.label} (${e.dept})`:e.dept;
+// A group's targets combined, weighted by target-group students: the gap against the
+// University (ex) and the department's own gap (val). ids limits it to some targets.
+function rmCombo(x,ids){const ys=x.ts.filter(y=>y.ok&&(!ids||ids.includes(y.t.id)));if(!ys.length)return null;
+  const W=ys.reduce((s,y)=>s+y.o.nT,0);
+  return {ex:ys.reduce((s,y)=>s+y.o.nT*y.ex,0)/W,val:ys.reduce((s,y)=>s+y.o.nT*y.o.val,0)/W,n:Math.max(...ys.map(y=>y.o.nT)),sig:!ids||ids.length===x.ts.length?x.sig:ys.length===1&&ys[0].o.val-ys[0].o.h>ys[0].u.val}}
+// The requested pairing, one entry per group named: the named stages only where a stage is given
+function rmReqGroups(P){const {r,asked}=P;
+  return asked.ks.map(k=>{const x=r.ds.find(d=>d.d.k===k),sub=x.ts.filter(y=>asked.ids.includes(y.t.id)).map(y=>y.t.id),part=sub.length&&sub.length<x.ts.length;
+    return {x,label:x.d.short+(part?' '+sub.map(id=>TGm[id].stage.toLowerCase()).join(' and '):''),c:rmCombo(x,part?sub:null)}})}
+const rmGapCell=c=>c?`<b>${pm(c.ex)}${c.sig?' !':''}</b><small class="yr" style="display:block;white-space:normal">Department gap ${f1(c.val)} pp</small>`:'<span class="uni">Too few students</span>';
 // Target-group students for a group: the largest count across its targets
 const rmN=x=>Math.max(0,...x.ts.filter(y=>y.ok).map(y=>y.o.nT));
 function rmPlan(e){
@@ -1312,7 +1322,7 @@ function rmTable(P){
   const {r,rec,asked}=P;
   let s=`<div class="scroll"><table class="rank fixed"><colgroup><col style="width:17%"><col style="width:23%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"></colgroup><thead><tr><th>Group</th><th>Target</th><th class="ctr">Department gap</th><th class="ctr">University gap</th><th class="ctr">Difference</th><th class="ctr">Group difference</th><th class="ctr">Target group students</th><th class="ctr">Comparison students</th></tr></thead><tbody>`;
   r.ds.forEach(x=>x.ts.forEach((y,i)=>{const req=asked.ids.includes(y.t.id),top=rec&&x===rec;
-    s+=`<tr${top?' style="background:#F1ECF8"':''}><td>${i?'':`<b>${esc(x.d.l)}</b>${top?'<small class="yr" style="display:block;white-space:normal">Recommended</small>':''}`}</td><td>${y.t.id} · ${y.t.stage}${req?' <b style="color:var(--mdx-red)">· asked for</b>':''}<span class="facname">${esc(y.t.grp)} vs ${esc(y.t.cmp)}</span></td><td class="ctr">${f1(y.o.val)}</td><td class="ctr">${f1(y.u.val)}</td><td class="ctr"><b>${y.ok?pm(y.ex):'–'}</b></td><td class="ctr">${i?'':x.score==null?'–':`<b>${pm(x.score)}${x.sig?' !':''}</b><small class="yr" style="display:block">±${f1(x.h)}</small>`}</td><td class="ctr">${r0(y.o.nT)}</td><td class="ctr">${r0(y.o.nC)}</td></tr>`}));
+    s+=`<tr${top?' style="background:#F1ECF8"':''}><td>${i?'':`<b>${esc(x.d.l)}</b>${top?'<small class="yr" style="display:block;white-space:normal">Recommended</small>':''}`}</td><td>${y.t.id} · ${y.t.stage}${req?' <b style="color:var(--mdx-red)">· asked for</b>':''}<span class="facname">${esc(y.t.grp)} vs ${esc(y.t.cmp)}</span></td><td class="ctr">${f1(y.o.val)}</td><td class="ctr">${f1(y.u.val)}</td><td class="ctr"><b>${y.ok?pm(y.ex):'–'}</b></td><td class="ctr">${i?'':x.score==null?'–':rmGapCell(rmCombo(x))}</td><td class="ctr">${r0(y.o.nT)}</td><td class="ctr">${r0(y.o.nC)}</td></tr>`}));
   return s+`</tbody></table></div><p class="cap" style="margin:6px 0 0">Gaps in percentage points, ${priSpan()}. Difference is the department gap minus the University gap, so a positive figure means a wider gap. Group difference combines a group's targets, weighted by students; <b>!</b> marks a difference larger than the margin of error. Targets with fewer than ${priMin()} students in either group are left out of the group figure.</p>`;
 }
 // Programmes in the department whose names contain the subject, e.g. Music in School of Arts
@@ -1324,16 +1334,28 @@ function rmProgs(P){
   ps.forEach(pa=>{const pr=priDept(pa);s+=`<tr><td><b>${esc(pa.name)}</b></td>${pr.ds.map(x=>x.score==null?`<td class="ctr hatch">n&lt;${priMin()}</td>`:`<td class="ctr" style="background:${bin(x.score)[2]};color:${bin(x.score)[3]}">${pm(x.score)}${x.sig?' !':''}<small class="yr" style="display:block">${rmN(x)} students</small></td>`).join('')}</tr>`});
   return s+`</tbody></table></div><p class="cap" style="margin:6px 0 0">Programme gap minus the University gap for each group, ${priSpan()}. Programmes are small, so many results have too few students to compare.</p>`;
 }
+// Student mentors to recruit from each group: one per member of staff
+function rmRecruit(plans){
+  const tally=pick=>{const t={};plans.forEach(P=>{if(!P.a)return;const k=pick(P),n=+P.e.staff||0;if(!k||!n)return;(t[k]=t[k]||{n:0,d:[]}).n+=n;t[k].d.push(`${rmName(P.e)} (${n})`)});return t};
+  const rec=tally(P=>P.rec&&P.rec.d.k),req=tally(P=>P.asked.ks[0]||(P.rec&&P.rec.d.k));
+  const noStaff=plans.filter(P=>P.a&&!(+P.e.staff)).length,tot=plans.reduce((s,P)=>s+(P.a?+P.e.staff||0:0),0);
+  const cell=t=>t?`<b>${t.n}</b><small class="yr" style="display:block;white-space:normal">${esc(t.d.join(', '))}</small>`:'<span class="uni">0</span>';
+  return `<section class="panel"><h3>Student mentors to recruit</h3><p class="cap">How many students to find from each group, with one student mentor for each of the ${tot} staff taking part. Requested pairings use the first group a department named, and the recommended pairing where nothing has been asked for.${noStaff?` ${noStaff} ${plural(noStaff,'department has','departments have')} no staff number yet and ${plural(noStaff,'is','are')} not counted.`:''}</p>
+    <div class="scroll"><table class="rank fixed"><colgroup><col style="width:24%"><col style="width:38%"><col style="width:38%"></colgroup><thead><tr><th>Student group</th><th class="ctr">Using the requested pairings</th><th class="ctr">Using the recommended pairings</th></tr></thead><tbody>
+    ${DEMOG.map(d=>`<tr><td><b>${esc(d.l)}</b><span class="facname">${esc(d.mentor)}</span></td><td class="ctr">${cell(req[d.k])}</td><td class="ctr">${cell(rec[d.k])}</td></tr>`).join('')}
+    <tr><td><b>Total</b></td><td class="ctr"><b>${Object.values(req).reduce((s,t)=>s+t.n,0)}</b></td><td class="ctr"><b>${Object.values(rec).reduce((s,t)=>s+t.n,0)}</b></td></tr></tbody></table></div></section>`;
+}
 function rmRender(b){
   const p=b.p,on=b.parts,list=(p.list||[]).filter(e=>e.dept);
   if(!list.length)return rbMsg('Add the departments with staff taking part in this section’s options.');
   const plans=list.map(rmPlan);let s='';
-  if(on.overview){s+=`<section class="panel"><h3>Recommended pairings</h3><p class="cap">The group of students with the widest gap against the University in each department, ${priSpan()}.</p><div class="scroll"><table class="rank fixed"><colgroup><col style="width:24%"><col style="width:7%"><col style="width:20%"><col style="width:21%"><col style="width:13%"><col style="width:15%"></colgroup><thead><tr><th>Department</th><th class="ctr">Staff</th><th>Pairing asked for</th><th>Recommended pairing</th><th class="ctr">Gap against the University</th><th class="ctr">Students in the group</th></tr></thead><tbody>`;
+  if(on.recruit)s+=rmRecruit(plans);
+  if(on.overview){s+=`<section class="panel"><h3>Recommended pairings</h3><p class="cap">The group of students with the widest gap against the University in each department, ${priSpan()}.</p><div class="scroll"><table class="rank fixed"><colgroup><col style="width:19%"><col style="width:6%"><col style="width:16%"><col style="width:14%"><col style="width:17%"><col style="width:14%"><col style="width:14%"></colgroup><thead><tr><th>Department</th><th class="ctr">Staff</th><th>Pairing asked for</th><th class="ctr">Gap against the University</th><th>Recommended pairing</th><th class="ctr">Gap against the University</th><th class="ctr">Students in the group</th></tr></thead><tbody>`;
     plans.forEach(P=>{const e=P.e;
-      if(!P.a){s+=`<tr><td><b>${esc(rmName(e))}</b></td><td class="ctr">${esc(e.staff||'')}</td><td>${esc(e.req||'')}</td><td colspan="3" class="uni">This department is not in the loaded file. Check its name in the section options.</td></tr>`;return}
+      if(!P.a){s+=`<tr><td><b>${esc(rmName(e))}</b></td><td class="ctr">${esc(e.staff||'')}</td><td>${esc(e.req||'')}</td><td colspan="4" class="uni">This department is not in the loaded file. Check its name in the section options.</td></tr>`;return}
       const x=P.rec,match=x&&P.asked.ks.includes(x.d.k);
-      s+=`<tr><td><b>${esc(rmName(e))}</b><span class="facname">${esc(FACm[P.a.fac].name)}</span></td><td class="ctr">${esc(e.staff||'')}</td><td>${e.req?esc(e.req):'<span class="uni">Not yet asked for</span>'}</td><td>${x?`<b>${esc(x.d.l)}</b>${match?' <small class="yr">matches the request</small>':''}${P.also?`<span class="facname">Also: ${esc(P.also.d.l)}</span>`:''}`:'<span class="uni">Too few students to compare</span>'}</td><td class="ctr">${x?`<b>${pm(x.score)}${x.sig?' !':''}</b><small class="yr" style="display:block">±${f1(x.h)} pp</small>`:'–'}</td><td class="ctr">${x?rmN(x):'–'}${x&&priAgg()?`<small class="yr" style="display:block">about ${Math.round(rmN(x)/4)} a year</small>`:''}</td></tr>`});
-    s+=`</tbody></table></div><p class="cap" style="margin:6px 0 0">Gap against the University is the department's gap minus the University's for that group, combining the group's targets; <b>!</b> marks a difference larger than the margin of error. Students in the group is the largest number of target-group students across its targets ${priOver()}.</p></section>`}
+      s+=`<tr><td><b>${esc(rmName(e))}</b><span class="facname">${esc(FACm[P.a.fac].name)}</span></td><td class="ctr">${esc(e.staff||'')}</td><td>${e.req?esc(e.req):'<span class="uni">Not yet asked for</span>'}</td><td class="ctr">${e.req?(rmReqGroups(P).map(g=>`${rmReqGroups(P).length>1?`<small class="yr" style="display:block">${esc(g.label)}</small>`:''}${rmGapCell(g.c)}`).join('<div style="height:6px"></div>')||'<span class="uni">Not an APP group</span>'):'–'}</td><td>${x?`<b>${esc(x.d.l)}</b>${match?' <small class="yr">matches the request</small>':''}${P.also?`<span class="facname">Also: ${esc(P.also.d.l)}</span>`:''}`:'<span class="uni">Too few students to compare</span>'}</td><td class="ctr">${x?rmGapCell(rmCombo(x)):'–'}</td><td class="ctr">${x?rmN(x):'–'}${x&&priAgg()?`<small class="yr" style="display:block">about ${Math.round(rmN(x)/4)} a year</small>`:''}</td></tr>`});
+    s+=`</tbody></table></div><p class="cap" style="margin:6px 0 0">Gap against the University is the department's gap minus the University's for that group, combining the group's targets weighted by students (or only the stage named in a request, such as BTEC completion). Department gap is the department's own gap for the same targets. <b>!</b> marks a difference larger than the margin of error. Students in the group is the largest number of target-group students across its targets ${priOver()}.</p></section>`}
   if(on.depts)plans.forEach(P=>{if(!P.a)return;
     s+=`<section class="panel rmdept"><h3>${esc(rmName(P.e))}</h3><p class="cap">${esc(FACm[P.a.fac].name)}${P.e.staff?` · ${esc(P.e.staff)} staff taking part`:''}${P.e.req?` · pairing asked for: ${esc(P.e.req)}`:''}</p>
       <div class="rsum"><p>${esc(rmSummary(P))}</p></div>${rmTable(P)}${on.progs?rmProgs(P):''}</section>`});
@@ -1381,7 +1403,7 @@ const RBT={
  scan:{l:'Other equity gaps',d:'Gaps for every demographic group in the OfS file',parts:[['tiles','Counts by priority'],['grid','All equity gaps grid'],['monitor','Gaps to monitor table']]},
  eth:{l:'Ethnicity over time',d:'Rates and gaps to White students for each ethnic group',parts:[['rate','Rate by ethnicity chart'],['gap','Gap to White students chart'],['table','Data table']]},
  pri:{l:'Largest department gaps',d:'Departments ranked by their widest gap, by faculty',parts:[['method','How the ranking works'],['tables','Department tables']]},
- rm:{l:'Reverse mentoring pairings',d:'For each department with staff taking part, the student group to pair them with and its current gaps',parts:[['overview','Overview table'],['depts','A page for each department'],['progs','Matching programmes']]},
+ rm:{l:'Reverse mentoring pairings',d:'For each department with staff taking part, the student group to pair them with and its current gaps',parts:[['recruit','Student mentors to recruit'],['overview','Overview table'],['depts','A page for each department'],['progs','Matching programmes']]},
  text:{l:'Text',d:'A heading and your own commentary',parts:[]}
 };
 const LVPAGE={University:'overview',Faculty:'faculty',Department:'department',Programme:'programme'};
@@ -1407,6 +1429,7 @@ function rbMatch(list,want){if(!want)return null;if(list.includes(want))return w
   return list.find(x=>rbKey(x)===w)||list.find(x=>rbKey(x).includes(w))||list.find(x=>w.includes(rbKey(x)))||null}
 function rbNorm(b){
   if(b.type==='pri'&&!b.p.mode)b.p.mode='agg';   // layouts saved before this choice existed
+  if(b.type==='rm'&&b.parts.recruit===undefined)b.parts.recruit=true;
   if(b.type!=='area')return;const p=b.p;
   if(p.rows===undefined)p.rows=null;if(!Array.isArray(p.hide))p.hide=[];
   if(!loaded())return;
