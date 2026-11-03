@@ -45,6 +45,16 @@ opens, and is also available under Start from. Reports use Middlesex University
 colours and type; the colour values sit together at the end of the page's styles
 so they can be updated.
 
+The **Reverse mentoring pairings** section (also a report tab and a template)
+takes a list of departments with staff taking part, how many staff, and any
+pairing a faculty has already asked for. For each department it recommends the
+group of students to pair with: the group whose gap is widest against the
+University, using the same grouped comparison as the Largest department gaps
+page. It writes a short summary, says whether a requested pairing is supported
+(comparing the named stage where one is given, such as BTEC completion), and
+shows each target's figures. A subject name such as Music adds the matching
+programmes in that department. The list holds departments only: no staff names.
+
 ## Student cohort comparison dashboard
 
 A single-page tool that compares a group of students against the whole student

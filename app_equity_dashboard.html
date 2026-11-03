@@ -300,6 +300,11 @@ table.fixed.narrow{min-width:560px}
 .rbrows button{font-size:12px}
 .rbrows .rbqs{margin-left:10px;font-size:12px;color:var(--ink2)}
 .rbrows .rbqs button{margin-left:4px}
+.rmlist{display:flex;flex-direction:column;gap:10px}
+.rmrow{display:flex;flex-direction:column;gap:6px;padding:8px;border:1px solid var(--panel-line);position:relative}
+.rmrow .rbib{position:absolute;top:4px;right:4px}
+.rmdept .rsum{margin:8px 0 10px}
+@media print{#printRoot .rmdept{break-before:page}#printRoot .rmdept:first-child{break-before:auto}}
 </style>
 </head>
 <body>
@@ -1258,6 +1263,113 @@ function priPage(){
   return s;
 }
 
+/* ---------- Reverse mentoring pairings ---------- */
+// For each department with staff taking part: which group of students to pair them with,
+// using the same grouped comparison with the University as the Largest department gaps page.
+// The list holds departments, staff numbers and any pairing already asked for. No names.
+const RM_WORDS={btec:/btec/i,fsm:/free school|fsm/i,eth:/ethnic|abmo|black|asian/i,imd:/imd|depriv|polar|quintile/i};
+const RM_WHO={btec:'students who entered with BTECs',fsm:'students who were eligible for free school meals',eth:'Asian, Black, mixed and other ethnicity students',imd:'students from IMD quintile 1 and 2 areas'};
+const RM_STAGE={continuation:'Continuation',completion:'Completion',attainment:'Attainment',progression:'Progression'};
+// Groups and targets named in a request, e.g. 'BTEC - Completion' or 'Attainment ethnicity, BTEC as well'
+function rmAsked(txt){const t=String(txt||''),ks=DEMOG.filter(d=>RM_WORDS[d.k].test(t)).map(d=>d.k);
+  const st=Object.keys(RM_STAGE).filter(w=>new RegExp(w,'i').test(t)).map(w=>RM_STAGE[w]);
+  const ids=DEMOG.filter(d=>ks.includes(d.k)).flatMap(d=>d.ids.filter(id=>!st.length||st.includes(TGm[id].stage)||d.ids.length===1));
+  return {ks,ids}}
+function rmFind(e){const all=byLevel('Department'),hit=rbMatch(all.map(a=>a.name),e.dept);return hit?all.find(a=>a.name===hit):null}
+const rmName=e=>e.label&&rbKey(e.label)!==rbKey(e.dept)?`${e.label} (${e.dept})`:e.dept;
+// Target-group students for a group: the largest count across its targets
+const rmN=x=>Math.max(0,...x.ts.filter(y=>y.ok).map(y=>y.o.nT));
+function rmPlan(e){
+  const a=rmFind(e);if(!a)return {e,a:null};
+  const r=priDept(a),ok=r.ds.filter(x=>x.score!=null).sort((x,y)=>y.score-x.score),asked=rmAsked(e.req);
+  const rec=ok[0]||null,also=ok.slice(1).find(x=>x.score>=1&&x!==rec)||null;
+  return {e,a,r,ok,rec,also,asked}}
+function rmSummary(P){
+  const {e,a,rec,also,asked}=P,over=priAgg()?'Over the latest four years combined':'In the most recent year';
+  if(!rec)return `There are too few students in ${a.name} to compare any group with the University: every target has fewer than ${priMin()} students in at least one group.`;
+  const nT=rmN(rec),per=priAgg()?` (about ${Math.round(nT/4)} a year)`:'';
+  let t=`${over}, the widest gap in ${a.name} compared with the University is for ${RM_WHO[rec.d.k]}: ${pm(rec.score)} pp${rec.sig?', larger than the margin of error':`, within the margin of error of ±${f1(rec.h)} pp`}. `;
+  t+=rec.score>=1?`That makes ${rec.d.mentor.charAt(0).toLowerCase()+rec.d.mentor.slice(1)} the recommended pairing. `:`No group's gap is more than 1 pp wider than the University's, so this is a weaker steer than for other departments. `;
+  t+=`There ${nT===1?'was':'were'} ${nT} students in this group ${priOver()}${per}. `;
+  if(also)t+=`The gap for ${RM_WHO[also.d.k]} is also wider than the University's (${pm(also.score)} pp), so they would be a reasonable second pairing. `;
+  if(e.req)t+=rmReq(P);
+  return t.trim();
+}
+// What the data says about the pairing a faculty asked for, target by target where it names a stage
+function rmReq(P){
+  const {e,r,rec,asked}=P,req=e.req.trim();
+  if(!asked.ks.length)return `The pairing asked for (${req}) does not name one of the APP target groups.`;
+  const bits=[];let best=null;
+  asked.ks.forEach(k=>{const x=r.ds.find(d=>d.d.k===k),ys=x.ts.filter(y=>asked.ids.includes(y.t.id));
+    if(ys.length&&ys.length<x.ts.length)ys.forEach(y=>{bits.push(y.ok?`${y.t.stage.toLowerCase()} for ${x.d.short} is ${pm(y.ex)} pp against the University (${f1(y.o.val)} pp here, ${f1(y.u.val)} pp for the University)`:`${y.t.stage.toLowerCase()} for ${x.d.short} has too few students to compare`);if(y.ok)best=Math.max(best??-99,y.ex)});
+    else{bits.push(x.score==null?`${x.d.short} has too few students to compare`:`${x.d.short} is ${pm(x.score)} pp against the University across its targets`);if(x.score!=null)best=Math.max(best??-99,x.score)}});
+  const match=rec&&asked.ks.includes(rec.d.k);
+  let t=`For the pairing asked for (${req}), ${bits.join('; ')}. `;
+  t+=match?'This agrees with the recommendation.':best==null?'The data cannot confirm this request.':best>=1?'That gap is also wider than the University’s, so the request is reasonable, although it is not the widest gap here.':'That gap is close to or narrower than the University’s, so the data gives less support for this request than for the recommendation.';
+  return t;
+}
+function rmTable(P){
+  const {r,rec,asked}=P;
+  let s=`<div class="scroll"><table class="rank fixed"><colgroup><col style="width:17%"><col style="width:23%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:10%"></colgroup><thead><tr><th>Group</th><th>Target</th><th class="ctr">Department gap</th><th class="ctr">University gap</th><th class="ctr">Difference</th><th class="ctr">Group difference</th><th class="ctr">Target group students</th><th class="ctr">Comparison students</th></tr></thead><tbody>`;
+  r.ds.forEach(x=>x.ts.forEach((y,i)=>{const req=asked.ids.includes(y.t.id),top=rec&&x===rec;
+    s+=`<tr${top?' style="background:#F1ECF8"':''}><td>${i?'':`<b>${esc(x.d.l)}</b>${top?'<small class="yr" style="display:block;white-space:normal">Recommended</small>':''}`}</td><td>${y.t.id} · ${y.t.stage}${req?' <b style="color:var(--mdx-red)">· asked for</b>':''}<span class="facname">${esc(y.t.grp)} vs ${esc(y.t.cmp)}</span></td><td class="ctr">${f1(y.o.val)}</td><td class="ctr">${f1(y.u.val)}</td><td class="ctr"><b>${y.ok?pm(y.ex):'–'}</b></td><td class="ctr">${i?'':x.score==null?'–':`<b>${pm(x.score)}${x.sig?' !':''}</b><small class="yr" style="display:block">±${f1(x.h)}</small>`}</td><td class="ctr">${r0(y.o.nT)}</td><td class="ctr">${r0(y.o.nC)}</td></tr>`}));
+  return s+`</tbody></table></div><p class="cap" style="margin:6px 0 0">Gaps in percentage points, ${priSpan()}. Difference is the department gap minus the University gap, so a positive figure means a wider gap. Group difference combines a group's targets, weighted by students; <b>!</b> marks a difference larger than the margin of error. Targets with fewer than ${priMin()} students in either group are left out of the group figure.</p>`;
+}
+// Programmes in the department whose names contain the subject, e.g. Music in School of Arts
+function rmProgs(P){
+  const {e,a}=P,key=rbKey(e.label);if(!key||rbKey(e.label)===rbKey(e.dept))return '';
+  const ps=byLevel('Programme').filter(x=>x.dept===a.name&&rbKey(x.name).includes(key));
+  if(!ps.length)return `<p class="cap">No programmes in ${esc(a.name)} have “${esc(e.label)}” in their name, so the figures above are for the whole department.</p>`;
+  let s=`<div class="scroll"><table class="rank fixed"><thead><tr><th>Programme</th>${DEMOG.map(d=>`<th class="ctr">${esc(d.short)}</th>`).join('')}</tr></thead><tbody>`;
+  ps.forEach(pa=>{const pr=priDept(pa);s+=`<tr><td><b>${esc(pa.name)}</b></td>${pr.ds.map(x=>x.score==null?`<td class="ctr hatch">n&lt;${priMin()}</td>`:`<td class="ctr" style="background:${bin(x.score)[2]};color:${bin(x.score)[3]}">${pm(x.score)}${x.sig?' !':''}<small class="yr" style="display:block">${rmN(x)} students</small></td>`).join('')}</tr>`});
+  return s+`</tbody></table></div><p class="cap" style="margin:6px 0 0">Programme gap minus the University gap for each group, ${priSpan()}. Programmes are small, so many results have too few students to compare.</p>`;
+}
+function rmRender(b){
+  const p=b.p,on=b.parts,list=(p.list||[]).filter(e=>e.dept);
+  if(!list.length)return rbMsg('Add the departments with staff taking part in this section’s options.');
+  const plans=list.map(rmPlan);let s='';
+  if(on.overview){s+=`<section class="panel"><h3>Recommended pairings</h3><p class="cap">The group of students with the widest gap against the University in each department, ${priSpan()}.</p><div class="scroll"><table class="rank fixed"><colgroup><col style="width:24%"><col style="width:7%"><col style="width:20%"><col style="width:21%"><col style="width:13%"><col style="width:15%"></colgroup><thead><tr><th>Department</th><th class="ctr">Staff</th><th>Pairing asked for</th><th>Recommended pairing</th><th class="ctr">Gap against the University</th><th class="ctr">Students in the group</th></tr></thead><tbody>`;
+    plans.forEach(P=>{const e=P.e;
+      if(!P.a){s+=`<tr><td><b>${esc(rmName(e))}</b></td><td class="ctr">${esc(e.staff||'')}</td><td>${esc(e.req||'')}</td><td colspan="3" class="uni">This department is not in the loaded file. Check its name in the section options.</td></tr>`;return}
+      const x=P.rec,match=x&&P.asked.ks.includes(x.d.k);
+      s+=`<tr><td><b>${esc(rmName(e))}</b><span class="facname">${esc(FACm[P.a.fac].name)}</span></td><td class="ctr">${esc(e.staff||'')}</td><td>${e.req?esc(e.req):'<span class="uni">Not yet asked for</span>'}</td><td>${x?`<b>${esc(x.d.l)}</b>${match?' <small class="yr">matches the request</small>':''}${P.also?`<span class="facname">Also: ${esc(P.also.d.l)}</span>`:''}`:'<span class="uni">Too few students to compare</span>'}</td><td class="ctr">${x?`<b>${pm(x.score)}${x.sig?' !':''}</b><small class="yr" style="display:block">±${f1(x.h)} pp</small>`:'–'}</td><td class="ctr">${x?rmN(x):'–'}${x&&priAgg()?`<small class="yr" style="display:block">about ${Math.round(rmN(x)/4)} a year</small>`:''}</td></tr>`});
+    s+=`</tbody></table></div><p class="cap" style="margin:6px 0 0">Gap against the University is the department's gap minus the University's for that group, combining the group's targets; <b>!</b> marks a difference larger than the margin of error. Students in the group is the largest number of target-group students across its targets ${priOver()}.</p></section>`}
+  if(on.depts)plans.forEach(P=>{if(!P.a)return;
+    s+=`<section class="panel rmdept"><h3>${esc(rmName(P.e))}</h3><p class="cap">${esc(FACm[P.a.fac].name)}${P.e.staff?` · ${esc(P.e.staff)} staff taking part`:''}${P.e.req?` · pairing asked for: ${esc(P.e.req)}`:''}</p>
+      <div class="rsum"><p>${esc(rmSummary(P))}</p></div>${rmTable(P)}${on.progs?rmProgs(P):''}</section>`});
+  return s;
+}
+// Editing the list in the section options: department, subject name, staff and the pairing asked for
+function rmEditor(b,i){
+  const ds=loaded()?byLevel('Department'):[],list=b.p.list||[];
+  const opts=cur=>{const hit=ds.length?rbMatch(ds.map(a=>a.name),cur):null;
+    return (hit?'':`<option value="${esc(cur||'')}" selected>${esc(cur||'Choose a department')}${cur&&ds.length?' (not in the file)':''}</option>`)+ds.map(a=>`<option value="${esc(a.name)}"${a.name===hit?' selected':''}>${esc(a.name)} · ${esc(FACm[a.fac].code)}</option>`).join('')};
+  return `<fieldset class="rbparts rmlist"><legend>Departments</legend>${list.map((e,j)=>`<div class="rmrow"><label class="rbf"><span>Department</span><select data-rbi="${i}" data-rmj="${j}" data-rmk="dept">${opts(e.dept)}</select></label>
+    <label class="rbf"><span>Subject name (optional)</span><input data-rbi="${i}" data-rmj="${j}" data-rmk="label" value="${esc(e.label||'')}" placeholder="e.g. Music"></label>
+    <label class="rbf"><span>Staff</span><input type="number" min="0" data-rbi="${i}" data-rmj="${j}" data-rmk="staff" value="${esc(e.staff||'')}"></label>
+    <label class="rbf"><span>Pairing asked for (optional)</span><input data-rbi="${i}" data-rmj="${j}" data-rmk="req" value="${esc(e.req||'')}" placeholder="e.g. BTEC completion"></label>
+    <button class="rbib" data-rmdel="${j}" data-rbi="${i}" aria-label="Remove this department" title="Remove">✕</button></div>`).join('')}
+    <button class="btn2 ghost" data-rmadd="1" data-rbi="${i}">+ Add a department</button><small class="uni" style="white-space:normal">Departments only: no staff names are needed or kept.</small></fieldset>`;
+}
+// The departments named so far for the reverse mentoring scheme (staff numbers and requests only)
+function rbRM(){
+  const b=rbNew('rm');b.p.mode='agg';b.title='Reverse mentoring: student groups to pair with';b.newPage=true;
+  b.intro='Each department with staff taking part, the group of students whose gap against the University is widest there, and a summary of the current gaps. The pairing asked for is shown where a faculty has already requested one.';
+  b.p.list=[
+    {dept:'Accounting, Finance and Economics',label:'',staff:'4',req:''},
+    {dept:'Strategy, Leadership and Operations',label:'',staff:'1',req:''},
+    {dept:'School of Arts',label:'Music',staff:'1',req:''},
+    {dept:'School of Film',label:'Film',staff:'1',req:''},
+    {dept:'School of Design',label:'Graphic Design',staff:'1',req:''},
+    {dept:'Psychology',label:'',staff:'1',req:'Attainment ethnicity'},
+    {dept:'Design Engineering and Mathematics',label:'',staff:'1',req:'BTEC completion'},
+    {dept:'Sports',label:'',staff:'1',req:'Attainment ethnicity, BTEC as well if possible'},
+    {dept:'Natural Sciences',label:'',staff:'1',req:'BTEC completion'},
+    {dept:'Computer Science',label:'',staff:'1',req:'BTEC continuation'}];
+  return {report:{title:'Reverse mentoring pairings',subtitle:'Which students to pair with staff in each department',cover:true,contents:false,
+    intro:'Staff taking part in the reverse mentoring scheme are paired with a student mentor. This report suggests which group of students to look for in each department, based on where its APP equity gaps are widest compared with the University.'},blocks:[b]};
+}
+
 /* ---------- Report builder ---------- */
 // The layout (sections, filters and edited text) is kept in this browser only.
 // No results are stored: each section is drawn from the loaded files.
@@ -1269,6 +1381,7 @@ const RBT={
  scan:{l:'Other equity gaps',d:'Gaps for every demographic group in the OfS file',parts:[['tiles','Counts by priority'],['grid','All equity gaps grid'],['monitor','Gaps to monitor table']]},
  eth:{l:'Ethnicity over time',d:'Rates and gaps to White students for each ethnic group',parts:[['rate','Rate by ethnicity chart'],['gap','Gap to White students chart'],['table','Data table']]},
  pri:{l:'Largest department gaps',d:'Departments ranked by their widest gap, by faculty',parts:[['method','How the ranking works'],['tables','Department tables']]},
+ rm:{l:'Reverse mentoring pairings',d:'For each department with staff taking part, the student group to pair them with and its current gaps',parts:[['overview','Overview table'],['depts','A page for each department'],['progs','Matching programmes']]},
  text:{l:'Text',d:'A heading and your own commentary',parts:[]}
 };
 const LVPAGE={University:'overview',Faculty:'faculty',Department:'department',Programme:'programme'};
@@ -1284,7 +1397,7 @@ function rbSave(){try{localStorage.setItem(RB_KEY,JSON.stringify({tabs:RBS.tabs.
 function rbUse(i){const ui=RB.ui;RBS.cur=i;RB=RBS.tabs[i];RB.ui=ui;RB.ui.open=null}
 function rbNew(type){
   const f=FAC[0].code;
-  const p={area:{level:'Faculty',fac:f,dept:null,prog:null,mode:'latest',rows:null,hide:[]},ranking:{target:'PTS_1',level:'Department',fac:'',mode:'agg',hideSmall:true,sort:'name'},map:{target:'PTS_1',level:'Department',fac:'',mode:'agg',ref:'m'},scan:{area:'U',stage:'all',app:true},eth:{area:'U',stage:'Continuation',emode:'year'},pri:{fac:'',sig:false,mode:'agg'},text:{}}[type];
+  const p={area:{level:'Faculty',fac:f,dept:null,prog:null,mode:'latest',rows:null,hide:[]},ranking:{target:'PTS_1',level:'Department',fac:'',mode:'agg',hideSmall:true,sort:'name'},map:{target:'PTS_1',level:'Department',fac:'',mode:'agg',ref:'m'},scan:{area:'U',stage:'all',app:true},eth:{area:'U',stage:'Continuation',emode:'year'},pri:{fac:'',sig:false,mode:'agg'},rm:{mode:'agg',list:[]},text:{}}[type];
   const parts={};RBT[type].parts.forEach(([k])=>parts[k]=k!=='details');
   return {id:rbId(),type,p,parts,title:type==='text'?'Commentary':null,intro:'',body:'',newPage:type!=='text',edits:{}};
 }
@@ -1318,9 +1431,10 @@ function rbAutoTitle(b){const p=b.p,t=TGm[p.target]||TG[0];
     case 'scan':return `Other equity gaps: ${areaLabel(p.area)}`;
     case 'eth':return `${p.stage} by ethnicity: ${areaLabel(p.area)}`;
     case 'pri':return `Largest department gaps${p.fac?': '+facName(p.fac):''}`;
+    case 'rm':return 'Reverse mentoring: student groups to pair with';
     default:return 'Commentary'}}
 // Sections that can show the most recent year or the 4-year aggregate
-const RB_MODE=['area','ranking','map','pri'];
+const RB_MODE=['area','ranking','map','pri','rm'];
 const rbModeLabel=b=>RB_MODE.includes(b.type)?(b.p.mode==='agg'?'4-year aggregate':'most recent year'):b.type==='eth'?(b.p.emode==='roll'?'4-year rolling':'each year'):'';
 function rbSwitch(b,i){
   const sw=(k,opts,cur)=>`<div class="toolbar rbonly rbmode" role="group" aria-label="Which results to show"><span class="tlab">Show</span>${opts.map(([v,l])=>`<button data-rbsw="${k}" data-rbv="${v}" data-rbi="${i}" aria-pressed="${cur===v}">${l}</button>`).join('')}<span class="tnote">This switch is not printed.</span></div>`;
@@ -1377,6 +1491,7 @@ function rbRender(b){
     return withState({page:'scan',scanArea:p.area,scanStage:p.stage,scanApp:p.app},()=>rbParts(scanPage(),(P,f)=>[on.tiles&&f('.tiles'),on.grid&&P[0],on.monitor&&P[1]]))||rbMsg('No scan results for this area.')}
   if(b.type==='eth'){if(!ETH)return rbMsg('Load ethnicity_outcomes_by_year.csv to fill this section.');
     return withState({page:'eth',ethArea:p.area,ethStage:p.stage,ethMode:p.emode},()=>rbParts(ethPage(),(P,f)=>[(on.rate||on.gap)&&f('.ethleg'),on.rate&&P[0],on.gap&&P[1],on.table&&P[2]]))}
+  if(b.type==='rm')return loaded()?withState({page:'pri',priSig:false,modes:{pri:p.mode||'agg'}},()=>rmRender(b)):rbMsg(needMain);
   if(b.type==='pri')return withState({page:'pri',rfac:p.fac,priSig:p.sig,priOpen:null,modes:{pri:p.mode||'agg'}},()=>rbParts(priPage(),(P,f)=>[on.method&&f('.method'),...(on.tables?P:[])]));
   return '';
 }
@@ -1408,6 +1523,7 @@ function rbControls(b,i){
   if(b.type==='map')s+=rbSel(i,'target',p.target,tO,'Equity gap target')+rbSel(i,'level',p.level,lvO,'Compare')+rbSel(i,'fac',p.fac,allFac,'Faculty')+rbSel(i,'ref',p.ref,[['m','2026-27 milestone'],['t','2028-29 target']],'Judge against')+rbSel(i,'mode',p.mode,mO,'Show');
   if(b.type==='scan')s+=rbSel(i,'area',p.area,areaO,'Area')+rbSel(i,'stage',p.stage,[['all','All stages'],...STAGES.map(v=>[v,v])],'Stage (gaps to monitor)')+rbChk(i,'app',p.app,'Include gaps that are already APP targets');
   if(b.type==='eth')s+=rbSel(i,'area',p.area,areaO,'Area')+rbSel(i,'stage',p.stage,ETH_STAGES.map(v=>[v,v]),'Measure')+rbSel(i,'emode',p.emode,[['year','Each year'],['roll','4-year rolling']],'Show');
+  if(b.type==='rm')s+=rbSel(i,'mode',p.mode||'agg',mO,'Show')+rmEditor(b,i);
   if(b.type==='pri')s+=rbSel(i,'fac',p.fac,allFac,'Faculty')+rbSel(i,'mode',p.mode||'agg',mO,'Show')+rbChk(i,'sig',p.sig,'Only count gaps significantly wider than the University’s');
   const parts=RBT[b.type].parts.filter(([k])=>!(b.type==='area'&&k==='children'&&p.level==='Programme'));
   if(parts.length)s+=`<fieldset class="rbparts"><legend>Include</legend>${parts.map(([k,l])=>{
@@ -1430,7 +1546,7 @@ function rbPage(){
   RB.blocks.forEach(rbNorm);
   const st=RB.ui.struct;
   let s=`<div class="rbtabs" role="tablist" aria-label="Reports">${RBS.tabs.map((t,i)=>`<button role="tab" data-rbtab="${i}" aria-selected="${i===RBS.cur}">${esc(t.report.title||'Untitled report')}</button>`).join('')}<button class="rbtabcmd" data-rbcmd="newtab">+ New report</button>${RBS.tabs.length>1?'<button class="rbtabcmd" data-rbcmd="deltab">Delete this report</button>':''}</div>`;
-  s+=`<div class="toolbar rbbar"><span class="tlab">Start from</span><button data-rbtpl="aif">APP Interventions Fund</button><button data-rbtpl="fac">Faculty summaries</button><button data-rbtpl="unifac">University and faculties</button><button data-rbtpl="pri">Reverse mentoring shortlist</button>
+  s+=`<div class="toolbar rbbar"><span class="tlab">Start from</span><button data-rbtpl="aif">APP Interventions Fund</button><button data-rbtpl="rm">Reverse mentoring pairings</button><button data-rbtpl="fac">Faculty summaries</button><button data-rbtpl="unifac">University and faculties</button><button data-rbtpl="pri">Reverse mentoring shortlist</button>
     <span class="rbrow"></span><span class="tlab">Report</span><button data-rbcmd="struct">${st?'Hide':'Show'} sections</button><button data-rbcmd="save">Save layout</button><input type="file" id="rbFile" accept=".json,application/json" class="vh"><label for="rbFile" class="rbfile">Open layout</label><button data-rbcmd="clear">Clear</button><button class="btn2" data-rbcmd="pdf">Download PDF</button>
     <span class="tnote">Download PDF opens the print window: set Destination to Save as PDF. Printers such as Adobe PDF or Microsoft Print to PDF turn landscape pages on their side. Select any title, heading, caption or summary in the preview to edit it. Your layout is kept in this browser; the data is not.</span></div>`;
   s+=`<div class="rbwrap${st?'':' nostruct'}"><aside class="rbside" id="rbSide"><h4>Add a section</h4><div class="rbpal">${Object.entries(RBT).map(([k,v])=>`<div role="button" tabindex="0" draggable="true" data-rbnew="${k}" title="${esc(v.d)}">${esc(v.l)}</div>`).join('')}</div>
@@ -1487,6 +1603,8 @@ function rbAIF(){
 if(!RBS.seeded.aif){const t=rbAIF(),tab={id:rbId(),report:t.report,blocks:t.blocks};
   const only=RBS.tabs.length===1&&!RBS.tabs[0].blocks.length;if(only)RBS.tabs[0]=tab;else RBS.tabs.push(tab);
   RBS.seeded.aif=true;rbUse(only?0:RBS.tabs.length-1);rbSave()}
+// The same for the reverse mentoring pairings report
+if(!RBS.seeded.rm){const t=rbRM();RBS.tabs.push({id:rbId(),report:t.report,blocks:t.blocks});RBS.seeded.rm=true;rbUse(RBS.tabs.length-1);rbSave()}
 function rbTemplate(k){
   if(RB.blocks.length&&!confirm('Replace the current report sections with this template?'))return;
   const area=(lv,fac)=>{const b=rbNew('area');Object.assign(b.p,{level:lv,fac,mode:'latest'});return b};
@@ -1494,6 +1612,7 @@ function rbTemplate(k){
   if(k==='fac'){R.title='APP equity gaps by faculty';R.subtitle='Progress against Access and Participation Plan targets in each faculty';RB.blocks=FAC.map(f=>area('Faculty',f.code))}
   if(k==='unifac'){R.title='APP equity gaps report';R.subtitle='University and faculty progress against Access and Participation Plan targets';RB.blocks=[area('University',FAC[0].code),...FAC.map(f=>area('Faculty',f.code))]}
   if(k==='aif'){const t=rbAIF();RB.report=t.report;RB.blocks=t.blocks}
+  if(k==='rm'){const t=rbRM();RB.report=t.report;RB.blocks=t.blocks}
   if(k==='pri'){R.title='Reverse mentoring pilot: departments to approach';R.subtitle='Departments with the widest equity gaps in each faculty';RB.blocks=[rbNew('pri')]}
   RB.ui.open=null;rbSave();render();
 }
@@ -1528,6 +1647,7 @@ function rbChange(e){const el=e.target;
   if(el.dataset.rbr){RB.report[el.dataset.rbr]=el.checked;rbSave();render();return}
   if(el.dataset.rbi==null)return;
   const b=RB.blocks[+el.dataset.rbi];if(!b)return;
+  if(el.dataset.rmk){const e=b.p.list[+el.dataset.rmj];if(e){e[el.dataset.rmk]=el.value;b.edits={};rbSave();render()}return}
   if(el.dataset.rbpart){b.parts[el.dataset.rbpart]=el.checked;b.edits={}}
   else{const k=el.dataset.rbk,v=el.type==='checkbox'?el.checked:el.value;
     if(k==='newPage')b.newPage=v;
@@ -1566,6 +1686,8 @@ function rbAct(e){
       if(next.length)p.rows=next.length===all.length?null:next}
     b.edits={};rbSave();render();return true}
   const tb=e.target.closest('[data-rbtab]');if(tb){rbUse(+tb.dataset.rbtab);rbSave();render();return true}
+  const rma=e.target.closest('[data-rmadd],[data-rmdel]');if(rma){const b=RB.blocks[+rma.dataset.rbi];if(b){b.p.list=b.p.list||[];
+    if(rma.dataset.rmadd)b.p.list.push({dept:'',label:'',staff:'',req:''});else b.p.list.splice(+rma.dataset.rmdel,1);b.edits={};rbSave();render()}return true}
   const sw=e.target.closest('[data-rbsw]');if(sw){const b=RB.blocks[+sw.dataset.rbi];if(b){b.p[sw.dataset.rbsw]=sw.dataset.rbv;b.edits={};rbSave();render()}return true}
   const a=e.target.closest('[data-rbact]');if(a){const i=+a.dataset.rbi,k=a.dataset.rbact,B=RB.blocks;
     if(k==='go'){const t=$('rbPaper')&&$('rbPaper').querySelector(`[data-rbb="${i}"]`);if(t)t.scrollIntoView({behavior:'smooth',block:'start'});return true}
