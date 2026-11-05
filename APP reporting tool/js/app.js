@@ -822,7 +822,7 @@ Status: At risk`;
       <h3 class="section">Committee dates</h3>
       <div class="table-wrap"><table class="grid">
         <thead><tr><th>Committee</th><th>Paper deadline</th><th>Meeting</th><th></th></tr></thead>
-        <tbody>${list.map((c) => `<tr class="${c.meeting && c.meeting < TODAY ? 'is-done' : ''}"><td>${esc(c.name || 'ESE Committee')}</td><td>${fmtDate(c.deadline)}</td><td>${fmtDate(c.meeting)}</td>
+        <tbody>${list.map((c) => `<tr class="${c.meeting && c.meeting < TODAY ? 'is-done' : ''}"><td><input type="text" value="${esc(c.name || 'ESE Committee')}" data-committee="${esc(c.id)}|name" aria-label="Committee name"></td><td><input type="date" value="${esc(c.deadline || '')}" data-committee="${esc(c.id)}|deadline" aria-label="Paper deadline"></td><td><input type="date" value="${esc(c.meeting || '')}" data-committee="${esc(c.id)}|meeting" aria-label="Meeting date"></td>
           <td><button class="quiet small-btn" data-del-committee="${esc(c.id)}">Remove</button></td></tr>`).join('') || '<tr><td colspan="4" class="muted">No dates yet.</td></tr>'}</tbody>
       </table></div>
       <div class="inline-form">
@@ -1310,6 +1310,14 @@ Status: At risk`;
         }
         persist();
       }
+    }
+    if (d.committee) {
+      const [cId, field] = d.committee.split('|');
+      const c = (state.tracker.settings.committees || []).find((x) => x.id === cId);
+      const v = e.target.value.trim();
+      if (field !== 'name' && !v && !(field === 'deadline' ? c.meeting : c.deadline)) { flash('error', 'Keep a paper deadline or a meeting date.'); return; }
+      c[field] = field === 'name' ? (v || 'ESE Committee') : (v || null);
+      persist('Committee date updated.');
     }
     if (d.datastatus) {
       const [ivId, xId] = d.datastatus.split('|');
