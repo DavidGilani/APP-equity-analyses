@@ -1338,9 +1338,11 @@ function rmProgs(P){
 function rmRecruit(plans){
   const tally=pick=>{const t={};plans.forEach(P=>{if(!P.a)return;const k=pick(P),n=+P.e.staff||0;if(!k||!n)return;(t[k]=t[k]||{n:0,d:[]}).n+=n;t[k].d.push(`${rmName(P.e)} (${n})`)});return t};
   const rec=tally(P=>P.rec&&P.rec.d.k),req=tally(P=>P.asked.ks[0]||(P.rec&&P.rec.d.k));
-  const noStaff=plans.filter(P=>P.a&&!(+P.e.staff)).length,tot=plans.reduce((s,P)=>s+(P.a?+P.e.staff||0:0),0);
+  const tot=plans.reduce((s,P)=>s+(P.a&&(P.asked.ks[0]||P.rec)?+P.e.staff||0:0),0);
+  const why=P=>!P.a?'not in the loaded file':!(+P.e.staff)?'no staff number':!(P.asked.ks[0]||P.rec)?'no pairing asked for, and too few students to recommend one':'';
+  const left=plans.filter(why).map(P=>`${rmName(P.e)} (${why(P)})`);
   const cell=t=>t?`<b>${t.n}</b><small class="yr" style="display:block;white-space:normal">${esc(t.d.join(', '))}</small>`:'<span class="uni">0</span>';
-  return `<section class="panel"><h3>Student mentors to recruit</h3><p class="cap">How many students to find from each group, with one student mentor for each of the ${tot} staff taking part. Requested pairings use the first group a department named, and the recommended pairing where nothing has been asked for.${noStaff?` ${noStaff} ${plural(noStaff,'department has','departments have')} no staff number yet and ${plural(noStaff,'is','are')} not counted.`:''}</p>
+  return `<section class="panel"><h3>Student mentors to recruit</h3><p class="cap">How many students to find from each group, with one student mentor for each of the ${tot} staff taking part. Requested pairings use the first group a department named, and the recommended pairing where nothing has been asked for.${left.length?` Not counted: ${esc(left.join('; '))}.`:''}</p>
     <div class="scroll"><table class="rank fixed"><colgroup><col style="width:24%"><col style="width:38%"><col style="width:38%"></colgroup><thead><tr><th>Student group</th><th class="ctr">Using the requested pairings</th><th class="ctr">Using the recommended pairings</th></tr></thead><tbody>
     ${DEMOG.map(d=>`<tr><td><b>${esc(d.l)}</b><span class="facname">${esc(d.mentor)}</span></td><td class="ctr">${cell(req[d.k])}</td><td class="ctr">${cell(rec[d.k])}</td></tr>`).join('')}
     <tr><td><b>Total</b></td><td class="ctr"><b>${Object.values(req).reduce((s,t)=>s+t.n,0)}</b></td><td class="ctr"><b>${Object.values(rec).reduce((s,t)=>s+t.n,0)}</b></td></tr></tbody></table></div></section>`;
@@ -1695,6 +1697,12 @@ view.addEventListener('drop',e=>{if(!rbDrag)return;e.preventDefault();e.stopProp
   rbDrag=null;render()});
 view.addEventListener('dragend',()=>{if(rbDrag){rbDrag=null;render()}});
 view.addEventListener('input',rbInput);
+// Typing a staff number, subject or request redraws the report as you type. Only the preview is
+// redrawn, so the box being typed in keeps its place.
+view.addEventListener('input',e=>{const el=e.target;if(!el.dataset||!el.dataset.rmk||el.tagName==='SELECT')return;
+  const b=RB.blocks[+el.dataset.rbi],x=b&&b.p.list&&b.p.list[+el.dataset.rmj];if(!x)return;
+  x[el.dataset.rmk]=el.value;b.edits={};rbSave();
+  const pp=$('rbPaper');if(pp){pp.innerHTML=rbPreview();rbAfter()}});
 view.addEventListener('change',rbChange);
 // Keep headings on one line, and paste as plain text
 view.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.isContentEditable&&e.target.matches('h1,h2,h3,.cap,.rbsub'))e.preventDefault()});
@@ -1710,7 +1718,7 @@ function rbAct(e){
     b.edits={};rbSave();render();return true}
   const tb=e.target.closest('[data-rbtab]');if(tb){rbUse(+tb.dataset.rbtab);rbSave();render();return true}
   const rma=e.target.closest('[data-rmadd],[data-rmdel]');if(rma){const b=RB.blocks[+rma.dataset.rbi];if(b){b.p.list=b.p.list||[];
-    if(rma.dataset.rmadd)b.p.list.push({dept:'',label:'',staff:'',req:''});else b.p.list.splice(+rma.dataset.rmdel,1);b.edits={};rbSave();render()}return true}
+    if(rma.dataset.rmadd)b.p.list.push({dept:'',label:'',staff:'1',req:''});else b.p.list.splice(+rma.dataset.rmdel,1);b.edits={};rbSave();render()}return true}
   const sw=e.target.closest('[data-rbsw]');if(sw){const b=RB.blocks[+sw.dataset.rbi];if(b){b.p[sw.dataset.rbsw]=sw.dataset.rbv;b.edits={};rbSave();render()}return true}
   const a=e.target.closest('[data-rbact]');if(a){const i=+a.dataset.rbi,k=a.dataset.rbact,B=RB.blocks;
     if(k==='go'){const t=$('rbPaper')&&$('rbPaper').querySelector(`[data-rbb="${i}"]`);if(t)t.scrollIntoView({behavior:'smooth',block:'start'});return true}
