@@ -33,7 +33,7 @@ section's filters and which parts to include, or add a panel straight from
 another page through its download menu. Titles, headings, captions and summaries
 can be edited in the preview. Templates include one section per faculty. The
 layout is kept in the browser and can be saved as a layout file; neither holds
-any results. Download PDF uses the browser's print window (A4 landscape).
+any results. Download PDF builds an A4 landscape PDF in the page itself, so pages come out the right way round on any computer; its pages are pictures, so the text cannot be selected. Pages break between rows and panels, a panel that fits on one page is kept whole, and a page that is only slightly too long is shrunk to fit. Print uses the browser's print window instead and keeps the text selectable (choose Save as PDF as the destination).
 
 Each report has its own tab, so several can be kept side by side; **+ New
 report** starts a blank one. In an area summary, the Targets buttons above the
