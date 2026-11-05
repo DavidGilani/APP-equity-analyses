@@ -41,7 +41,7 @@
       if (head && /^(\[|APP|#)/i.test(line)) {
         const id = `${Number(head[1])}.${Number(head[2])}`;
         if (!ids.has(id)) { out.warnings.push(`${where}: ${id} isn't in the tracker, so its lines are skipped.`); group = null; return; }
-        group = out.groups.find((g) => g.id === id) || (out.groups.push({ id, notes: [], deliverables: [], templateUpdates: [], status: null }), out.groups[out.groups.length - 1]);
+        group = out.groups.find((g) => g.id === id) || (out.groups.push({ id, notes: [], deliverables: [], templateUpdates: [], dataNeeds: [], status: null }), out.groups[out.groups.length - 1]);
         return;
       }
 
@@ -71,6 +71,12 @@
           if (!status) { out.warnings.push(`${where}: status "${fields.status}" not recognised, set to Not started.`); status = 'Not started'; }
         }
         group.deliverables.push({ kind: key, title, owner: fields.owner || '', due, status });
+      } else if (key === 'data') {
+        // "Data: what | from: who | format: Excel | when: end of each term | due: dd/mm/yyyy | for: why"
+        const { text: what, fields } = splitFields(value);
+        const due = fields.due ? parseDate(fields.due) : null;
+        if (fields.due && !due) out.warnings.push(`${where}: due date not understood: "${fields.due}"`);
+        group.dataNeeds.push({ what, owner: fields.from || fields.owner || '', format: fields.format || '', when: fields.when || '', due, purpose: fields.for || fields.purpose || '', status: 'To agree' });
       } else if (key === 'template') {
         const { text: section, fields } = splitFields(value);
         const rest = value.includes('|') ? value.slice(value.indexOf('|') + 1).trim() : '';
@@ -105,7 +111,9 @@
       const iv = t.interventions.find((x) => x.id === g.id);
       iv.deliverables = iv.deliverables || [];
       for (const n of g.notes) t.notes.push({ id: model.newId('n'), interventionId: g.id, ...n, ...source });
-      for (const d of g.deliverables) iv.deliverables.push({ id: model.newId('d'), ...d, ...source });
+      for (const d of g.deliverables) iv.deliverables.push({ id: model.newId('d'), ...d, agreedDue: iv.plan && iv.plan.agreedOn && d.kind === 'deliverable' ? d.due : null, addedOn: date, ...source });
+      iv.dataNeeds = iv.dataNeeds || [];
+      for (const x of g.dataNeeds || []) iv.dataNeeds.push({ id: model.newId('data'), ...x, addedOn: date, ...source });
       for (const u of g.templateUpdates) t.templateUpdates.push({ id: model.newId('t'), interventionId: g.id, section: u.section, text: u.text, raisedOn: date, meetingId, done: false });
       if (g.status && g.status !== iv.status) {
         t.notes.push({ id: model.newId('n'), interventionId: g.id, type: 'Status change', text: `${iv.status || 'No status'} to ${g.status}`, ...source });

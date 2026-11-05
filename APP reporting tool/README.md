@@ -19,9 +19,18 @@ Either way, the page runs in Chrome on the laptop and works on files in the sync
 
 Chrome remembers the folder, so later visits need one click at most. Each time the folder is opened, the tool re-reads every project template, so the views are always current.
 
+### The process, in order
+
+1. **Agree a plan for each intervention.** On **Delivery and data plans**, record each deliverable with an owner and a date, and the data the evaluation needs: what, why, who provides it, in what format and when. Save the strand's plans as a Word file, send it to the strand lead, and record each plan as agreed once they confirm it.
+2. **Before each strand lead catch-up,** open **Progress**, choose the strand, and save or copy the summary to send ahead of the meeting.
+3. **During and after the meeting,** record changes on **Interventions** or paste a structured update on **Meeting update**. If a deliverable's date moves, change it on **Delivery and data plans**, which asks for the reason.
+4. **Keep the plans current.** Changes to project templates go on the **Theory of Change audit** checklist, and **Timeline spreadsheet** updates the Gantt once a template's dates change.
+5. **Each committee cycle,** follow the **Reporting** checklist from four weeks out, then create the draft paper.
+
 ### The tabs
 
 - **Progress:** the page to use before a strand lead catch-up. For each strand: your open actions, the team's open actions and deliverables, and every non-BAU intervention with its APP targets (1 to 9), status, planned stage now, next action and theory of change progress. It saves a Word summary for the strand lead, or copies it as email text; either records the summary as sent.
+- **Delivery and data plans:** for each non-BAU intervention, its deliverables with owners and dates, and its data requirements (what, why, who provides it, format, when and when next due). Recording a plan as agreed fixes the agreed date of each deliverable. Any later change keeps both dates, asks for a reason, and adds a "Reason for delay" note, so slippage shows against the agreed plan. The overview counts, for each strand, plans agreed, deliverables slipped and items overdue. It saves a Word file of the strand's plans to send for agreement.
 - **Reporting:** the committee cycle. Committee dates and paper deadlines, a countdown, and a checklist of what's still needed: strand summaries sent and responses back, reasons for anything behind schedule or at risk, successes, and the timeline spreadsheet. It creates the termly ESE paper and the annual report, and saves Outlook reminders. From four weeks before a deadline, a banner on every tab points here.
 - **Interventions:** one card per intervention, for recording things during a meeting: status, actions and deliverables, notes (including reasons for delay and successes) and template changes.
 - **Meeting update:** paste a structured update from a meeting or a strand lead's response, check the preview, and save it. See `meeting-update-format.md`.
@@ -74,12 +83,14 @@ The repository stays private. The address shows the tool's code to anyone who ha
 - `scoping-brief.md`: purpose, constraints, data model, pipeline and demo scope.
 - `source-document-structure.md`: the layout of the tracker and the Word templates the tool reads and writes, plus the vocabulary mismatches between them.
 - `index.html` and `js/`: the tool. `js/lib/jszip.min.js` is JSZip 3.10.2 (MIT licence), used to open Word and Excel files in the browser.
-- `js/`: `app.js` (the page), `model.js` (statuses and slip checks), `template-read.js` (reading templates and judging theory of change completeness), `tracker-import.js` and `xlsx-read.js` (reading the spreadsheet), `xlsx-write.js` (updating statuses and Gantt bars), `meeting-update.js`, `reports.js` (strand summaries and snapshots), `reporting.js` (committee dates, the readiness checklist and reminders), `papers.js` (the termly paper and annual report), `annual-data.js` (the annual data spreadsheet and faculty charts), `timeline-check.js`, `docx-write.js` (writing Word files) and `folder.js`.
+- `js/`: `app.js` (the page), `model.js` (statuses and slip checks), `template-read.js` (reading templates and judging theory of change completeness), `tracker-import.js` and `xlsx-read.js` (reading the spreadsheet), `xlsx-write.js` (updating statuses and Gantt bars), `meeting-update.js`, `reports.js` (strand summaries and snapshots), `reporting.js` (committee dates, the readiness checklist and reminders), `papers.js` (the termly paper and annual report), `annual-data.js` (the annual data spreadsheet and faculty charts), `timeline-check.js`, `plans.js` (delivery and data plans), `docx-write.js` (writing Word files) and `folder.js`.
 - `meeting-update-format.md`: the meeting update format and the Copilot prompt that produces it.
 - `folder-access-check.html`: a one-off check that Chrome can read and write the synced folder. Download it, double-click it, choose the synced folder, and check that every step says Pass.
 
 ## Decisions so far
 
+- **Look and feel:** the page follows the staff intranet: a dark purple banner, condensed type and pill buttons. Status colours follow the Project Delivery Framework's accessible palette, with green for Green, white for Amber and purple for Red. Fonts load from Google Fonts, and the page falls back to system fonts when offline.
+- **Delivery and data plans:** each intervention has written deliverables with dates and written data requirements, agreed with its team, so slippage can be checked against what was agreed and the evaluation has the data it needs.
 - **Browser:** Chrome on the laptop, from a Vercel web address or by double-clicking. No server and no Python.
 - **Master data:** JSON in the synced folder. The Excel tracker is imported once; after that the tool writes statuses and Gantt bars back to it.
 - **Phone view:** a `latest-summary.pdf` saved into the synced folder, opened in the OneDrive app. The web address can't show data on the phone, because the phone can't reach the synced folder.

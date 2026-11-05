@@ -1,6 +1,6 @@
 // Page logic: folder connection, strand view, template audit and tracker import.
 (function () {
-  const { model, folder, templates, trackerImport, meetingUpdate, reports, timelineCheck, docx, xlsxWrite, papers, annualData, reporting } = window.APPTool;
+  const { model, folder, templates, trackerImport, meetingUpdate, reports, timelineCheck, docx, xlsxWrite, papers, annualData, reporting, plans } = window.APPTool;
   const $ = (sel) => document.querySelector(sel);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -336,6 +336,123 @@
       ${state.strand === 'all' ? renderOverview() : renderStrand(state.strand)}`;
   }
 
+
+  // ---------- delivery and data plans ----------
+
+  function slipText(d) {
+    const sl = plans.slip(d);
+    return sl ? `<div class="small hot">${esc(sl.text)}</div>` : '';
+  }
+
+  function historyText(d) {
+    const h = (d.dueHistory || []).filter((x) => x.from);
+    if (!h.length) return '';
+    return `<details class="small"><summary class="muted">${h.length} date change${h.length === 1 ? '' : 's'}</summary><ul class="notes">${h.map((x) => `<li>${fmtDate(x.on)}: ${fmtDate(x.from)} to ${x.to ? fmtDate(x.to) : 'no date'}${x.reason ? `. ${esc(x.reason)}` : ''}</li>`).join('')}</ul></details>`;
+  }
+
+  function planPanel(iv) {
+    const c = plans.planCheck(iv, TODAY);
+    const delivRows = c.deliv.filter((d) => state.showDone || d.status !== 'Done')
+      .sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'))
+      .map((d) => `<tr class="${d.status === 'Done' ? 'is-done' : ''}">
+        <td>${esc(d.title)}${historyText(d)}</td>
+        <td>${esc(d.owner || '')}${d.owner ? '' : '<span class="hot small">No owner</span>'}</td>
+        <td class="nowrap">${d.agreedDue ? fmtDate(d.agreedDue) : '<span class="muted small">Not agreed yet</span>'}</td>
+        <td class="nowrap"><input type="date" value="${esc(d.due || '')}" data-due="${esc(iv.id)}|${esc(d.id)}" aria-label="Current date">${slipText(d)}${d.status !== 'Done' && d.due && d.due < TODAY ? '<div class="small hot">Overdue</div>' : ''}</td>
+        <td><select data-deliv="${esc(iv.id)}|${esc(d.id)}" aria-label="Status">${model.DELIVERABLE_STATUSES.map((s) => `<option ${s === d.status ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
+      </tr>`).join('');
+    const dataRows = c.data.map((x) => `<tr>
+        <td><strong>${esc(x.what)}</strong>${x.purpose ? `<div class="small muted">For: ${esc(x.purpose)}</div>` : ''}</td>
+        <td>${x.owner ? esc(x.owner) : '<span class="hot small">To confirm</span>'}</td>
+        <td>${x.format ? esc(x.format) : '<span class="hot small">To confirm</span>'}</td>
+        <td>${x.when ? esc(x.when) : '<span class="hot small">To confirm</span>'}${x.due ? `<div class="small ${x.status !== 'Received' && x.due < TODAY ? 'hot' : 'muted'}">Next due ${fmtDate(x.due)}</div>` : ''}</td>
+        <td><select data-datastatus="${esc(iv.id)}|${esc(x.id)}" aria-label="Status">${plans.DATA_STATUSES.map((s) => `<option ${s === x.status ? 'selected' : ''}>${s}</option>`).join('')}</select>
+          <button class="link small" data-deldata="${esc(iv.id)}|${esc(x.id)}">Remove</button></td>
+      </tr>`).join('');
+    const agreedLine = c.agreed
+      ? `<span class="pill ok">Agreed ${fmtDate(iv.plan.agreedOn)}${iv.plan.agreedWith ? ` with ${esc(iv.plan.agreedWith)}` : ''}</span>${c.changedSinceAgreed ? ' <span class="pill warn">Changed since agreed</span>' : ''}`
+      : '<span class="pill warn">Not yet agreed</span>';
+    return `<article class="card flag-${c.slipped.length || c.overdue.length || c.dataLate.length ? 'behind' : c.complete ? 'ok' : 'soon'}" data-id="${esc(iv.id)}">
+      <header><h3><span class="id">${esc(iv.id)}</span> ${esc(iv.name)}</h3><div class="pills">${agreedLine}</div></header>
+      ${c.gaps.length ? `<p class="small"><strong>Still to confirm:</strong> ${esc(c.gaps.join('; '))}.</p>` : ''}
+      <h4 class="sub">Deliverables and dates</h4>
+      ${delivRows ? `<div class="table-wrap"><table class="grid"><thead><tr><th>Deliverable</th><th>Owner</th><th>Agreed date</th><th>Current date</th><th>Status</th></tr></thead><tbody>${delivRows}</tbody></table></div>` : '<p class="muted small">No deliverables yet. Add them below, with an owner and a date.</p>'}
+      <div class="record-form" data-form="${esc(iv.id)}">
+        <input type="hidden" name="type" value="deliverable"><input type="hidden" name="section" value="">
+        <label class="grow">New deliverable <input name="text" type="text" autocomplete="off"></label>
+        <label>Owner <input name="owner" type="text" size="12" autocomplete="off"></label>
+        <label>Due <input name="due" type="date"></label>
+        <button class="quiet" data-add="${esc(iv.id)}">Add deliverable</button>
+      </div>
+      <h4 class="sub">Data for the evaluation</h4>
+      ${dataRows ? `<div class="table-wrap"><table class="grid"><thead><tr><th>Data and why it's needed</th><th>Who provides it</th><th>Format</th><th>When</th><th>Status</th></tr></thead><tbody>${dataRows}</tbody></table></div>` : '<p class="muted small">No data requirements yet. What data will show whether this intervention is working?</p>'}
+      <details class="record"><summary>Add a data requirement</summary>
+        <div class="record-form" data-dataform="${esc(iv.id)}">
+          <label class="grow">Data <input name="what" type="text" placeholder="e.g. Attendance at each session, by student ID" autocomplete="off"></label>
+          <label class="grow">Why it's needed <input name="purpose" type="text" placeholder="e.g. Compare continuation for attenders and non-attenders" autocomplete="off"></label>
+          <label>Who provides it <input name="owner" type="text" size="12" autocomplete="off"></label>
+          <label>Format <input name="format" type="text" size="14" placeholder="e.g. Excel, one row per student" autocomplete="off"></label>
+          <label>When <input name="when" type="text" size="14" placeholder="e.g. End of each term" autocomplete="off"></label>
+          <label>Next due <input name="due" type="date"></label>
+          <button class="quiet" data-adddata="${esc(iv.id)}">Add data requirement</button>
+        </div>
+      </details>
+      <div class="bar start" style="margin-top:14px">
+        <label class="small">Agreed with <input type="text" size="16" data-agreewith="${esc(iv.id)}" value="${esc((iv.plan && iv.plan.agreedWith) || (iv.template && iv.template.lead) || '')}"></label>
+        <button class="primary" data-agree="${esc(iv.id)}">${c.agreed ? 'Record as agreed again' : 'Record plan as agreed'}</button>
+      </div>
+    </article>`;
+  }
+
+  function plansOverview() {
+    const rows = state.tracker.strands.map((s) => {
+      const list = state.tracker.interventions.filter((iv) => iv.strand === s.number && plans.needsPlan(iv));
+      const cs = list.map((iv) => plans.planCheck(iv, TODAY));
+      const n = (f) => cs.filter(f).length;
+      const slipped = cs.reduce((a, c) => a + c.slipped.length, 0);
+      const late = cs.reduce((a, c) => a + c.overdue.length + c.dataLate.length, 0);
+      return `<tr><th scope="row"><button class="link" data-strand="${s.number}">Strand ${s.number}: ${esc(s.name)}</button></th>
+        <td class="num">${list.length}</td><td class="num">${n((c) => c.deliv.length && !c.deliv.some((d) => !d.due && d.status !== 'Done'))}</td>
+        <td class="num">${n((c) => c.data.length)}</td><td class="num">${n((c) => c.agreed)}</td>
+        <td class="num ${slipped ? 'hot' : ''}">${slipped}</td><td class="num ${late ? 'hot' : ''}">${late}</td></tr>`;
+    }).join('');
+    return `<div class="table-wrap"><table class="grid">
+      <thead><tr><th>Strand</th><th class="num">Interventions</th><th class="num">Dated deliverables</th><th class="num">Data agreed or drafted</th><th class="num">Plan agreed</th><th class="num">Deliverables slipped</th><th class="num">Overdue items</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+      <p class="muted small">Counts non-BAU interventions. "Slipped" means a deliverable's current date is later than the date agreed with the team. "Overdue" counts deliverables and data past their date and not yet done or received.</p>`;
+  }
+
+  function renderPlansTab() {
+    if (!state.tracker) return '<p>Import the tracker first.</p>';
+    const intro = `<p class="muted intro">For each intervention: what it will deliver and by when, and the data needed to evaluate it, written down and agreed with the team. Once a plan is agreed, the agreed dates are fixed, so any later change shows as slippage, with its reason.</p>`;
+    if (state.strand === 'all') return `<div class="bar">${strandTabs()}</div><h2>Delivery and data plans</h2>${intro}${plansOverview()}`;
+    const list = state.tracker.interventions.filter((iv) => iv.strand === Number(state.strand) && plans.needsPlan(iv));
+    return `<div class="bar">${strandTabs()}<button id="save-plans" class="primary">Save the strand's plans to send for agreement</button></div>
+      <h2>Strand ${esc(state.strand)}: ${esc(strandName(state.strand))}</h2>${intro}
+      <label class="small"><input type="checkbox" id="showdone" ${state.showDone ? 'checked' : ''}> Show finished deliverables</label>
+      ${list.map(planPanel).join('') || '<p class="muted">No non-BAU interventions in this strand.</p>'}`;
+  }
+
+  async function savePlans() {
+    try {
+      const n = state.strand;
+      const path = await folder.saveReport(state.conn, `Strand ${n} delivery and data plans - ${TODAY}.docx`, await plans.planDoc(state.tracker, n, TODAY));
+      flash('ok', `Saved to ${path}. Send it to the strand lead, then record each plan as agreed.`);
+    } catch (e) {
+      flash('error', `Couldn't save: ${e.message}`);
+    }
+  }
+
+  function addData(ivId) {
+    const form = document.querySelector(`[data-dataform="${CSS.escape(ivId)}"]`);
+    const get = (n) => form.querySelector(`[name="${n}"]`).value.trim();
+    if (!get('what')) { flash('error', 'Say what data is needed first.'); return; }
+    const iv = findIv(ivId);
+    iv.dataNeeds = iv.dataNeeds || [];
+    iv.dataNeeds.push({ id: model.newId('data'), what: get('what'), purpose: get('purpose'), owner: get('owner'), format: get('format'), when: get('when'), due: get('due') || null, status: 'To agree', addedOn: TODAY });
+    persist(`Data requirement added to ${ivId}.`);
+  }
+
   // ---------- meeting update ----------
 
   const EXAMPLE = `Meeting: Strand 6 catch-up with strand lead
@@ -345,6 +462,7 @@ Date: 22/09/2026
 Update: Still investigating options. No decision yet.
 Action: Invite the provider in to go through the details | owner: Strand lead | due: 30/10/2026
 Deliverable: Decision on approach | owner: Strand lead | due: 18/12/2026
+Data: Attendance by student ID | from: Strand lead | format: Excel | when: end of each term | due: 30/01/2027 | for: compare outcomes of attenders and non-attenders
 Risk: Budget pressure this year
 Template: Timeframes | Set planning dates once the approach is decided
 Status: At risk`;
@@ -357,7 +475,7 @@ Status: At risk`;
       const count = (k) => p.groups.reduce((a, g) => a + g[k].length, 0);
       preview = `<section class="panel" id="update-preview">
         <h3>${esc(p.meeting || 'Meeting')}${p.date ? `, ${fmtDate(p.date)}` : ''}</h3>
-        <p>${p.groups.length} intervention${p.groups.length === 1 ? '' : 's'}: ${count('notes')} notes, ${count('deliverables')} actions and deliverables, ${count('templateUpdates')} template changes.</p>
+        <p>${p.groups.length} intervention${p.groups.length === 1 ? '' : 's'}: ${count('notes')} notes, ${count('deliverables')} actions and deliverables, ${count('dataNeeds')} data requirements, ${count('templateUpdates')} template changes.</p>
         ${p.warnings.length ? `<div class="msg error"><strong>Check these before saving:</strong><ul>${p.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul></div>` : ''}
         ${!p.date ? '<p class="hot small">No date given, so today\'s date will be used.</p>' : ''}
         ${p.groups.map((g) => {
@@ -366,6 +484,7 @@ Status: At risk`;
             ${g.status ? `<li><span class="chip warn">Status</span> ${esc(iv.status)} to ${esc(g.status)}</li>` : ''}
             ${g.notes.map((n) => `<li><span class="chip ${n.type === 'Risk' ? 'risk' : ''}">${esc(n.type)}</span> ${esc(n.text)}</li>`).join('')}
             ${g.deliverables.map((d) => `<li><span class="chip">${d.kind === 'action' ? 'Action' : 'Deliverable'}</span> ${esc(d.title)} <span class="muted small">${esc(d.owner || 'No owner')}, ${d.due ? fmtDate(d.due) : 'no date'}</span></li>`).join('')}
+            ${g.dataNeeds.map((x) => `<li><span class="chip map">Data</span> ${esc(x.what)} <span class="muted small">${esc([x.owner || 'who to confirm', x.format, x.when, x.due ? fmtDate(x.due) : ''].filter(Boolean).join(', '))}</span></li>`).join('')}
             ${g.templateUpdates.map((u) => `<li><span class="chip map">Template: ${esc(u.section)}</span> ${esc(u.text)}</li>`).join('')}
           </ul></div>`;
         }).join('')}
@@ -381,6 +500,7 @@ Status: At risk`;
           <li>An intervention heading in square brackets, like <code>[6.2]</code>.</li>
           <li><code>Update:</code>, <code>Risk:</code>, <code>Decision:</code>, <code>Scope change:</code> or <code>Question:</code> for notes.</li>
           <li><code>Action:</code> or <code>Deliverable:</code>, followed by <code>| owner: Name | due: dd/mm/yyyy</code>.</li>
+          <li><code>Data:</code> followed by <code>| from: Name | format: Excel | when: end of each term | due: dd/mm/yyyy | for: why it's needed</code>.</li>
           <li><code>Template: Section | what needs changing</code>, where the section is ${model.TEMPLATE_SECTIONS.map((s) => `<code>${s}</code>`).join(', ')}.</li>
           <li><code>Status:</code> to change the live status, using ${model.STATUSES.map((s) => `<code>${s}</code>`).join(', ')}.</li>
         </ul>
@@ -932,6 +1052,8 @@ Status: At risk`;
           <ol class="small"><li>Open <strong>Progress</strong> and choose the strand.</li><li>Check your actions, the team's actions, and anything flagged.</li><li>Save or copy the summary to send ahead of the meeting.</li></ol></section>
         <section class="panel tight"><h3>During and after the meeting</h3>
           <ol class="small"><li>Record changes on <strong>Interventions</strong>, or paste a structured update on <strong>Meeting update</strong>.</li><li>Changes to project plans go on the <strong>Theory of Change audit</strong> checklist.</li><li>Once a template's dates change, <strong>Timeline spreadsheet</strong> updates the Gantt.</li></ol></section>
+        <section class="panel tight"><h3>Agreeing each intervention's plan</h3>
+          <ol class="small"><li>On <strong>Delivery and data plans</strong>, add each deliverable with an owner and date, and the data the evaluation needs.</li><li>Save the strand's plans as a Word file and send them to the strand lead.</li><li>Once agreed, record each plan as agreed. Later date changes then show as slippage, with a reason.</li></ol></section>
         <section class="panel tight"><h3>Each committee cycle</h3>
           <ol class="small"><li>Follow the <strong>Reporting</strong> checklist from four weeks out.</li><li>Create the draft paper from your latest paper.</li><li>Edit the narrative and Tables 1 and 3, then submit.</li></ol></section>
       </div>`;
@@ -1043,6 +1165,7 @@ Status: At risk`;
       return;
     }
 
+    $('#hello').textContent = state.yourName ? `Hi ${state.yourName}, welcome to the APP tracker` : 'APP tracking and reporting';
     $('#folder-status').innerHTML = state.conn
       ? `Connected to <strong>${esc(state.conn.root.name || 'folder')}</strong> <button id="change-folder" class="quiet">Change</button>`
       : '';
@@ -1058,9 +1181,9 @@ Status: At risk`;
       return;
     }
 
-    const tabs = [['progress', 'Progress'], ['reporting', 'Reporting'], ['strand', 'Interventions'], ['meeting', 'Meeting update'], ['audit', 'Theory of Change audit'], ['timeline', 'Timeline spreadsheet'], ['how', 'How it works']];
+    const tabs = [['progress', 'Progress'], ['plans', 'Delivery and data plans'], ['reporting', 'Reporting'], ['strand', 'Interventions'], ['meeting', 'Meeting update'], ['audit', 'Theory of Change audit'], ['timeline', 'Timeline spreadsheet'], ['how', 'How it works']];
     $('#tabs').innerHTML = tabs.map(([k, l]) => `<button role="tab" aria-selected="${state.tab === k}" data-tab="${k}">${l}</button>`).join('');
-    const views = { progress: renderProgressTab, reporting: renderReportingTab, audit: renderAuditTab, timeline: renderTimelineTab, meeting: renderMeetingTab, how: renderHowTab };
+    const views = { progress: renderProgressTab, plans: renderPlansTab, reporting: renderReportingTab, audit: renderAuditTab, timeline: renderTimelineTab, meeting: renderMeetingTab, how: renderHowTab };
     const body = (views[state.tab] || renderStrandTab)();
     main.innerHTML = nudgeBanner() + msg + body;
   }
@@ -1120,6 +1243,22 @@ Status: At risk`;
     else if (t.id === 'preview-update') previewUpdate();
     else if (t.id === 'save-update') saveUpdate();
     else if (t.dataset.add) addEntry(t.dataset.add);
+    else if (t.id === 'save-plans') savePlans();
+    else if (t.dataset.adddata) addData(t.dataset.adddata);
+    else if (t.dataset.deldata) {
+      const [ivId, xId] = t.dataset.deldata.split('|');
+      const iv = findIv(ivId);
+      iv.dataNeeds = (iv.dataNeeds || []).filter((x) => x.id !== xId);
+      persist('Data requirement removed.');
+    }
+    else if (t.dataset.agree) {
+      const iv = findIv(t.dataset.agree);
+      const input = document.querySelector(`[data-agreewith="${CSS.escape(iv.id)}"]`);
+      plans.agreePlan(iv, input ? input.value.trim() : '', TODAY);
+      state.tracker.notes = state.tracker.notes || [];
+      state.tracker.notes.push({ id: model.newId('n'), interventionId: iv.id, type: 'Decision', text: `Delivery and data plan agreed${iv.plan.agreedWith ? ` with ${iv.plan.agreedWith}` : ''}`, date: TODAY });
+      persist(`${iv.id} plan recorded as agreed. Later date changes will show as slippage.`);
+    }
     else if (t.dataset.tab) { state.tab = t.dataset.tab; state.message = null; render(); }
     else if (t.dataset.strand) setStrand(t.dataset.strand);
   });
@@ -1152,6 +1291,33 @@ Status: At risk`;
       if (item.status === 'Done') item.doneOn = TODAY;
       persist();
     }
+    if (d.due) {
+      const [ivId, dId] = d.due.split('|');
+      const iv = findIv(ivId);
+      const item = (iv.deliverables || []).find((x) => x.id === dId);
+      const to = e.target.value || null;
+      // Before agreement, dates are still being drafted. After, ask why it moved.
+      let reason = '';
+      if (item.agreedDue && to !== item.due) {
+        reason = (window.prompt(`Why has "${item.title}" moved? This is kept with the deliverable and added to the notes.`) || '').trim();
+      }
+      if (plans.moveDue(item, to, reason, TODAY)) {
+        // A deliverable first dated after the plan was agreed takes that date as agreed.
+        if (!item.agreedDue && to && iv.plan && iv.plan.agreedOn && item.kind !== 'action') item.agreedDue = to;
+        if (item.agreedDue && to && to > item.agreedDue) {
+          state.tracker.notes = state.tracker.notes || [];
+          state.tracker.notes.push({ id: model.newId('n'), interventionId: ivId, type: 'Reason for delay', text: `${item.title} moved to ${fmtDate(to)}${reason ? `: ${reason}` : ''}`, date: TODAY });
+        }
+        persist();
+      }
+    }
+    if (d.datastatus) {
+      const [ivId, xId] = d.datastatus.split('|');
+      const x = (findIv(ivId).dataNeeds || []).find((y) => y.id === xId);
+      x.status = e.target.value;
+      if (x.status === 'Received') x.receivedOn = TODAY;
+      persist();
+    }
     if (d.tu) {
       const u = state.tracker.templateUpdates.find((x) => x.id === d.tu);
       u.done = e.target.checked;
@@ -1174,7 +1340,8 @@ Status: At risk`;
     const iv = findIv(ivId);
     if (type === 'action' || type === 'deliverable') {
       iv.deliverables = iv.deliverables || [];
-      iv.deliverables.push({ id: model.newId('d'), kind: type, title: text, owner: get('owner'), due: get('due') || null, status: 'Not started', date: TODAY });
+      const due = get('due') || null;
+      iv.deliverables.push({ id: model.newId('d'), kind: type, title: text, owner: get('owner'), due, agreedDue: iv.plan && iv.plan.agreedOn && type === 'deliverable' ? due : null, status: 'Not started', date: TODAY, addedOn: TODAY });
     } else if (type === 'template') {
       state.tracker.templateUpdates = state.tracker.templateUpdates || [];
       state.tracker.templateUpdates.push({ id: model.newId('t'), interventionId: ivId, section: get('section'), text, raisedOn: TODAY, done: false });

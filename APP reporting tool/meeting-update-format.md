@@ -12,6 +12,7 @@ Date: 22/09/2026
 Update: Still investigating options. No decision yet.
 Action: Invite the provider in to go through the details | owner: Strand lead | due: 30/10/2026
 Deliverable: Decision on approach | owner: Strand lead | due: 18/12/2026
+Data: Attendance by student ID | from: Strand lead | format: Excel | when: end of each term | due: 30/01/2027 | for: compare outcomes of attenders and non-attenders
 Risk: Budget pressure this year
 Decision: Keep the current pilot running until the decision is made
 Scope change: Now includes final-year students
@@ -23,6 +24,7 @@ Status: At risk
 - **Headings:** each intervention starts with its number in square brackets, like `[6.2]`. Every line after it belongs to that intervention until the next heading.
 - **Notes:** `Update`, `Risk`, `Decision`, `Scope change` and `Question` are saved to the intervention's notes. `Reason for delay` and `Success` are saved too, and feed the committee paper.
 - **Actions and deliverables:** `Action` is a short-term to-do from the meeting. `Deliverable` is a project milestone. Both take `| owner: Name | due: dd/mm/yyyy`, and can take `| status: In progress`.
+- **Data requirements:** `Data: <what> | from: <who provides it> | format: <e.g. Excel> | when: <e.g. end of each term> | due: <dd/mm/yyyy> | for: <why it's needed>`. These appear on the Delivery and data plans tab, marked as to agree.
 - **Template changes:** `Template: Section | what needs changing`. The section is one of `Top-level details`, `Timeframes`, `Theory of change` or `Evaluation`. These make up the checklist of changes on the **Theory of Change audit** tab.
 - **Status:** changes the live status. It must be one of On track, Ahead of schedule, At risk, Behind schedule, To be mapped or BAU. The change is logged as a note.
 
@@ -42,6 +44,7 @@ Then, for each APP intervention discussed, a heading with its number in square b
 Update: <one sentence on progress>
 Action: <short action> | owner: <first name> | due: <dd/mm/yyyy, or leave out if no date was given>
 Deliverable: <project milestone> | owner: <first name> | due: <dd/mm/yyyy>
+Data: <data needed> | from: <who provides it> | format: <format> | when: <how often> | due: <dd/mm/yyyy> | for: <why it's needed>
 Risk: <anything that threatens delivery, including budget, staffing or timing>
 Decision: <anything agreed>
 Scope change: <any change to what the project will deliver>
