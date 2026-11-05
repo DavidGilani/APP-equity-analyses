@@ -21,7 +21,7 @@
 
   // Day-to-day statuses. The first four come from the project template dropdown;
   // BAU and To be mapped come from the tracker and have no template equivalent.
-  const STATUSES = ['On track', 'Ahead of schedule', 'At risk', 'Behind schedule', 'To be mapped', 'BAU'];
+  const STATUSES = ['On track', 'Ahead of schedule', 'At risk', 'Behind schedule', 'To be mapped', 'BAU', 'Completed'];
 
   // The four categories the ESE committee report counts.
   const COMMITTEE_CATEGORIES = ['BAU', 'On track', 'To be mapped', 'Behind schedule / at risk'];
@@ -44,6 +44,7 @@
     if (!s) return null;
     if (s === 'bau' || s.startsWith('business as usual')) return 'BAU';
     if (s.startsWith('on track')) return 'On track';
+    if (s.startsWith('complete')) return 'Completed';
     if (s.startsWith('to be mapped') || s.includes('further mapping')) return 'To be mapped';
     if (s.startsWith('ahead')) return 'Ahead of schedule';
     if (s.startsWith('behind')) return 'Behind schedule';
@@ -166,7 +167,44 @@
     return [s, d].sort((a, b) => FLAG_ORDER.indexOf(a) - FLAG_ORDER.indexOf(b))[0];
   }
 
+  // The five groups on the Progress summary. Completed first, then BAU, then
+  // anything still to scope; of the rest, anything at risk, behind, overdue,
+  // blocked or slipped counts as behind, and everything else as on track.
+  const PROGRESS_CATEGORIES = ['BAU', 'On track', 'Behind', 'Completed', 'Needs scoping'];
+  const PROGRESS_LABELS = {
+    'BAU': 'Business as usual', 'On track': 'On track', 'Behind': 'Deliverables or actions behind schedule',
+    'Completed': 'Completed', 'Needs scoping': 'Needing further scoping',
+  };
+
+  function progressCategory(iv, todayIso) {
+    if (iv.status === 'Completed' || /stage\s*8/i.test((iv.template && iv.template.stage) || '')) return 'Completed';
+    if (iv.status === 'BAU') return 'BAU';
+    if (iv.status === 'To be mapped' || !iv.status) return 'Needs scoping';
+    if (iv.status === 'At risk' || iv.status === 'Behind schedule') return 'Behind';
+    if (deliverableCheck(iv, todayIso).flag === 'behind') return 'Behind';
+    const slipped = (iv.deliverables || []).some((d) => d.status !== 'Done' && d.agreedDue && d.due && d.due > d.agreedDue);
+    const dataLate = (iv.dataNeeds || []).some((x) => x.status !== 'Received' && x.due && x.due < todayIso);
+    return slipped || dataLate ? 'Behind' : 'On track';
+  }
+
+  // Why an intervention sits in its group, in a few words.
+  function progressReason(iv, todayIso) {
+    const cat = progressCategory(iv, todayIso);
+    if (cat !== 'Behind') return '';
+    const bits = [];
+    if (iv.status === 'At risk' || iv.status === 'Behind schedule') bits.push(`Status: ${iv.status.toLowerCase()}`);
+    const dc = deliverableCheck(iv, todayIso);
+    if (dc.overdue.length) bits.push(`${dc.overdue.length} overdue`);
+    if (dc.blocked.length) bits.push(`${dc.blocked.length} blocked`);
+    const slipped = (iv.deliverables || []).filter((d) => d.status !== 'Done' && d.agreedDue && d.due && d.due > d.agreedDue).length;
+    if (slipped) bits.push(`${slipped} later than agreed`);
+    const late = (iv.dataNeeds || []).filter((x) => x.status !== 'Received' && x.due && x.due < todayIso).length;
+    if (late) bits.push(`${late} data item${late === 1 ? '' : 's'} late`);
+    return bits.join(', ');
+  }
+
   APP.model = {
+    PROGRESS_CATEGORIES, PROGRESS_LABELS, progressCategory, progressReason,
     STRANDS, TARGETS, STATUSES, COMMITTEE_CATEGORIES, PHASE_NAMES,
     DELIVERABLE_STATUSES, NOTE_TYPES, TEMPLATE_SECTIONS,
     committeeCategory, statusFromTracker, stageFromGantt, rankFromTemplateStage,

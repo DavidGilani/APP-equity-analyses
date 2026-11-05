@@ -23,6 +23,9 @@
     papers: [],
     annualFile: null,
     tab: 'progress',
+    sub: 'summary',    // Progress sub-page: summary, strands, reporting or timeline
+    cat: null,         // Progress summary filter: { cat, strand }
+    ivPage: null,      // intervention shown on its own page
     strand: 'all',
     nonBauOnly: true,
     message: null,
@@ -97,7 +100,7 @@
       flash('error', `The tracker file couldn't be read: ${e.message}`);
       return;
     }
-    if (!state.tracker) state.tab = 'timeline';
+    if (!state.tracker) { state.tab = 'progress'; state.sub = 'timeline'; }
     state.message = null;
     try { state.timelineFiles = await folder.findTimelineFile(state.conn); } catch { state.timelineFiles = []; }
     try { state.papers = (await folder.committeePapers(state.conn)).papers; } catch { state.papers = []; }
@@ -171,7 +174,7 @@
 
   function statusPill(status) {
     const cat = model.committeeCategory(status);
-    const cls = { 'BAU': 'bau', 'On track': 'ok', 'To be mapped': 'map', 'Behind schedule / at risk': 'risk' }[cat] || 'map';
+    const cls = status === 'Completed' ? 'ok' : { 'BAU': 'bau', 'On track': 'ok', 'To be mapped': 'map', 'Behind schedule / at risk': 'risk' }[cat] || 'map';
     return `<span class="pill ${cls}">${esc(status || 'No status')}</span>`;
   }
 
@@ -198,27 +201,6 @@
     </div>`;
   }
 
-  function renderOverview() {
-    const rows = state.tracker.strands.map((s) => {
-      const list = state.tracker.interventions.filter((iv) => iv.strand === s.number);
-      const c = countsFor(list);
-      const flagged = list.filter((iv) => ['behind', 'soon'].includes(model.overallFlag(iv, TODAY))).length;
-      return `<tr data-strand-row="${s.number}">
-        <th scope="row"><button class="link" data-strand="${s.number}">Strand ${s.number}: ${esc(s.name)}</button></th>
-        ${model.COMMITTEE_CATEGORIES.map((k) => `<td class="num">${c[k]}</td>`).join('')}
-        <td class="num">${list.length}</td>
-        <td class="num ${flagged ? 'hot' : ''}">${flagged}</td>
-      </tr>`;
-    });
-    const all = countsFor(state.tracker.interventions);
-    return `<div class="table-wrap"><table class="grid">
-      <thead><tr><th>Strand</th>${model.COMMITTEE_CATEGORIES.map((k) => `<th class="num">${esc(k)}</th>`).join('')}<th class="num">Total</th><th class="num">Flagged</th></tr></thead>
-      <tbody>${rows.join('')}</tbody>
-      <tfoot><tr><th>All strands</th>${model.COMMITTEE_CATEGORIES.map((k) => `<td class="num">${all[k]}</td>`).join('')}<td class="num">${state.tracker.interventions.length}</td><td></td></tr></tfoot>
-    </table></div>
-    <p class="muted small">Status counts use the committee's four categories. "Flagged" counts interventions that are behind their planned stage, due to move stage within 14 days, or have deliverables or actions overdue, blocked or due within 14 days.</p>`;
-  }
-
   function periodsText(iv) {
     const { source, periods } = model.plannedPeriods(iv);
     if (!periods.length) return '<span class="muted">No planned dates</span>';
@@ -243,23 +225,6 @@
     return '';
   }
 
-  function deliverablesBlock(iv) {
-    const all = iv.deliverables || [];
-    const list = all
-      .filter((d) => state.showDone || d.status !== 'Done')
-      .sort((a, b) => (a.status === 'Done') - (b.status === 'Done') || (a.due || '9999').localeCompare(b.due || '9999'));
-    const doneCount = all.filter((d) => d.status === 'Done').length;
-    if (!all.length) return '<p class="muted small">None recorded yet.</p>';
-    return `<ul class="deliv">${list.map((d) => `<li class="${d.status === 'Done' ? 'is-done' : ''}">
-        <span class="chip">${d.kind === 'action' ? 'Action' : 'Deliverable'}</span>
-        <span class="deliv-title">${esc(d.title)}</span>
-        <span class="muted small">${esc(d.owner || 'No owner')}</span>
-        <span class="small ${dueClass(d)}">${d.due ? fmtDate(d.due) : '<span class="muted">No date</span>'}</span>
-        <select data-deliv="${esc(iv.id)}|${esc(d.id)}" aria-label="Status">${model.DELIVERABLE_STATUSES.map((s) => `<option ${s === d.status ? 'selected' : ''}>${s}</option>`).join('')}</select>
-      </li>`).join('')}</ul>
-      ${doneCount && !state.showDone ? `<p class="muted small">${doneCount} done and hidden.</p>` : ''}`;
-  }
-
   function notesBlock(iv) {
     const notes = (state.tracker.notes || []).filter((n) => n.interventionId === iv.id)
       .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
@@ -276,67 +241,6 @@
         <label><input type="checkbox" data-tu="${esc(u.id)}"> <strong>${esc(u.section)}:</strong> ${esc(u.text)}</label></li>`).join('')}</ul></div>`;
   }
 
-  function addForm(iv) {
-    return `<details class="record"><summary>Add a note, action or template change</summary>
-      <div class="record-form" data-form="${esc(iv.id)}">
-        <label>Type <select name="type">
-          ${model.NOTE_TYPES.map((t) => `<option>${t}</option>`).join('')}
-          <option value="action">Action</option><option value="deliverable">Deliverable</option><option value="template">Template change</option>
-        </select></label>
-        <label class="grow">Text <input name="text" type="text" autocomplete="off"></label>
-        <label>Owner <input name="owner" type="text" size="10" autocomplete="off"></label>
-        <label>Due <input name="due" type="date"></label>
-        <label>Template section <select name="section">${model.TEMPLATE_SECTIONS.map((s) => `<option>${s}</option>`).join('')}</select></label>
-        <button class="primary" data-add="${esc(iv.id)}">Add</button>
-      </div>
-      <p class="muted small">Owner and due date apply to actions and deliverables. Template section applies to template changes.</p>
-    </details>`;
-  }
-
-  function renderStrand(n) {
-    const list = state.tracker.interventions.filter((iv) => iv.strand === Number(n));
-    const c = countsFor(list);
-    const cards = list.map((iv) => {
-      const check = model.slipCheck(iv, TODAY);
-      const dcheck = model.deliverableCheck(iv, TODAY);
-      const flag = model.overallFlag(iv, TODAY);
-      const flagText = [check.flag !== 'bau' ? check.text : '', dcheck.text ? `Deliverables and actions: ${dcheck.text}` : ''].filter(Boolean).join('. ');
-      return `<article class="card flag-${flag}" data-id="${esc(iv.id)}">
-        <header>
-          <h3><span class="id">${esc(iv.id)}</span> ${esc(iv.name)}</h3>
-          <div class="pills">
-            <select class="status-select" data-status-for="${esc(iv.id)}" aria-label="Status">${model.STATUSES.map((s) => `<option ${s === iv.status ? 'selected' : ''}>${s}</option>`).join('')}</select>
-            ${flag === 'bau' ? '' : flagPill({ flag, text: flagText })}
-          </div>
-        </header>
-        <p class="desc">${esc(iv.description)}</p>
-        <div class="facts">
-          <div><h4>Where it should be</h4>${periodsText(iv)}</div>
-          <div><h4>Stage check</h4><p>${esc(check.text)}</p>${dcheck.text ? `<p class="${dcheck.flag === 'behind' ? 'hot' : ''}">Deliverables and actions: ${esc(dcheck.text)}</p>` : ''}</div>
-          <div><h4>Project template</h4><p>${templateText(iv)}</p></div>
-        </div>
-        ${templateUpdatesBlock(iv)}
-        <div class="facts two">
-          <div><h4>Deliverables and actions</h4>${deliverablesBlock(iv)}</div>
-          <div><h4>Notes</h4>${notesBlock(iv)}</div>
-        </div>
-        ${addForm(iv)}
-      </article>`;
-    });
-    return `<div class="counts">${model.COMMITTEE_CATEGORIES.map((k) => `<div><span class="big">${c[k]}</span><span>${esc(k)}</span></div>`).join('')}</div>
-      <label class="small"><input type="checkbox" id="showdone" ${state.showDone ? 'checked' : ''}> Show finished deliverables and actions</label>
-      ${cards.join('') || '<p class="muted">No interventions in this strand.</p>'}`;
-  }
-
-  function renderStrandTab() {
-    if (!state.tracker) return '<p>Import the tracker first.</p>';
-    const title = state.strand === 'all' ? 'All strands' : `Strand ${state.strand}: ${esc(strandName(state.strand))}`;
-    return `<div class="bar">${strandTabs()}<span class="muted small">Checked against ${fmtDate(TODAY)}</span></div>
-      <h2>${title}</h2>
-      ${state.strand === 'all' ? renderOverview() : renderStrand(state.strand)}`;
-  }
-
-
   // ---------- delivery and data plans ----------
 
   function slipText(d) {
@@ -350,96 +254,49 @@
     return `<details class="small"><summary class="muted">${h.length} date change${h.length === 1 ? '' : 's'}</summary><ul class="notes">${h.map((x) => `<li>${fmtDate(x.on)}: ${fmtDate(x.from)} to ${x.to ? fmtDate(x.to) : 'no date'}${x.reason ? `. ${esc(x.reason)}` : ''}</li>`).join('')}</ul></details>`;
   }
 
-  function planPanel(iv) {
-    const c = plans.planCheck(iv, TODAY);
-    const delivRows = c.deliv.filter((d) => state.showDone || d.status !== 'Done')
-      .sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'))
-      .map((d) => `<tr class="${d.status === 'Done' ? 'is-done' : ''}">
-        <td>${esc(d.title)}${historyText(d)}</td>
-        <td>${esc(d.owner || '')}${d.owner ? '' : '<span class="hot small">No owner</span>'}</td>
-        <td class="nowrap">${d.agreedDue ? fmtDate(d.agreedDue) : '<span class="muted small">Not agreed yet</span>'}</td>
-        <td class="nowrap"><input type="date" value="${esc(d.due || '')}" data-due="${esc(iv.id)}|${esc(d.id)}" aria-label="Current date">${slipText(d)}${d.status !== 'Done' && d.due && d.due < TODAY ? '<div class="small hot">Overdue</div>' : ''}</td>
-        <td><select data-deliv="${esc(iv.id)}|${esc(d.id)}" aria-label="Status">${model.DELIVERABLE_STATUSES.map((s) => `<option ${s === d.status ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
-      </tr>`).join('');
-    const dataRows = c.data.map((x) => `<tr>
-        <td><strong>${esc(x.what)}</strong>${x.purpose ? `<div class="small muted">For: ${esc(x.purpose)}</div>` : ''}</td>
-        <td>${x.owner ? esc(x.owner) : '<span class="hot small">To confirm</span>'}</td>
-        <td>${x.format ? esc(x.format) : '<span class="hot small">To confirm</span>'}</td>
-        <td>${x.when ? esc(x.when) : '<span class="hot small">To confirm</span>'}${x.due ? `<div class="small ${x.status !== 'Received' && x.due < TODAY ? 'hot' : 'muted'}">Next due ${fmtDate(x.due)}</div>` : ''}</td>
-        <td><select data-datastatus="${esc(iv.id)}|${esc(x.id)}" aria-label="Status">${plans.DATA_STATUSES.map((s) => `<option ${s === x.status ? 'selected' : ''}>${s}</option>`).join('')}</select>
-          <button class="link small" data-deldata="${esc(iv.id)}|${esc(x.id)}">Remove</button></td>
-      </tr>`).join('');
-    const agreedLine = c.agreed
-      ? `<span class="pill ok">Agreed ${fmtDate(iv.plan.agreedOn)}${iv.plan.agreedWith ? ` with ${esc(iv.plan.agreedWith)}` : ''}</span>${c.changedSinceAgreed ? ' <span class="pill warn">Changed since agreed</span>' : ''}`
-      : '<span class="pill warn">Not yet agreed</span>';
-    return `<article class="card flag-${c.slipped.length || c.overdue.length || c.dataLate.length ? 'behind' : c.complete ? 'ok' : 'soon'}" data-id="${esc(iv.id)}">
-      <header><h3><span class="id">${esc(iv.id)}</span> ${esc(iv.name)}</h3><div class="pills">${agreedLine}</div></header>
-      ${c.gaps.length ? `<p class="small"><strong>Still to confirm:</strong> ${esc(c.gaps.join('; '))}.</p>` : ''}
-      <h4 class="sub">Deliverables and dates</h4>
-      ${delivRows ? `<div class="table-wrap"><table class="grid"><thead><tr><th>Deliverable</th><th>Owner</th><th>Agreed date</th><th>Current date</th><th>Status</th></tr></thead><tbody>${delivRows}</tbody></table></div>` : '<p class="muted small">No deliverables yet. Add them below, with an owner and a date.</p>'}
-      <div class="record-form" data-form="${esc(iv.id)}">
-        <input type="hidden" name="type" value="deliverable"><input type="hidden" name="section" value="">
-        <label class="grow">New deliverable <input name="text" type="text" autocomplete="off"></label>
-        <label>Owner <input name="owner" type="text" size="12" autocomplete="off"></label>
-        <label>Due <input name="due" type="date"></label>
-        <button class="quiet" data-add="${esc(iv.id)}">Add deliverable</button>
-      </div>
-      <h4 class="sub">Data for the evaluation</h4>
-      ${dataRows ? `<div class="table-wrap"><table class="grid"><thead><tr><th>Data and why it's needed</th><th>Who provides it</th><th>Format</th><th>When</th><th>Status</th></tr></thead><tbody>${dataRows}</tbody></table></div>` : '<p class="muted small">No data requirements yet. What data will show whether this intervention is working?</p>'}
-      <details class="record"><summary>Add a data requirement</summary>
-        <div class="record-form" data-dataform="${esc(iv.id)}">
-          <label class="grow">Data <input name="what" type="text" placeholder="e.g. Attendance at each session, by student ID" autocomplete="off"></label>
-          <label class="grow">Why it's needed <input name="purpose" type="text" placeholder="e.g. Compare continuation for attenders and non-attenders" autocomplete="off"></label>
-          <label>Who provides it <input name="owner" type="text" size="12" autocomplete="off"></label>
-          <label>Format <input name="format" type="text" size="14" placeholder="e.g. Excel, one row per student" autocomplete="off"></label>
-          <label>When <input name="when" type="text" size="14" placeholder="e.g. End of each term" autocomplete="off"></label>
-          <label>Next due <input name="due" type="date"></label>
-          <button class="quiet" data-adddata="${esc(iv.id)}">Add data requirement</button>
-        </div>
-      </details>
-      <div class="bar start" style="margin-top:14px">
-        <label class="small">Agreed with <input type="text" size="16" data-agreewith="${esc(iv.id)}" value="${esc((iv.plan && iv.plan.agreedWith) || (iv.template && iv.template.lead) || '')}"></label>
-        <button class="primary" data-agree="${esc(iv.id)}">${c.agreed ? 'Record as agreed again' : 'Record plan as agreed'}</button>
-      </div>
-    </article>`;
-  }
-
-  function plansOverview() {
-    const rows = state.tracker.strands.map((s) => {
-      const list = state.tracker.interventions.filter((iv) => iv.strand === s.number && plans.needsPlan(iv));
-      const cs = list.map((iv) => plans.planCheck(iv, TODAY));
-      const n = (f) => cs.filter(f).length;
-      const slipped = cs.reduce((a, c) => a + c.slipped.length, 0);
-      const late = cs.reduce((a, c) => a + c.overdue.length + c.dataLate.length, 0);
-      return `<tr><th scope="row"><button class="link" data-strand="${s.number}">Strand ${s.number}: ${esc(s.name)}</button></th>
-        <td class="num">${list.length}</td><td class="num">${n((c) => c.deliv.length && !c.deliv.some((d) => !d.due && d.status !== 'Done'))}</td>
-        <td class="num">${n((c) => c.data.length)}</td><td class="num">${n((c) => c.agreed)}</td>
-        <td class="num ${slipped ? 'hot' : ''}">${slipped}</td><td class="num ${late ? 'hot' : ''}">${late}</td></tr>`;
-    }).join('');
-    return `<div class="table-wrap"><table class="grid">
-      <thead><tr><th>Strand</th><th class="num">Interventions</th><th class="num">Dated deliverables</th><th class="num">Data agreed or drafted</th><th class="num">Plan agreed</th><th class="num">Deliverables slipped</th><th class="num">Overdue items</th></tr></thead>
-      <tbody>${rows}</tbody></table></div>
-      <p class="muted small">Counts non-BAU interventions. "Slipped" means a deliverable's current date is later than the date agreed with the team. "Overdue" counts deliverables and data past their date and not yet done or received.</p>`;
-  }
-
-  function renderPlansTab() {
-    if (!state.tracker) return '<p>Import the tracker first.</p>';
-    const intro = `<p class="muted intro">For each intervention: what it will deliver and by when, and the data needed to evaluate it, written down and agreed with the team. Once a plan is agreed, the agreed dates are fixed, so any later change shows as slippage, with its reason.</p>`;
-    if (state.strand === 'all') return `<div class="bar">${strandTabs()}</div><h2>Delivery and data plans</h2>${intro}${plansOverview()}`;
-    const list = state.tracker.interventions.filter((iv) => iv.strand === Number(state.strand) && plans.needsPlan(iv));
-    return `<div class="bar">${strandTabs()}<button id="save-plans" class="primary">Save the strand's plans to send for agreement</button></div>
-      <h2>Strand ${esc(state.strand)}: ${esc(strandName(state.strand))}</h2>${intro}
-      <label class="small"><input type="checkbox" id="showdone" ${state.showDone ? 'checked' : ''}> Show finished deliverables</label>
-      ${list.map(planPanel).join('') || '<p class="muted">No non-BAU interventions in this strand.</p>'}`;
-  }
-
-  async function savePlans() {
+  async function savePlans(ivId) {
     try {
-      const n = state.strand;
-      const path = await folder.saveReport(state.conn, `Strand ${n} delivery and data plans - ${TODAY}.docx`, await plans.planDoc(state.tracker, n, TODAY));
+      const iv = ivId ? findIv(ivId) : null;
+      const n = iv ? iv.strand : state.strand;
+      const name = iv ? `${iv.id} delivery and data plan - ${TODAY}.docx` : `Strand ${n} delivery and data plans - ${TODAY}.docx`;
+      const path = await folder.saveReport(state.conn, name, await plans.planDoc(state.tracker, n, TODAY, ivId));
       flash('ok', `Saved to ${path}. Send it to the strand lead, then record each plan as agreed.`);
     } catch (e) {
       flash('error', `Couldn't save: ${e.message}`);
+    }
+  }
+
+  function addNote(ivId) {
+    const form = document.querySelector(`[data-noteform="${CSS.escape(ivId)}"]`);
+    const get = (n) => form.querySelector(`[name="${n}"]`).value.trim();
+    const text = get('text');
+    if (!text) { flash('error', 'Add some text first.'); return; }
+    if (get('type') === 'template') {
+      state.tracker.templateUpdates = state.tracker.templateUpdates || [];
+      state.tracker.templateUpdates.push({ id: model.newId('t'), interventionId: ivId, section: get('section'), text, raisedOn: TODAY, done: false });
+    } else {
+      state.tracker.notes = state.tracker.notes || [];
+      state.tracker.notes.push({ id: model.newId('n'), interventionId: ivId, type: get('type'), text, date: TODAY });
+    }
+    persist('Note added.');
+  }
+
+  // Without a SharePoint address, the browser can only hand over a copy of the file.
+  async function openDocCopy(ivId) {
+    try {
+      const iv = findIv(ivId);
+      let dir = state.conn.projects;
+      const parts = iv.template.file.split('/');
+      for (const p of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(p);
+      const file = await (await dir.getFileHandle(parts[parts.length - 1])).getFile();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(file);
+      a.download = file.name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      flash('info', 'Opened a copy. Changes to the copy are not saved to OneDrive, so edit the original in the strand folder.');
+    } catch (e) {
+      flash('error', `Couldn't open the document: ${e.message}`);
     }
   }
 
@@ -492,8 +349,8 @@ Status: At risk`;
         <span class="muted small">The current tracker is copied to the backups folder first.</span>
       </section>`;
     }
-    return `<h2>Meeting update</h2>
-      <p class="muted">Paste a structured update from a meeting, check the preview, then save. Each line goes to the intervention heading above it.</p>
+    return `<h2>Updates</h2>
+      <p class="muted">Paste a structured update from a meeting or a strand lead, check the preview, then save. It can add notes, deliverables and actions, data requirements, project document changes and status changes. Each line goes to the intervention heading above it.</p>
       <details class="panel help"><summary><strong>Format</strong></summary>
         <ul class="small">
           <li><code>Meeting:</code> and <code>Date:</code> at the top.</li>
@@ -527,8 +384,8 @@ Status: At risk`;
       state.pendingUpdate = null;
       state.meetingText = '';
       const first = p.groups[0] && findIv(p.groups[0].id);
-      if (first) state.strand = String(first.strand);
-      state.tab = 'strand';
+      state.tab = 'interventions';
+      state.ivPage = first ? first.id : null;
       flash('ok', `Saved the update for ${p.groups.map((g) => g.id).join(', ')}.`);
     } catch (e) {
       flash('error', `Couldn't save: ${e.message}`);
@@ -711,10 +568,207 @@ Status: At risk`;
       ${sp.bauCount ? `<p class="muted small">${sp.bauCount} business as usual intervention${sp.bauCount === 1 ? '' : 's'} not shown.</p>` : ''}`;
   }
 
+  const CAT_CLASS = { 'BAU': 'bau', 'On track': 'ok', 'Behind': 'risk', 'Completed': 'ok', 'Needs scoping': 'warn' };
+
+  function catPill(cat) {
+    return `<span class="pill ${CAT_CLASS[cat]}">${esc(cat === 'Behind' ? 'Behind schedule' : cat === 'Needs scoping' ? 'Needs scoping' : cat)}</span>`;
+  }
+
+  function progressSubnav() {
+    const subs = [['summary', 'Summary'], ['strands', 'Strand lead summaries'], ['reporting', 'Committee reporting'], ['timeline', 'Timeline spreadsheet']];
+    return `<div class="subnav">${subs.map(([k, l]) => `<button class="${state.sub === k ? 'on' : ''}" data-sub="${k}">${l}</button>`).join('')}</div>`;
+  }
+
+  function renderSummary() {
+    const ivs = state.tracker.interventions;
+    const catOf = new Map(ivs.map((iv) => [iv.id, model.progressCategory(iv, TODAY)]));
+    const count = (list, c) => list.filter((iv) => catOf.get(iv.id) === c).length;
+    const cards = model.PROGRESS_CATEGORIES.map((c) => `<button class="stat ${CAT_CLASS[c]}-edge ${state.cat && state.cat.cat === c && !state.cat.strand ? 'on' : ''}" data-cat="${c}">
+        <span class="big">${count(ivs, c)}</span><span>${esc(model.PROGRESS_LABELS[c])}</span></button>`).join('');
+    const rows = state.tracker.strands.map((st) => {
+      const list = ivs.filter((iv) => iv.strand === st.number);
+      return `<tr><th scope="row">Strand ${st.number}: ${esc(st.name)}</th>
+        ${model.PROGRESS_CATEGORIES.map((c) => { const n = count(list, c); return `<td class="num">${n ? `<button class="link" data-cat="${c}" data-cat-strand="${st.number}">${n}</button>` : '<span class="muted">0</span>'}</td>`; }).join('')}
+        <td class="num">${list.length}</td></tr>`;
+    }).join('');
+    let detail = '';
+    if (state.cat) {
+      const list = ivs.filter((iv) => catOf.get(iv.id) === state.cat.cat && (!state.cat.strand || iv.strand === Number(state.cat.strand)))
+        .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+      detail = `<h3 class="section">${esc(model.PROGRESS_LABELS[state.cat.cat])}${state.cat.strand ? `, strand ${esc(state.cat.strand)}` : ''} (${list.length}) <button class="link small" data-cat-clear="1">Show all</button></h3>
+        <div class="table-wrap"><table class="grid">
+          <thead><tr><th>#</th><th>Intervention</th><th>Strand</th><th>Status</th><th>Next deliverable or action</th></tr></thead>
+          <tbody>${list.map((iv) => {
+            const next = (iv.deliverables || []).filter((d) => d.status !== 'Done').sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'))[0];
+            const why = model.progressReason(iv, TODAY);
+            return `<tr><td class="nowrap"><span class="id">${esc(iv.id)}</span></td>
+              <td><button class="link" data-iv="${esc(iv.id)}">${esc(iv.name)}</button>${why ? `<div class="small hot">${esc(why)}</div>` : ''}</td>
+              <td>${esc(strandName(iv.strand))}</td><td>${statusPill(iv.status)}</td>
+              <td>${next ? `${esc(next.title)}<div class="muted small">${esc(next.owner || 'No owner')}${next.due ? `, <span class="${dueClass(next)}">${fmtDate(next.due)}</span>` : ''}</div>` : '<span class="muted small">None recorded</span>'}</td></tr>`;
+          }).join('') || '<tr><td colspan="5" class="muted">None.</td></tr>'}</tbody></table></div>`;
+    }
+    return `<p class="muted small">As at ${fmtDate(TODAY)}. Click a number to see the interventions behind it.</p>
+      <div class="stats">${cards}</div>
+      ${detail}
+      <h3 class="section">By strand</h3>
+      <div class="table-wrap"><table class="grid">
+        <thead><tr><th>Strand</th>${model.PROGRESS_CATEGORIES.map((c) => `<th class="num">${esc(c === 'Behind' ? 'Behind schedule' : c)}</th>`).join('')}<th class="num">Total</th></tr></thead>
+        <tbody>${rows}</tbody></table></div>
+      <p class="muted small">"Behind schedule" covers interventions marked at risk or behind, and any with a deliverable or action overdue or blocked, a deliverable later than its agreed date, or data past its due date.</p>`;
+  }
+
   function renderProgressTab() {
+    if (!state.tracker && state.sub !== 'timeline') state.sub = 'timeline';
+    const body = {
+      summary: () => renderSummary(),
+      strands: () => `<div class="bar">${strandTabs()}</div>${state.strand === 'all' ? '<p class="muted">Choose a strand to see its summary for the strand lead.</p>' : renderStrandProgress(state.strand)}`,
+      reporting: renderReportingTab,
+      timeline: renderTimelineTab,
+    }[state.sub] || renderSummary;
+    return `<h2>Progress</h2>${state.tracker ? progressSubnav() : ''}${body()}`;
+  }
+
+  // ---------- interventions ----------
+
+  function renderInterventionsTab() {
     if (!state.tracker) return '<p>Import the tracker first.</p>';
-    return `<div class="bar">${strandTabs()}<span class="muted small">As at ${fmtDate(TODAY)}</span></div>
-      ${state.strand === 'all' ? `<h2>All strands</h2>${renderOverview()}<p><button class="quiet" data-tab="reporting">Committee reporting</button></p>` : renderStrandProgress(state.strand)}`;
+    if (state.ivPage && findIv(state.ivPage)) return renderInterventionPage(findIv(state.ivPage));
+    let list = state.tracker.interventions;
+    if (state.strand !== 'all') list = list.filter((iv) => iv.strand === Number(state.strand));
+    const rows = list.map((iv) => {
+      const cat = model.progressCategory(iv, TODAY);
+      const c = plans.planCheck(iv, TODAY);
+      const next = c.deliv.concat((iv.deliverables || []).filter((d) => d.kind === 'action')).filter((d) => d.status !== 'Done').sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'))[0];
+      return `<tr><td class="nowrap"><span class="id">${esc(iv.id)}</span></td>
+        <td><button class="link" data-iv="${esc(iv.id)}">${esc(iv.name)}</button></td>
+        <td>${esc(strandName(iv.strand))}</td>
+        <td>${statusPill(iv.status)}</td><td>${catPill(cat)}</td>
+        <td>${plans.needsPlan(iv) ? (c.agreed ? '<span class="small">Agreed</span>' : '<span class="small muted">Not yet agreed</span>') : '<span class="muted small">Not needed</span>'}</td>
+        <td>${next ? `${esc(next.title)}<div class="muted small">${next.due ? `<span class="${dueClass(next)}">${fmtDate(next.due)}</span>` : 'No date'}</div>` : '<span class="muted small">None</span>'}</td></tr>`;
+    }).join('');
+    return `<div class="bar">${strandTabs()}${state.strand !== 'all' ? '<button id="save-plans" class="primary">Save the strand\'s plans to send for agreement</button>' : ''}</div>
+      <h2>Interventions</h2>
+      <p class="muted intro">Open an intervention to see and edit everything about it: status, deliverables and actions, data requirements, notes and its project document.</p>
+      <div class="table-wrap"><table class="grid">
+        <thead><tr><th>#</th><th>Intervention</th><th>Strand</th><th>Status</th><th>Progress</th><th>Plan</th><th>Next due</th></tr></thead>
+        <tbody>${rows || '<tr><td colspan="7" class="muted">None.</td></tr>'}</tbody></table></div>`;
+  }
+
+  function docLink(iv) {
+    const t = iv.template;
+    if (!t || !t.file) return state.tracker.templatesCheckedAt ? '<span class="hot small">No project document found</span>' : '<span class="muted small">Not checked yet</span>';
+    const base = state.tracker.settings && state.tracker.settings.docsUrl;
+    const name = t.file.split('/').pop();
+    if (base) {
+      const url = `${base.replace(/\/+$/, '')}/${t.file.split('/').map(encodeURIComponent).join('/')}?web=1`;
+      return `<a class="link" href="${esc(url)}" target="_blank" rel="noopener">${esc(name)}</a>`;
+    }
+    return `<span class="small">${esc(name)}</span> <button class="quiet small-btn" data-opendoc="${esc(iv.id)}">Open a copy</button>`;
+  }
+
+  function editRow(iv, d) {
+    const key = `${esc(iv.id)}|${esc(d.id)}`;
+    return `<tr class="${d.status === 'Done' ? 'is-done' : ''}">
+      <td><select data-dedit="${key}|kind" aria-label="Type"><option value="deliverable" ${d.kind !== 'action' ? 'selected' : ''}>Deliverable</option><option value="action" ${d.kind === 'action' ? 'selected' : ''}>Action</option></select></td>
+      <td class="grow"><input type="text" value="${esc(d.title)}" data-dedit="${key}|title" aria-label="Title">${historyText(d)}</td>
+      <td><input type="text" size="10" value="${esc(d.owner || '')}" data-dedit="${key}|owner" aria-label="Owner"></td>
+      <td class="nowrap">${d.agreedDue ? fmtDate(d.agreedDue) : '<span class="muted small">Not agreed</span>'}</td>
+      <td class="nowrap"><input type="date" value="${esc(d.due || '')}" data-due="${key}" aria-label="Due date">${slipText(d)}${d.status !== 'Done' && d.due && d.due < TODAY ? '<div class="small hot">Overdue</div>' : ''}</td>
+      <td><select data-deliv="${key}" aria-label="Status">${model.DELIVERABLE_STATUSES.map((s) => `<option ${s === d.status ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
+      <td><button class="link small" data-ddel="${key}" aria-label="Delete">Delete</button></td></tr>`;
+  }
+
+  function dataRow(iv, x) {
+    const key = `${esc(iv.id)}|${esc(x.id)}`;
+    const f = (field, size, label) => `<input type="text" ${size ? `size="${size}"` : ''} value="${esc(x[field] || '')}" data-xedit="${key}|${field}" aria-label="${label}" placeholder="To confirm">`;
+    return `<tr>
+      <td class="grow">${f('what', 0, 'Data')}<div class="small" style="margin-top:4px">${f('purpose', 0, 'Why it is needed')}</div></td>
+      <td>${f('owner', 10, 'Who provides it')}</td><td>${f('format', 12, 'Format')}</td><td>${f('when', 12, 'When')}</td>
+      <td class="nowrap"><input type="date" value="${esc(x.due || '')}" data-xedit="${key}|due" aria-label="Next due">${x.status !== 'Received' && x.due && x.due < TODAY ? '<div class="small hot">Late</div>' : ''}</td>
+      <td><select data-datastatus="${key}" aria-label="Status">${plans.DATA_STATUSES.map((s) => `<option ${s === x.status ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
+      <td><button class="link small" data-deldata="${key}">Delete</button></td></tr>`;
+  }
+
+  function renderInterventionPage(iv) {
+    const check = model.slipCheck(iv, TODAY);
+    const c = plans.planCheck(iv, TODAY);
+    const cat = model.progressCategory(iv, TODAY);
+    const why = model.progressReason(iv, TODAY);
+    const items = (iv.deliverables || []).filter((d) => state.showDone || d.status !== 'Done')
+      .sort((a, b) => (a.kind === 'action') - (b.kind === 'action') || (a.due || '9999').localeCompare(b.due || '9999'));
+    const hidden = (iv.deliverables || []).filter((d) => d.status === 'Done').length;
+    const agreedLine = !plans.needsPlan(iv) ? '' : c.agreed
+      ? `<span class="pill ok">Plan agreed ${fmtDate(iv.plan.agreedOn)}${iv.plan.agreedWith ? ` with ${esc(iv.plan.agreedWith)}` : ''}</span>${c.changedSinceAgreed ? ' <span class="pill warn">Changed since agreed</span>' : ''}`
+      : '<span class="pill warn">Plan not yet agreed</span>';
+    const base = (state.tracker.settings && state.tracker.settings.docsUrl) || '';
+    return `<p><button class="link" data-iv-back="1">All interventions</button></p>
+      <article class="ivpage">
+        <header class="iv-head">
+          <div><div class="muted">Strand ${esc(iv.strand)}: ${esc(strandName(iv.strand))}</div><h2><span class="id">${esc(iv.id)}</span> ${esc(iv.name)}</h2></div>
+          <div class="pills">
+            <label class="small">Status <select class="status-select" data-status-for="${esc(iv.id)}">${model.STATUSES.map((s) => `<option ${s === iv.status ? 'selected' : ''}>${s}</option>`).join('')}</select></label>
+            ${catPill(cat)} ${agreedLine}
+          </div>
+        </header>
+        ${why ? `<p class="hot small">${esc(why)}</p>` : ''}
+        ${iv.description ? `<p class="desc">${esc(iv.description)}</p>` : ''}
+        <div class="facts">
+          <div><h4>Where it should be</h4>${periodsText(iv)}</div>
+          <div><h4>Stage check</h4><p class="small">${esc(check.text)}</p></div>
+          <div><h4>Project document</h4><p>${docLink(iv)}</p><p class="small muted">${iv.template ? `${templateText(iv)}` : ''}</p></div>
+        </div>
+        ${templateUpdatesBlock(iv)}
+
+        <h3 class="section">Deliverables and actions</h3>
+        <div class="table-wrap"><table class="grid edit">
+          <thead><tr><th>Type</th><th>Title</th><th>Owner</th><th>Agreed date</th><th>Due</th><th>Status</th><th></th></tr></thead>
+          <tbody>${items.map((d) => editRow(iv, d)).join('') || '<tr><td colspan="7" class="muted small">None yet. Add each deliverable with an owner and a date.</td></tr>'}</tbody></table></div>
+        <label class="small"><input type="checkbox" id="showdone" ${state.showDone ? 'checked' : ''}> Show finished${hidden && !state.showDone ? ` (${hidden} hidden)` : ''}</label>
+        <div class="record-form" data-form="${esc(iv.id)}">
+          <label>Type <select name="type"><option value="deliverable">Deliverable</option><option value="action">Action</option></select></label>
+          <input type="hidden" name="section" value="">
+          <label class="grow">Title <input name="text" type="text" autocomplete="off"></label>
+          <label>Owner <input name="owner" type="text" size="10" autocomplete="off"></label>
+          <label>Due <input name="due" type="date"></label>
+          <button class="quiet" data-add="${esc(iv.id)}">Add</button>
+        </div>
+
+        <h3 class="section">Data for the evaluation</h3>
+        <div class="table-wrap"><table class="grid edit">
+          <thead><tr><th>Data, and why it's needed</th><th>Who provides it</th><th>Format</th><th>When</th><th>Next due</th><th>Status</th><th></th></tr></thead>
+          <tbody>${c.data.map((x) => dataRow(iv, x)).join('') || '<tr><td colspan="7" class="muted small">None yet. What data will show whether this intervention is working?</td></tr>'}</tbody></table></div>
+        <div class="record-form" data-dataform="${esc(iv.id)}">
+          <label class="grow">Data <input name="what" type="text" placeholder="e.g. Attendance at each session, by student ID" autocomplete="off"></label>
+          <label class="grow">Why it's needed <input name="purpose" type="text" autocomplete="off"></label>
+          <label>Who provides it <input name="owner" type="text" size="10" autocomplete="off"></label>
+          <label>Format <input name="format" type="text" size="10" autocomplete="off"></label>
+          <label>When <input name="when" type="text" size="12" autocomplete="off"></label>
+          <label>Next due <input name="due" type="date"></label>
+          <button class="quiet" data-adddata="${esc(iv.id)}">Add</button>
+        </div>
+
+        ${plans.needsPlan(iv) ? `<h3 class="section">Agreeing the plan</h3>
+        ${c.gaps.length ? `<p class="small"><strong>Still to confirm:</strong> ${esc(c.gaps.join('; '))}.</p>` : '<p class="small">Everything the plan needs is recorded.</p>'}
+        <div class="bar start">
+          <label class="small">Agreed with <input type="text" size="16" data-agreewith="${esc(iv.id)}" value="${esc((iv.plan && iv.plan.agreedWith) || (iv.template && iv.template.lead) || '')}"></label>
+          <button class="primary" data-agree="${esc(iv.id)}">${c.agreed ? 'Record as agreed again' : 'Record plan as agreed'}</button>
+          <button class="quiet" data-save-plan="${esc(iv.id)}">Save this plan as a Word file</button>
+        </div>
+        <p class="muted small">Once a plan is agreed, its dates are fixed. Moving a date later asks for the reason and shows as behind schedule on Progress.</p>` : ''}
+
+        <h3 class="section">Notes</h3>
+        ${notesBlock(iv)}
+        <div class="record-form" data-noteform="${esc(iv.id)}">
+          <label>Type <select name="type">${model.NOTE_TYPES.map((t) => `<option>${t}</option>`).join('')}<option value="template">Project document change</option></select></label>
+          <label class="grow">Text <input name="text" type="text" autocomplete="off"></label>
+          <label>Section <select name="section">${model.TEMPLATE_SECTIONS.map((s) => `<option>${s}</option>`).join('')}</select></label>
+          <button class="quiet" data-addnote="${esc(iv.id)}">Add</button>
+        </div>
+        <p class="muted small">Section applies to project document changes.</p>
+        ${base ? '' : `<details class="record"><summary>Link project documents to SharePoint</summary>
+          <p class="small muted">Paste the web address of the APP Projects folder in SharePoint (open the folder in the browser and copy the address). Project documents then open in Word, and edits save straight to OneDrive.</p>
+          <div class="inline-form"><input type="text" id="docs-url" placeholder="https://mdxac.sharepoint.com/..."><button class="quiet small-btn" id="save-docs-url">Save</button></div></details>`}
+      </article>`;
   }
 
   async function saveSummary() {
@@ -746,7 +800,7 @@ Status: At risk`;
   function nudgeBanner() {
     if (!state.tracker) return '';
     const cyc = reporting.cycle(state.tracker, TODAY);
-    if (!cyc.nudge || state.tab === 'reporting') return '';
+    if (!cyc.nudge || (state.tab === 'progress' && state.sub === 'reporting')) return '';
     const n = cyc.next;
     return `<div class="msg nudge" role="status"><strong>${esc(n.name || 'ESE Committee')} paper due in ${cyc.daysLeft} day${cyc.daysLeft === 1 ? '' : 's'}</strong> (${fmtDate(n.deadline || n.meeting)}).
       <button class="link" data-tab="reporting">Check what's still needed</button></div>`;
@@ -781,8 +835,7 @@ Status: At risk`;
 
     const papers = state.papers || [];
     const list = reporting.committees(state.tracker);
-    return `<h2>Reporting</h2>
-      <section class="panel">
+    return `<section class="panel">
         ${cyc.next ? `<p class="lead-line"><strong>Next paper: ${esc(cyc.next.name || 'ESE Committee')}</strong>, due ${fmtDate(cyc.next.deadline || cyc.next.meeting)}
           (${cyc.daysLeft} day${cyc.daysLeft === 1 ? '' : 's'} away)${cyc.next.meeting ? `, meeting ${fmtDate(cyc.next.meeting)}` : ''}.</p>` : '<p class="lead-line">Add your committee dates below, and the tool will show what\'s needed ahead of each deadline.</p>'}
         <p class="muted small">${done} of ${r.items.length} checks done. Changes are counted from ${fmtDate(r.since)}${state.lastSnapshot ? ', the date of the last committee snapshot' : ''}.</p>
@@ -831,7 +884,7 @@ Status: At risk`;
         <label class="small">Meeting <input type="date" id="c-meeting"></label>
         <button class="quiet small-btn" id="add-committee">Add</button>
       </div>
-      ${list.length ? '<p><button id="save-ics" class="quiet">Add reminders to Outlook</button> <span class="muted small">Saves a calendar file with reminders 4 weeks, 2 weeks and 3 days before each deadline. Open it to add them to Outlook.</span></p>' : ''}`;
+      ${list.length ? '<p><button id="save-ics" class="quiet">Add reminders to Outlook</button> <span class="muted small">Saves a calendar file with an all-day entry, shown as free, on each paper deadline and two weeks before it, to request strand lead updates. Open it to add them to Outlook.</span></p>' : ''}`;
   }
 
   function recordContact(strand, key) {
@@ -1002,7 +1055,7 @@ Status: At risk`;
         ${arrow(230, 352, 380, 352, 'paste update', 305, 344)}
         ${arrow(230, 452, 380, 412, 'record response', 318, 464)}
 
-        ${box(770, 124, 200, 56, 'Outlook reminders', '4 weeks, 2 weeks, 3 days')}
+        ${box(770, 124, 200, 56, 'Outlook reminders', '2 weeks before, and the deadline')}
         ${box(770, 224, 200, 56, 'Draft committee paper', 'from your latest paper')}
         ${box(770, 324, 200, 56, 'Snapshots', 'one per committee paper')}
         ${box(770, 424, 200, 56, 'Strand summaries', 'Word, or email text')}
@@ -1022,24 +1075,23 @@ Status: At risk`;
 
   function cycleFigure() {
     const steps = [
-      [110, '4 weeks before', 'Send each strand', 'lead their summary'],
-      [320, '2 weeks before', 'Record responses,', 'reasons and successes'],
-      [530, '3 days before', 'Update spreadsheet,', 'create draft paper'],
-      [740, 'Paper deadline', 'Edit the narrative', 'and submit'],
-      [910, 'Committee', 'Snapshot becomes', 'the next baseline'],
+      [150, '2 weeks before', 'Send strand leads', 'their summaries'],
+      [380, 'Responses back', 'Record responses,', 'reasons and successes'],
+      [610, 'Paper deadline', 'Create the paper,', 'edit and submit'],
+      [860, 'Committee', 'Snapshot becomes', 'the next baseline'],
     ];
     return `<figure class="diagram">
-      <svg viewBox="0 0 1000 200" role="img" aria-label="The reporting cycle: four weeks before the paper deadline, send strand summaries; two weeks before, record responses, reasons for delay and successes; three days before, update the timeline spreadsheet and create the draft paper; at the deadline, edit and submit; at the committee, the snapshot becomes the baseline for next time. The Reporting tab nudges from 28 days before.">
-        <rect x="110" y="40" width="630" height="22" rx="6" class="dg-band"/>
-        <text x="425" y="56" text-anchor="middle" class="dg-label">the Reporting tab and Outlook reminders nudge you</text>
+      <svg viewBox="0 0 1000 200" role="img" aria-label="The reporting cycle: two weeks before the paper deadline, send strand leads their summaries; record their responses, reasons for delay and successes; at the deadline, create the paper, edit it and submit; at the committee, the snapshot becomes the baseline for next time.">
+        <rect x="150" y="40" width="460" height="22" rx="6" class="dg-band"/>
+        <text x="380" y="56" text-anchor="middle" class="dg-label">Committee reporting and Outlook reminders nudge you</text>
         <line x1="40" y1="100" x2="960" y2="100" class="dg-line"/>
         ${steps.map(([x, when, a, b], i) => `
-          <circle cx="${x}" cy="100" r="${i === 3 ? 8 : 6}" class="${i === 3 ? 'dg-dot-accent' : 'dg-dot'}"/>
+          <circle cx="${x}" cy="100" r="${i === 2 ? 8 : 6}" class="${i === 2 ? 'dg-dot-accent' : 'dg-dot'}"/>
           <text x="${x}" y="130" text-anchor="middle" class="dg-title">${when}</text>
           <text x="${x}" y="150" text-anchor="middle" class="dg-sub">${a}</text>
           <text x="${x}" y="166" text-anchor="middle" class="dg-sub">${b}</text>`).join('')}
       </svg>
-      <figcaption>The run-up to each committee paper. Add the committee dates on the Reporting tab, and the tool counts down to the next deadline and shows what is still needed.</figcaption>
+      <figcaption>The run-up to each committee paper. Add the committee dates under Progress, Committee reporting, and the tool counts down to the next deadline and shows what is still needed.</figcaption>
     </figure>`;
   }
 
@@ -1048,14 +1100,14 @@ Status: At risk`;
       ${flowFigure()}
       ${cycleFigure()}
       <div class="how-grid">
-        <section class="panel tight"><h3>Before a strand lead catch-up</h3>
-          <ol class="small"><li>Open <strong>Progress</strong> and choose the strand.</li><li>Check your actions, the team's actions, and anything flagged.</li><li>Save or copy the summary to send ahead of the meeting.</li></ol></section>
-        <section class="panel tight"><h3>During and after the meeting</h3>
-          <ol class="small"><li>Record changes on <strong>Interventions</strong>, or paste a structured update on <strong>Meeting update</strong>.</li><li>Changes to project plans go on the <strong>Theory of Change audit</strong> checklist.</li><li>Once a template's dates change, <strong>Timeline spreadsheet</strong> updates the Gantt.</li></ol></section>
         <section class="panel tight"><h3>Agreeing each intervention's plan</h3>
-          <ol class="small"><li>On <strong>Delivery and data plans</strong>, add each deliverable with an owner and date, and the data the evaluation needs.</li><li>Save the strand's plans as a Word file and send them to the strand lead.</li><li>Once agreed, record each plan as agreed. Later date changes then show as slippage, with a reason.</li></ol></section>
+          <ol class="small"><li>Open <strong>Interventions</strong> and choose one. Its page holds everything: status, deliverables and actions, data requirements, notes and its project document.</li><li>Save the plan as a Word file and send it to the team.</li><li>Once agreed, record the plan as agreed. Later date changes then show as behind schedule, with a reason.</li></ol></section>
+        <section class="panel tight"><h3>Before a strand lead catch-up</h3>
+          <ol class="small"><li>Open <strong>Progress</strong>, then <strong>Strand lead summaries</strong>, and choose the strand.</li><li>Save or copy the summary to send ahead of the meeting.</li></ol></section>
+        <section class="panel tight"><h3>After the meeting</h3>
+          <ol class="small"><li>Paste a structured update on <strong>Updates</strong>, or edit the intervention's page directly.</li><li>Changes to project documents go on the <strong>Theory of Change audit</strong> checklist.</li><li>Once a document's dates change, update the Gantt from <strong>Progress</strong>, <strong>Timeline spreadsheet</strong>.</li></ol></section>
         <section class="panel tight"><h3>Each committee cycle</h3>
-          <ol class="small"><li>Follow the <strong>Reporting</strong> checklist from four weeks out.</li><li>Create the draft paper from your latest paper.</li><li>Edit the narrative and Tables 1 and 3, then submit.</li></ol></section>
+          <ol class="small"><li>Two weeks before the deadline, send strand leads their summaries.</li><li>Follow the checklist under <strong>Progress</strong>, <strong>Committee reporting</strong>.</li><li>Create the draft paper, edit it, then submit.</li></ol></section>
       </div>`;
   }
 
@@ -1181,10 +1233,10 @@ Status: At risk`;
       return;
     }
 
-    const tabs = [['progress', 'Progress'], ['plans', 'Delivery and data plans'], ['reporting', 'Reporting'], ['strand', 'Interventions'], ['meeting', 'Meeting update'], ['audit', 'Theory of Change audit'], ['timeline', 'Timeline spreadsheet'], ['how', 'How it works']];
+    const tabs = [['progress', 'Progress'], ['meeting', 'Updates'], ['interventions', 'Interventions'], ['audit', 'Theory of Change audit']];
     $('#tabs').innerHTML = tabs.map(([k, l]) => `<button role="tab" aria-selected="${state.tab === k}" data-tab="${k}">${l}</button>`).join('');
-    const views = { progress: renderProgressTab, plans: renderPlansTab, reporting: renderReportingTab, audit: renderAuditTab, timeline: renderTimelineTab, meeting: renderMeetingTab, how: renderHowTab };
-    const body = (views[state.tab] || renderStrandTab)();
+    const views = { how: renderHowTab, progress: renderProgressTab, interventions: renderInterventionsTab, reporting: renderReportingTab, audit: renderAuditTab, timeline: renderTimelineTab, meeting: renderMeetingTab, how: renderHowTab };
+    const body = (views[state.tab] || renderProgressTab)();
     main.innerHTML = nudgeBanner() + msg + body;
   }
 
@@ -1218,7 +1270,7 @@ Status: At risk`;
       state.tracker.settings.committees = state.tracker.settings.committees.filter((c) => c.id !== t.dataset.delCommittee);
       persist();
     }
-    else if (t.dataset.goStrand) { state.tab = 'progress'; setStrand(t.dataset.goStrand); }
+    else if (t.dataset.goStrand) { state.tab = 'progress'; state.sub = 'strands'; setStrand(t.dataset.goStrand); }
     else if (t.dataset.received) { recordContact(t.dataset.received, 'responseReceived'); persist(`Strand ${t.dataset.received} response recorded as received.`); }
     else if (t.dataset.response) {
       state.meetingText = responseTemplate(t.dataset.response);
@@ -1248,6 +1300,7 @@ Status: At risk`;
     else if (t.dataset.deldata) {
       const [ivId, xId] = t.dataset.deldata.split('|');
       const iv = findIv(ivId);
+      if (!window.confirm('Delete this data requirement?')) return;
       iv.dataNeeds = (iv.dataNeeds || []).filter((x) => x.id !== xId);
       persist('Data requirement removed.');
     }
@@ -1259,7 +1312,40 @@ Status: At risk`;
       state.tracker.notes.push({ id: model.newId('n'), interventionId: iv.id, type: 'Decision', text: `Delivery and data plan agreed${iv.plan.agreedWith ? ` with ${iv.plan.agreedWith}` : ''}`, date: TODAY });
       persist(`${iv.id} plan recorded as agreed. Later date changes will show as slippage.`);
     }
-    else if (t.dataset.tab) { state.tab = t.dataset.tab; state.message = null; render(); }
+    else if (t.dataset.tab) {
+      // Committee reporting and the timeline spreadsheet now sit under Progress.
+      const k = t.dataset.tab;
+      if (k === 'reporting' || k === 'timeline') { state.tab = 'progress'; state.sub = k; }
+      else { state.tab = k; if (k === 'interventions') state.ivPage = null; }
+      state.message = null; render(); window.scrollTo(0, 0);
+    }
+    else if (t.id === 'help') { state.tab = 'how'; state.message = null; render(); }
+    else if (t.dataset.sub) { state.sub = t.dataset.sub; state.message = null; render(); }
+    else if (t.dataset.cat) {
+      const next = { cat: t.dataset.cat, strand: t.dataset.catStrand || null };
+      state.cat = state.cat && state.cat.cat === next.cat && state.cat.strand === next.strand ? null : next;
+      render();
+    }
+    else if (t.dataset.catClear) { state.cat = null; render(); }
+    else if (t.dataset.iv) { state.tab = 'interventions'; state.ivPage = t.dataset.iv; state.message = null; render(); window.scrollTo(0, 0); }
+    else if (t.dataset.ivBack) { state.ivPage = null; state.message = null; render(); }
+    else if (t.dataset.ddel) {
+      const [ivId, dId] = t.dataset.ddel.split('|');
+      const iv = findIv(ivId);
+      const item = (iv.deliverables || []).find((x) => x.id === dId);
+      if (!window.confirm(`Delete "${item.title}"?`)) return;
+      iv.deliverables = iv.deliverables.filter((x) => x.id !== dId);
+      persist('Deleted.');
+    }
+    else if (t.dataset.addnote) addNote(t.dataset.addnote);
+    else if (t.dataset.savePlan) savePlans(t.dataset.savePlan);
+    else if (t.dataset.opendoc) openDocCopy(t.dataset.opendoc);
+    else if (t.id === 'save-docs-url') {
+      const v = $('#docs-url').value.trim();
+      if (!/^https:\/\//.test(v)) { flash('error', 'Paste the full web address, starting https://'); return; }
+      state.tracker.settings = { ...(state.tracker.settings || {}), docsUrl: v.split('?')[0] };
+      persist('Project documents now link to SharePoint.');
+    }
     else if (t.dataset.strand) setStrand(t.dataset.strand);
   });
 
@@ -1318,6 +1404,23 @@ Status: At risk`;
       if (field !== 'name' && !v && !(field === 'deadline' ? c.meeting : c.deadline)) { flash('error', 'Keep a paper deadline or a meeting date.'); return; }
       c[field] = field === 'name' ? (v || 'ESE Committee') : (v || null);
       persist('Committee date updated.');
+    }
+    if (d.dedit) {
+      const [ivId, dId, field] = d.dedit.split('|');
+      const item = (findIv(ivId).deliverables || []).find((x) => x.id === dId);
+      const v = e.target.value.trim();
+      if (field === 'title' && !v) { render(); return; }
+      item[field] = v;
+      if (field === 'kind' && v === 'deliverable' && !item.agreedDue && item.due && findIv(ivId).plan && findIv(ivId).plan.agreedOn) item.agreedDue = item.due;
+      persist();
+    }
+    if (d.xedit) {
+      const [ivId, xId, field] = d.xedit.split('|');
+      const x = (findIv(ivId).dataNeeds || []).find((y) => y.id === xId);
+      const v = e.target.value.trim();
+      if (field === 'what' && !v) { render(); return; }
+      x[field] = field === 'due' ? (v || null) : v;
+      persist();
     }
     if (d.datastatus) {
       const [ivId, xId] = d.datastatus.split('|');

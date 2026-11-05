@@ -63,11 +63,11 @@
   }
 
   // A Word document of each intervention's deliverables and data, for agreeing with the team.
-  async function planDoc(tracker, strand, today) {
+  async function planDoc(tracker, strand, today, onlyId) {
     const d = APP.docx.create();
     const s = tracker.strands.find((x) => x.number === Number(strand));
-    const list = tracker.interventions.filter((iv) => iv.strand === Number(strand) && needsPlan(iv));
-    d.title(`Strand ${strand}${s ? `: ${s.name}` : ''}. Delivery and data plans`);
+    const list = tracker.interventions.filter((iv) => (onlyId ? iv.id === onlyId : iv.strand === Number(strand) && needsPlan(iv)));
+    d.title(onlyId ? `${list[0].id} ${list[0].name}. Delivery and data plan` : `Strand ${strand}${s ? `: ${s.name}` : ''}. Delivery and data plans`);
     d.note(`Prepared on ${fmt(today)}. Please check each plan, and let us know of any changes, so we can record it as agreed.`);
     d.p('For each intervention, this sets out what will be delivered and by when, and the data needed to evaluate it: what will be collected, by whom, in what format and when. Once agreed, any change to a date is recorded, so we can see where plans have moved and why.');
     for (const iv of list) {

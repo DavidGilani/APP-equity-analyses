@@ -54,36 +54,30 @@
       const pending = timeline.plan ? timeline.plan.changes.length : 0;
       items.push({ group: 'Timeline spreadsheet', ok: pending === 0, text: pending ? `${pending} intervention${pending === 1 ? '' : 's'} with spreadsheet updates to apply` : 'Spreadsheet matches the tool', detail: '' });
     } else {
-      items.push({ group: 'Timeline spreadsheet', ok: false, text: 'Not checked in this session', detail: 'Check it on the Timeline spreadsheet tab' });
+      items.push({ group: 'Timeline spreadsheet', ok: false, text: 'Not checked in this session', detail: 'Check it under Progress, Timeline spreadsheet' });
     }
 
     items.push({ group: 'Committee paper', ok: !!(papers && papers.length), text: papers && papers.length ? `Latest paper: ${papers[0].name}` : 'No committee paper found in Committees and reporting', detail: '' });
     return { since, items, cycle: cyc };
   }
 
-  // An .ics file with each paper deadline and meeting, plus reminders, for Outlook.
+  // An .ics file for Outlook: an all-day entry, shown as free, on each paper
+  // deadline and two weeks before it, when strand lead updates are requested.
   function ics(tracker) {
     const stampNow = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
     const d = (iso) => iso.replace(/-/g, '');
     const esc = (s) => String(s).replace(/[,;\\]/g, (c) => '\\' + c);
     const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//APP reporting tool//EN', 'CALSCALE:GREGORIAN'];
-    // One reminder per event (Outlook uses only the first), at 9am the day before.
     const event = (uid, date, title, desc) => {
       lines.push('BEGIN:VEVENT', `UID:${uid}@app-reporting-tool`, `DTSTAMP:${stampNow}`, `DTSTART;VALUE=DATE:${d(date)}`,
-        `DTEND;VALUE=DATE:${d(APP.model.addDays(date, 1))}`, `SUMMARY:${esc(title)}`, `DESCRIPTION:${esc(desc)}`, 'TRANSP:TRANSPARENT',
-        'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${esc(title)}`, 'TRIGGER:-PT15H', 'END:VALARM', 'END:VEVENT');
+        `DTEND;VALUE=DATE:${d(APP.model.addDays(date, 1))}`, `SUMMARY:${esc(title)}`, `DESCRIPTION:${esc(desc)}`,
+        'TRANSP:TRANSPARENT', 'X-MICROSOFT-CDO-BUSYSTATUS:FREE', 'X-MICROSOFT-CDO-ALLDAYEVENT:TRUE', 'END:VEVENT');
     };
-    const add = APP.model.addDays;
     const today = new Date().toISOString().slice(0, 10);
-    for (const c of committees(tracker).filter((x) => (x.meeting || x.deadline) >= today)) {
+    for (const c of committees(tracker).filter((x) => x.deadline && x.deadline >= today)) {
       const name = c.name || 'ESE Committee';
-      if (c.deadline) {
-        event(`${c.id}-4w`, add(c.deadline, -28), `APP paper for ${name}: 4 weeks to go`, 'Open the APP reporting tool. Send each strand lead their summary from the Progress tab.');
-        event(`${c.id}-2w`, add(c.deadline, -14), `APP paper for ${name}: 2 weeks to go`, 'Chase strand lead responses, record them, and write reasons for delay, successes and Table 2 notes on the Reporting tab.');
-        event(`${c.id}-3d`, add(c.deadline, -3), `APP paper for ${name}: generate the draft`, 'Update the timeline spreadsheet, then generate the paper from the Reporting tab.');
-        event(`${c.id}-deadline`, c.deadline, `APP paper due: ${name}`, 'Submit the APP update.');
-      }
-      if (c.meeting) event(`${c.id}-meeting`, c.meeting, `${name} meeting`, 'APP update to the committee.');
+      event(`${c.id}-2w`, APP.model.addDays(c.deadline, -14), `APP paper for ${name}: request strand lead updates`, 'Send each strand lead their summary from the APP reporting tool, so they have two weeks to review it.');
+      event(`${c.id}-deadline`, c.deadline, `APP paper due: ${name}`, 'Create the paper from the APP reporting tool and submit it.');
     }
     lines.push('END:VCALENDAR');
     return lines.join('\r\n');

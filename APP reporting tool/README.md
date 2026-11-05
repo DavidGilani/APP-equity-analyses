@@ -21,22 +21,22 @@ Chrome remembers the folder, so later visits need one click at most. Each time t
 
 ### The process, in order
 
-1. **Agree a plan for each intervention.** On **Delivery and data plans**, record each deliverable with an owner and a date, and the data the evaluation needs: what, why, who provides it, in what format and when. Save the strand's plans as a Word file, send it to the strand lead, and record each plan as agreed once they confirm it.
-2. **Before each strand lead catch-up,** open **Progress**, choose the strand, and save or copy the summary to send ahead of the meeting.
-3. **During and after the meeting,** record changes on **Interventions** or paste a structured update on **Meeting update**. If a deliverable's date moves, change it on **Delivery and data plans**, which asks for the reason.
-4. **Keep the plans current.** Changes to project templates go on the **Theory of Change audit** checklist, and **Timeline spreadsheet** updates the Gantt once a template's dates change.
-5. **Each committee cycle,** follow the **Reporting** checklist from four weeks out, then create the draft paper.
+1. **Agree a plan for each intervention.** On **Interventions**, open the intervention. Record each deliverable with an owner and a date, and the data the evaluation needs: what, why, who provides it, in what format and when. Save the plan as a Word file, send it to the team, and record it as agreed once they confirm.
+2. **Two weeks before each paper deadline,** send each strand lead their summary from **Progress**, **Strand lead summaries**.
+3. **When updates come in,** paste them on **Updates**, or edit the intervention's page directly. Moving an agreed date later asks for the reason.
+4. **Keep project documents and the timeline in step.** Changes to project documents go on the **Theory of Change audit** checklist, and **Progress**, **Timeline spreadsheet** updates the Gantt once a document's dates change.
+5. **At the deadline,** follow the checklist under **Progress**, **Committee reporting**, then create the draft paper.
 
 ### The tabs
 
-- **Progress:** the page to use before a strand lead catch-up. For each strand: your open actions, the team's open actions and deliverables, and every non-BAU intervention with its APP targets (1 to 9), status, planned stage now, next action and theory of change progress. It saves a Word summary for the strand lead, or copies it as email text; either records the summary as sent.
-- **Delivery and data plans:** for each non-BAU intervention, its deliverables with owners and dates, and its data requirements (what, why, who provides it, format, when and when next due). Recording a plan as agreed fixes the agreed date of each deliverable. Any later change keeps both dates, asks for a reason, and adds a "Reason for delay" note, so slippage shows against the agreed plan. The overview counts, for each strand, plans agreed, deliverables slipped and items overdue. It saves a Word file of the strand's plans to send for agreement.
-- **Reporting:** the committee cycle. Committee dates and paper deadlines, a countdown, and a checklist of what's still needed: strand summaries sent and responses back, reasons for anything behind schedule or at risk, successes, and the timeline spreadsheet. It creates the termly ESE paper and the annual report, and saves Outlook reminders. Committee names and dates can be edited in the table. From four weeks before a deadline, a banner on every tab points here.
-- **Interventions:** one card per intervention, for recording things during a meeting: status, actions and deliverables, notes (including reasons for delay and successes) and template changes.
-- **Meeting update:** paste a structured update from a meeting or a strand lead's response, check the preview, and save it. See `meeting-update-format.md`.
-- **Theory of Change audit:** counts of complete, partly written and missing theories of change for non-BAU interventions in strands 1 to 6 (strand 7 is listed separately), with the missing sections for each, related meeting notes, and the checklist of template changes raised in meetings.
-- **Timeline spreadsheet:** checks the APP timeline and status spreadsheet against the tool, and updates it automatically (see below). Anything it can't change is listed for changing by hand. The import sits on the same tab.
-- **How it works:** a diagram of how the data flows and a timeline of the reporting cycle.
+- **Progress:** how many interventions are business as usual, on track, behind schedule, completed or needing further scoping, overall and by strand. Click any number to list the interventions behind it. "Behind schedule" covers interventions marked at risk or behind, and any with a deliverable or action overdue or blocked, a deliverable later than its agreed date, or data past its due date. Progress has three more pages:
+  - **Strand lead summaries:** for each strand, your open actions, the team's, and every non-BAU intervention, saved as a Word file or copied as email text.
+  - **Committee reporting:** committee dates (editable), the countdown and checklist, the termly ESE paper and annual report, and Outlook reminders: an all-day entry, shown as free, on each paper deadline and two weeks before it.
+  - **Timeline spreadsheet:** checks the APP timeline and status spreadsheet and updates it (see below). The import sits here too.
+- **Updates:** paste a structured update from a meeting or a strand lead, check the preview, and save. See `meeting-update-format.md`.
+- **Interventions:** every intervention, with its status, progress group, plan and next due date. Each opens a page with everything about it: status, deliverables and actions (all editable), data requirements (all editable), the plan's agreement, notes, project document changes, and a link to its project document. Recording a plan as agreed fixes each deliverable's agreed date, so later changes show as slippage. With the SharePoint address of APP Projects saved, the document link opens it in Word; otherwise the page offers a copy.
+- **Theory of Change audit:** counts of complete, partly written and missing theories of change for non-BAU interventions in strands 1 to 6 (strand 7 is listed separately), with the missing sections for each, related notes, and the checklist of project document changes.
+- **How it works:** the question mark in the banner opens a diagram of how the data flows and the reporting cycle.
 
 ### Updating the timeline spreadsheet
 
@@ -63,7 +63,7 @@ Both papers are built from the tracker and saved as new Word files in `APP Frame
 
 Appendix A is the delivery roadmap (every intervention with its status, APP targets and next deliverable), and Appendix B the Interventions Fund projects.
 
-**Annual report:** executive summary, delivery over the year (against the snapshot nearest a year ago), progress against targets, targets by faculty (a chart and table per target), other gaps to monitor, evaluation findings and impact, expenditure against the plan, and priorities for next year. The faculty, gaps and expenditure figures come from `_Tracker data/APP annual report data.xlsx`, which the Reporting tab creates with the right sheets and headings. On the faculty charts each bar is a faculty's gap, the black line is the University gap, and the arrow is the change since last year: purple where the gap has widened, green where it has narrowed.
+**Annual report:** executive summary, delivery over the year (against the snapshot nearest a year ago), progress against targets, targets by faculty (a chart and table per target), other gaps to monitor, evaluation findings and impact, expenditure against the plan, and priorities for next year. The faculty, gaps and expenditure figures come from `_Tracker data/APP annual report data.xlsx`, which Committee reporting creates with the right sheets and headings. On the faculty charts each bar is a faculty's gap, the black line is the University gap, and the arrow is the change since last year: purple where the gap has widened, green where it has narrowed.
 
 Creating the termly paper can also save a dated snapshot in `_Tracker data/snapshots/`, which the next paper compares against.
 
@@ -94,7 +94,7 @@ The repository stays private. The address shows the tool's code to anyone who ha
 - **Browser:** Chrome on the laptop, from a Vercel web address or by double-clicking. No server and no Python.
 - **Master data:** JSON in the synced folder. The Excel tracker is imported once; after that the tool writes statuses and Gantt bars back to it.
 - **Phone view:** a `latest-summary.pdf` saved into the synced folder, opened in the OneDrive app. The web address can't show data on the phone, because the phone can't reach the synced folder.
-- **Statuses:** the template's list (On track, Ahead of schedule, At risk, Behind schedule), plus BAU and To be mapped, is used day to day, with no RAG rating. Green marks on track or ahead, purple marks at risk or behind. The papers count them in the committee's four categories.
+- **Statuses:** the template's list (On track, Ahead of schedule, At risk, Behind schedule), plus BAU, To be mapped and Completed, is used day to day, with no RAG rating. Green marks on track or ahead, purple marks at risk or behind. The papers count them in the committee's four categories.
 - **Report formats:** a short termly ESE paper built around exceptions, plus an annual report with faculty breakdowns, other gaps to monitor, evaluation findings and expenditure. No risk scoring and no OfS tier flags for now.
 - **Committee reports:** read from and written to `APP Framework/Committees and reporting`. Choosing APP Framework as the tool's folder covers both locations.
 - **Committee report:** built as a Word file in the browser on the laptop, not by a cloud routine, so the data stays in the MDX boundary.
