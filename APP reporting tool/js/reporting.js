@@ -83,5 +83,29 @@
     return lines.join('\r\n');
   }
 
-  APP.reporting = { committees, cycle, readiness, ics, NUDGE_DAYS };
+  // An .ics file of open deliverables and actions owned by you, each an all-day
+  // entry shown as free on its due date. UIDs stay the same, so opening a newer
+  // file moves entries whose dates have changed.
+  function myItemsIcs(tracker, ivs, yourName) {
+    const stampNow = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z$/, 'Z');
+    const d = (iso) => iso.replace(/-/g, '');
+    const esc = (s) => String(s).replace(/[,;\\]/g, (c) => '\\' + c).replace(/\n/g, '\\n');
+    const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//APP reporting tool//EN', 'CALSCALE:GREGORIAN'];
+    let n = 0;
+    for (const iv of ivs) {
+      for (const x of iv.deliverables || []) {
+        if (x.status === 'Done' || !x.due || !APP.reports.isMine(x.owner, yourName)) continue;
+        n++;
+        lines.push('BEGIN:VEVENT', `UID:${x.id}@app-reporting-tool`, `DTSTAMP:${stampNow}`, `DTSTART;VALUE=DATE:${d(x.due)}`,
+          `DTEND;VALUE=DATE:${d(APP.model.addDays(x.due, 1))}`,
+          `SUMMARY:${esc(`APP${iv.id} ${x.kind === 'action' ? 'action' : 'deliverable'}: ${x.title}`)}`,
+          `DESCRIPTION:${esc(`${iv.id} ${iv.name}. Due ${x.due.split('-').reverse().join('/')}. Status when saved: ${x.status}.`)}`,
+          'TRANSP:TRANSPARENT', 'X-MICROSOFT-CDO-BUSYSTATUS:FREE', 'X-MICROSOFT-CDO-ALLDAYEVENT:TRUE', 'END:VEVENT');
+      }
+    }
+    lines.push('END:VCALENDAR');
+    return { text: lines.join('\r\n'), count: n };
+  }
+
+  APP.reporting = { myItemsIcs, committees, cycle, readiness, ics, NUDGE_DAYS };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -722,6 +722,7 @@ Status: At risk`;
     }).join('');
     return `<div class="bar">${strandTabs()}${state.strand !== 'all' ? '<button id="save-plans" class="primary">Save the strand\'s plans to send for agreement</button>' : ''}</div>
       <h2>Interventions</h2>
+      <p><button class="quiet small-btn" data-myics="all">Add all my deliverables and actions to Outlook</button></p>
       <p class="muted intro">Open an intervention to see and edit everything about it: status, deliverables and actions, data requirements, notes and its project document.</p>
       <div class="table-wrap"><table class="grid">
         <thead><tr><th>#</th><th>Intervention</th><th>Strand</th><th>Status</th><th>Progress</th><th>Plan</th><th>Next due</th></tr></thead>
@@ -815,7 +816,7 @@ Status: At risk`;
         ${templateUpdatesBlock(iv)}
 
         <div class="section-head"><h3 class="section">Deliverables and actions</h3>
-          <span class="row-actions"><button class="quiet small-btn" data-copy="deliv|${esc(iv.id)}">Copy table</button><button class="quiet small-btn" data-copy="all|${esc(iv.id)}">Copy both for an email</button></span></div>
+          <span class="row-actions"><button class="quiet small-btn" data-copy="deliv|${esc(iv.id)}">Copy table</button><button class="quiet small-btn" data-copy="all|${esc(iv.id)}">Copy both for an email</button><button class="quiet small-btn" data-myics="${esc(iv.id)}" title="All-day entries, shown as free, for open items owned by ${esc(state.yourName)}">Add mine to Outlook</button></span></div>
         <div class="table-wrap"><table class="grid edit">
           <thead><tr><th>Type</th><th>Title</th><th>Owner</th><th>Due</th><th>Status</th><th></th></tr></thead>
           <tbody>${items.map((d) => editRow(iv, d)).join('') || '<tr><td colspan="6" class="muted small">None yet. Add each deliverable with an owner and a date.</td></tr>'}</tbody></table></div>
@@ -1056,6 +1057,20 @@ Status: At risk`;
     } catch (e) {
       flash('error', `Couldn't create the annual report: ${e.message}`);
     }
+  }
+
+  // Download the open deliverables and actions owned by you as calendar entries.
+  function saveMyIcs(ivId) {
+    const ivs = ivId === 'all' ? state.tracker.interventions : [findIv(ivId)];
+    const { text, count } = reporting.myItemsIcs(state.tracker, ivs, state.yourName);
+    if (!count) { flash('info', `Nothing open with a due date is owned by ${state.yourName || 'you'}${ivId === 'all' ? '' : ' in this intervention'}.`); return; }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'text/calendar' }));
+    a.download = ivId === 'all' ? `My APP deliverables and actions - ${TODAY}.ics` : `APP${ivId} my deliverables and actions.ics`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    flash('ok', `Saved ${count} calendar entr${count === 1 ? 'y' : 'ies'}. Open the file to add them to Outlook.`);
   }
 
   function saveIcs() {
@@ -1439,6 +1454,7 @@ Status: At risk`;
     else if (t.dataset.addnote) addNote(t.dataset.addnote);
     else if (t.dataset.edit) { state.editing = t.dataset.edit; render(); }
     else if (t.dataset.editDone) { state.editing = null; render(); }
+    else if (t.dataset.myics) saveMyIcs(t.dataset.myics);
     else if (t.dataset.copy) { const [which, id] = t.dataset.copy.split('|'); copyTables(findIv(id), which); }
     else if (t.dataset.savePlan) savePlans(t.dataset.savePlan);
     else if (t.dataset.opendoc) openDocCopy(t.dataset.opendoc);
