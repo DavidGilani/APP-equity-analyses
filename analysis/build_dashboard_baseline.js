@@ -47,8 +47,9 @@ const ALIASES = {
   const total = t.rows.length;
 
   const dims = [], population = {};
+  const filterOnly = Object.fromEntries(P.DERIVED.filter((d) => P.roleOf(d) === 'filter').map((d) => [d[0], 1]));
   t.headers.slice(1).forEach((dim, i) => {
-    if (SKIP[dim]) return;
+    if (SKIP[dim] || filterOnly[dim]) return;
     const tally = {};
     let present = 0;
     t.rows.forEach((r) => { const v = r[i + 1]; if (v) { tally[v] = (tally[v] || 0) + 1; present++; } });

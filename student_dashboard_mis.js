@@ -100,7 +100,9 @@
   // are left out of the comparison for that characteristic and reported as missing.
   function clean(v) { v = String(v == null ? '' : v).trim(); return v === '*' ? '' : v; }
 
-  // Each derived column: [label, on by default?, function(get) -> value].
+  // Each derived column: [label, default role, function(get) -> value]. The role is
+  // true (a demographic to compare on), false (ignored) or 'filter' (used only to
+  // choose who is in the population, such as enrolment status).
   // get('Header Name') returns the cleaned value of that column for the row.
   var DERIVED = [
     ['Faculty', true, function (g) { var f = g('Programme Faculty'); return f ? (FACULTY[f] || f) : 'No faculty'; }],
@@ -161,7 +163,15 @@
       var u = g('Ucas Application Type');
       return u === 'UCAS MAIN CYCLE' ? 'UCAS main cycle' : u === 'UCAS CLEARING' ? 'UCAS Clearing' : 'Not through UCAS';
     }],
-    ['Apprenticeship', false, function (g) { var a = g('Apprenticeship Flag'); return a === 'Y' ? 'Apprentice' : a === 'N' ? 'Not an apprentice' : ''; }],
+    ['Apprenticeship', 'filter', function (g) { var a = g('Apprenticeship Flag'); return a === 'Y' ? 'Apprentice' : a === 'N' ? 'Not an apprentice' : ''; }],
+    ['Enrolment status', 'filter', function (g) {
+      var e = g('Enrolment Term Status'); return e === 'ES' ? 'Enrolled (ES)' : e === 'IN' ? 'Interrupted (IN)' : e ? e : 'No status';
+    }],
+    ['Joint programme', 'filter', function (g) { return g('Programme Collab Type') ? 'Joint programme' : 'Not a joint programme'; }],
+    // Only filled in when the download includes these fields
+    ['New or continuing', 'filter', function (g) { return g('Newness'); }],
+    ['Intake', 'filter', function (g) { return g('Intake'); }],
+    ['Programme type', 'filter', function (g) { return g('Programme Type'); }],
     ['Religion', false, function (g) { return g('Religion Description'); }],
     ['Free school meals (code)', false, function (g) { return g('Free School Meals'); }]
   ];
@@ -172,26 +182,32 @@
     return Object.keys(seen).sort();
   }
 
-  // Returns {headers, rows, defaults} for one academic year: a Student ID column and
-  // the derived columns. Student IDs left blank on a student's second year are
-  // filled down from the row above, as in the download.
+  function roleOf(d) { return d[1] === true ? 'dim' : d[1] === 'filter' ? 'filter' : 'ignore'; }
+
+  // Returns {headers, rows, defaults}: a Student ID column and the derived columns.
+  // With a year, only that academic year's rows. With no year, every year, plus an
+  // Academic year column, so the page can filter by year (one row per student per
+  // year). Student IDs left blank on a student's second year are filled down from
+  // the row above, as in the download.
   function transform(headers, rows, year) {
-    var hn = headers.map(norm);
+    var hn = headers.map(norm), all = year == null;
     var idCol = hn.indexOf('student id'), yCol = hn.indexOf('academic year enrolment term');
-    var outH = ['Student ID'].concat(DERIVED.map(function (d) { return d[0]; }));
+    var outH = ['Student ID'].concat(all ? ['Academic year'] : [], DERIVED.map(function (d) { return d[0]; }));
     var defaults = { 'Student ID': 'id' };
-    DERIVED.forEach(function (d) { defaults[d[0]] = d[1] ? 'dim' : 'ignore'; });
+    if (all) defaults['Academic year'] = 'filter';
+    DERIVED.forEach(function (d) { defaults[d[0]] = roleOf(d); });
     var out = [], lastId = '';
     rows.forEach(function (r) {
       var id = String(r[idCol] == null ? '' : r[idCol]).trim();
       if (id) lastId = id; else id = lastId;
-      if (clean(r[yCol]) !== String(year)) return;
+      var y = clean(r[yCol]);
+      if (!all && y !== String(year)) return;
       var get = function (name) { var i = hn.indexOf(norm(name)); return i < 0 ? '' : clean(r[i]); };
-      out.push([id].concat(DERIVED.map(function (d) { return d[2](get); })));
+      out.push([id].concat(all ? [yearLabel(y)] : [], DERIVED.map(function (d) { return d[2](get); })));
     });
     return { headers: outH, rows: out, defaults: defaults };
   }
 
-  root.MISPreset = { readXlsx: readXlsx, detect: detect, years: years, yearLabel: yearLabel, transform: transform, DERIVED: DERIVED };
+  root.MISPreset = { readXlsx: readXlsx, detect: detect, years: years, yearLabel: yearLabel, transform: transform, DERIVED: DERIVED, roleOf: roleOf };
   if (typeof module !== 'undefined' && module.exports) module.exports = root.MISPreset;
 })(typeof window !== 'undefined' ? window : globalThis);

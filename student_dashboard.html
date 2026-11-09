@@ -164,6 +164,51 @@
   .tooltip.show{opacity:1}
   footer{color:var(--ink-soft);font-size:12px;margin-top:26px;border-top:1px solid var(--line);padding-top:14px}
 
+  /* population filters and funds */
+  tr.role-filt{background:#eef2ff}
+  .fbuild{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  .frow{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--card)}
+  .frow-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .frow select,.fund input[type=text]{font:inherit;font-size:13px;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
+  .fvals{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:6px;font-size:12.5px}
+  .fvals label{display:inline-flex;gap:5px;align-items:center;white-space:nowrap}
+  .fvals small{color:#9aa4b0}
+  .xbtn{border:0;background:none;color:var(--ink-soft);font-size:16px;cursor:pointer;margin-left:auto;padding:0 6px}
+  .addbtn{align-self:flex-start;border:1px dashed #c4ccd6;background:none;color:var(--ink-soft);border-radius:8px;padding:6px 12px;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+  .countline{font-size:13px;margin:10px 0 0;color:var(--ink)}
+  .countline b{font-family:Georgia,serif;font-size:16px}
+  .countline .warn{color:var(--sig);display:block;margin-top:2px}
+  .fund{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:12px;background:#fcfcfd}
+  .fund-head{display:flex;gap:10px;align-items:center}
+  .fund-head input{flex:1;font-weight:600}
+  .fund h4{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin:12px 0 4px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chips label{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:12.5px;background:var(--card);cursor:pointer}
+  .chips label.on{border-color:var(--users);background:var(--users-soft)}
+  .setup-line{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-top:14px}
+  /* funnel */
+  .viewtabs{margin:4px 0 10px}
+  .stages{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+  .stage{display:grid;grid-template-columns:150px 1fr 230px;gap:12px;align-items:center;font-size:13.5px}
+  .stage-bar{height:22px;background:var(--line);border-radius:5px;overflow:hidden}
+  .stage-bar i{display:block;height:100%;background:var(--users);border-radius:5px;min-width:3px}
+  .stage-txt{color:var(--ink-soft);font-size:12.5px}
+  .stage-txt b{color:var(--ink);font-family:Georgia,serif;font-size:15px}
+  table.funnel{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}
+  table.funnel th{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-soft);text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:bottom}
+  table.funnel td{padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:middle;font-variant-numeric:tabular-nums}
+  table.funnel tr.all-row td{font-weight:600;background:var(--paper)}
+  table.funnel th.grp-rate,table.funnel td.rate{border-left:2px solid var(--line)}
+  .share{min-width:70px}
+  .share .bar{height:5px;background:var(--line);border-radius:3px;margin-top:3px}
+  .share .bar i{display:block;height:100%;background:var(--pop);border-radius:3px}
+  .share small,.rate small{display:block;color:#9aa4b0;font-size:11px}
+  td.rate.sig-lo{background:var(--sig-soft);box-shadow:inset 3px 0 0 var(--sig)}
+  td.rate.sig-hi{background:var(--users-soft);box-shadow:inset 3px 0 0 var(--users)}
+  .arrow-lo{color:var(--sig);font-weight:700} .arrow-hi{color:var(--users);font-weight:700}
+  .sup{color:#9aa4b0;font-style:italic}
+  @media print{ table.funnel{font-size:10.5px} table.funnel tr{break-inside:avoid} }
+
   :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -209,12 +254,18 @@
     <div class="card" id="popMapCard">
       <h2>Population file: which column is which?</h2>
       <p class="note" id="popMapIntro"></p>
-      <p class="note hidden" id="popYearLine"><label>Academic year to compare against <select id="popYear"></select></label></p>
       <div style="overflow-x:auto">
         <table class="map-table"><thead><tr>
           <th>Column</th><th>Example values</th><th>Treat this column as…</th>
         </tr></thead><tbody id="popMapBody"></tbody></table>
       </div>
+    </div>
+
+    <div class="card" id="baseCard">
+      <h2>Population: who counts?</h2>
+      <p class="note">Choose which students make up the population every comparison starts from, for example one academic year and enrolled students only. Any column marked as a demographic or a filter above can be used.</p>
+      <div class="fbuild" id="baseFilters"></div>
+      <p class="countline" id="baseCount"></p>
     </div>
 
     <div class="card">
@@ -225,6 +276,19 @@
           <th>Column</th><th>Example values</th><th>Treat this column as…</th>
         </tr></thead><tbody id="cohortMapBody"></tbody></table>
       </div>
+    </div>
+
+    <div class="card" id="fundsCard">
+      <h2>Funds and funnel stages (optional)</h2>
+      <p class="note">Set up a fund to see a funnel: the population, the students eligible for the fund, those who applied and those who received it, broken down by each demographic. Tick the cohort columns that mark who applied and who received the fund. Ticking several columns combines them, for example to group small donor funds into one. Eligibility filters work like the population filters above, and replace them for the same column (for example a different academic year).</p>
+      <div id="fundList"></div>
+      <div class="setup-line">
+        <button class="addbtn" id="btnAddFund">+ Add a fund</button>
+        <button class="btn-ghost" id="btnSuggestFunds">Suggest funds from column names</button>
+        <button class="btn-ghost" id="btnSaveSetup">Save setup</button>
+        <label class="btn-ghost" style="cursor:pointer">Open setup<input type="file" id="fileSetup" accept=".json,application/json" style="display:none"></label>
+      </div>
+      <p class="mapnote">The population filters and funds are remembered in this browser for next time. Save setup keeps them in a small file that holds column names and filter choices only, no student data.</p>
       <div class="btn-line">
         <button class="btn-solid" id="btnBuild">Build dashboard</button>
         <button class="btn-ghost" id="btnStartOver">Start over</button>
@@ -247,6 +311,33 @@
     </div>
     <div class="filestrip" id="fileStrip"></div>
 
+    <div class="tabrow viewtabs hidden" id="viewTabs" role="tablist">
+      <button class="tab" data-v="rep" role="tab">Representation</button>
+      <button class="tab" data-v="funnel" role="tab">Funding funnel</button>
+    </div>
+
+    <div id="funnelView" class="hidden">
+      <p class="eyebrow" style="margin-bottom:6px">Fund</p>
+      <div class="tabrow" id="fundTabs" role="tablist"></div>
+      <div class="card">
+        <h2 id="fnTitle">Funnel</h2>
+        <p class="note" id="fnNote"></p>
+        <div class="stages" id="fnStages"></div>
+      </div>
+      <div class="card">
+        <h2 id="fnDimTitle">By characteristic</h2>
+        <p class="note" id="fnDimNote"></p>
+        <div class="tabrow" id="fnDimTabs" role="tablist" style="margin:10px 0 4px"></div>
+        <div style="overflow-x:auto" id="fnTable"></div>
+        <div class="legend">
+          <span><i class="sw-sig" style="display:inline-block"></i>Significantly lower rate than other students in the stage before (95%)</span>
+          <span><i style="display:inline-block;width:16px;height:10px;border-radius:2px;background:var(--users-soft);border:1px solid var(--users)"></i>Significantly higher</span>
+        </div>
+      </div>
+      <div class="card hidden" id="fnNotesCard"><h2>Notes on the data</h2><p class="note" id="fnNotes"></p></div>
+    </div>
+
+    <div id="repView">
     <div id="markerWrap" style="margin:6px 0 2px">
       <p class="eyebrow" style="margin-bottom:6px">Service / sub-group</p>
       <div class="tabrow" id="markerTabs" role="tablist"></div>
@@ -282,6 +373,7 @@
     <div class="card" id="notesCard">
       <h2>Notes on the data</h2>
       <p class="note" id="notesBody"></p>
+    </div>
     </div>
   </div>
 
@@ -502,6 +594,7 @@
   function paintRow(tr,val){
     tr.className = val==='id' ? 'role-id'
       : val.indexOf('dim')===0 ? 'role-dim'
+      : val==='filter' ? 'role-filt'
       : val==='flag' ? 'role-flag'
       : val==='category' ? 'role-cat' : '';
   }
@@ -517,7 +610,7 @@
       var td3=document.createElement('td'), sel=document.createElement('select');sel.dataset.idx=i;
       optionsFn(sel);
       sel.value=guessFn(h,info); if(!sel.value) sel.value='ignore';
-      sel.addEventListener('change',function(){paintRow(tr,sel.value);});
+      sel.addEventListener('change',function(){paintRow(tr,sel.value);if(tbodyId==='popMapBody')renderSetup();else renderFunds();});
       td3.appendChild(sel);
       tr.appendChild(td1);tr.appendChild(td2);tr.appendChild(td3);
       body.appendChild(tr);paintRow(tr,sel.value);
@@ -527,6 +620,7 @@
     sel.appendChild(opt('ignore','Ignore'));
     sel.appendChild(opt('id','Student ID (for the join)'));
     sel.appendChild(opt('dim','Demographic'));
+    sel.appendChild(opt('filter','Filter only (to choose who counts)'));
   }
   function cohortOptions(sel){
     sel.appendChild(opt('ignore','Ignore'));
@@ -554,15 +648,11 @@
     if(hasPop){
       document.getElementById('popMapIntro').textContent=
         POPCSV.rows.length.toLocaleString()+' students in '+POPCSV.fileName+'. Mark the student ID column and the demographic columns to compare on.';
-      var mis=POPCSV.mis, yl=document.getElementById('popYearLine');
-      yl.classList.toggle('hidden',!mis);
+      var mis=POPCSV.mis;
       if(mis){
-        var ys=document.getElementById('popYear');ys.textContent='';
-        mis.years.forEach(function(y){ys.appendChild(opt(y,MISPreset.yearLabel(y)));});
-        ys.value=mis.year;
         document.getElementById('popMapIntro').textContent=
-          'Recognised as the student number download. '+POPCSV.rows.length.toLocaleString()+' students in '+MISPreset.yearLabel(mis.year)+
-          '. Characteristics are grouped as in the EDI report. Switch any on or off below.';
+          'Recognised as the student number download: '+POPCSV.rows.length.toLocaleString()+' rows across '+mis.years.map(MISPreset.yearLabel).join(' and ')+
+          ' (one row per student per year). Characteristics are grouped as in the EDI report. Switch any on or off below, and choose the year and other filters in the next section.';
       }
       buildMapTable('popMapBody',POPCSV,popOptions,function(h,info){
         if(mis&&mis.defaults[h]) return mis.defaults[h];
@@ -579,6 +669,9 @@
       if(!hasPop){ var dim=guessDimension(h); if(dim) return 'dim:'+dim; }
       return guessFlagOrCat(info,COHORTCSV.rows.length);
     });
+    document.getElementById('baseCard').classList.toggle('hidden',!hasPop);
+    document.getElementById('fundsCard').classList.toggle('hidden',!hasPop);
+    if(hasPop){initSetup();renderSetup();}
     document.getElementById('mapHint').innerHTML=
       'A <strong>flag</strong> column (a service name) counts any student with a value in it as a member. '+
       'A <strong>split-by-value</strong> column (like Year) makes one sub-group per distinct value.';
@@ -591,14 +684,14 @@
   var POP={dist:{},present:{},total:0,dims:[],source:''};
   var LOOKUP=null, COHORT_ID_COL=-1;
 
-  function buildPopFromCSV(popRoles){
+  function buildPopFromCSV(popRoles,rows){
     var idCol=firstRole(popRoles,'id');
     var demoCols={};
     Object.keys(popRoles).forEach(function(k){ if(popRoles[k]==='dim') demoCols[POPCSV.headers[parseInt(k,10)]||('Column '+(parseInt(k,10)+1))]=parseInt(k,10); });
     POP={dist:{},present:{},total:0,dims:Object.keys(demoCols),source:'file'};
     POP.dims.forEach(function(dim){
       var col=demoCols[dim], tally={}, order=[], present=0, seen={};
-      POPCSV.rows.forEach(function(r){
+      rows.forEach(function(r){
         var v=(r[col]!=null?String(r[col]):'').trim(); if(v==='') return;
         present++; var k=v.toLowerCase(); if(!seen.hasOwnProperty(k)){seen[k]=v;order.push(k);} tally[k]=(tally[k]||0)+1;
       });
@@ -607,7 +700,7 @@
       POP.present[dim]=present;
     });
     LOOKUP={};var uniq={};
-    POPCSV.rows.forEach(function(r){var id=normId(r[idCol]); if(id){LOOKUP[id]=r;uniq[id]=1;}});
+    rows.forEach(function(r){var id=normId(r[idCol]); if(id){LOOKUP[id]=r;uniq[id]=1;}});
     POP.total=Object.keys(uniq).length;
     POP.demoCols=demoCols; POP.idCol=idCol;
     return true;
@@ -674,7 +767,11 @@
       if(!hasPopDim){showError('In the population file, mark at least one Demographic column to compare on.');return;}
       var cid=firstRole(cohortRoles,'id');
       if(cid<0){showError('In the cohort file, mark which column is the Student ID so it can be joined to the population file.');return;}
-      MODE='join'; buildPopFromCSV(popRoles); COHORT_ID_COL=cid;
+      var baseRows=filterRows(SETUP.base);
+      if(!baseRows.length){showError('No students in the population match the filters under "Population: who counts?". Tick at least one value for each filter.');return;}
+      var ids={};baseRows.forEach(function(r){ids[normId(r[pid])]=1;});
+      if(Object.keys(ids).length<baseRows.length){showError('Some students appear more than once in the population, usually because it covers more than one academic year. Under "Population: who counts?", filter Academic year to a single year.');return;}
+      MODE='join'; buildPopFromCSV(popRoles,baseRows); COHORT_ID_COL=cid; BASE_DESC=describeFilters(SETUP.base);
     } else {
       BASELINE_COHORT_COLS={};
       Object.keys(cohortRoles).forEach(function(k){
@@ -725,6 +822,7 @@
     }
     NOTFOUND=ANALYSIS.ALL.notFound||0;
 
+    buildFunnels(popRoles);
     state.marker='ALL';
     state.dim=(ANALYSIS.ALL.gaps.length?'Biggest gaps':DIMS[0]);
     document.getElementById('errBox').innerHTML='';
@@ -732,6 +830,7 @@
     document.getElementById('results').classList.remove('hidden');
     setFooter();
     buildMarkerTabs();buildDimTabs();setView('chart');render();
+    buildFunnelUI();setMainView(FUNNELS.length?'funnel':'rep');
     window.scrollTo(0,0);
   }
 
@@ -781,7 +880,7 @@
     var userLabel=(state.marker==='ALL')?'Your cohort':groupLabel;
     document.getElementById('legUsers').textContent=userLabel;
 
-    var popName=(POP.source==='file'&&POPCSV)?POPCSV.fileName+(POPCSV.mis?' ('+MISPreset.yearLabel(POPCSV.mis.year)+')':''):'built-in baseline';
+    var popName=(POP.source==='file'&&POPCSV)?POPCSV.fileName+(BASE_DESC?' ('+BASE_DESC+')':''):'built-in baseline';
     document.getElementById('fileStrip').innerHTML=
       '<span class="pill">'+esc(COHORTCSV.fileName)+'</span>'+
       '<span style="color:var(--ink-soft)">'+COHORTCSV.rows.length.toLocaleString()+' in cohort · compared with '+
@@ -886,7 +985,9 @@
   function buildReport(scope){
     var host=document.getElementById('report');host.innerHTML='';
     var keys=scope==='current'?[state.marker]:MARKERS.map(function(m){return m.key;});
-    var popName=(POP.source==='file'&&POPCSV)?POPCSV.fileName+(POPCSV.mis?' ('+MISPreset.yearLabel(POPCSV.mis.year)+')':''):'the built-in baseline ('+(D.META.populationLabel||'')+')';
+    if(scope==='current'&&fstate.view==='funnel'){keys=[];}
+    var fkeys=scope==='current'?(fstate.view==='funnel'?[fstate.fund]:[]):FUNNELS.map(function(F,i){return i;});
+    var popName=(POP.source==='file'&&POPCSV)?POPCSV.fileName+(BASE_DESC?' ('+BASE_DESC+')':''):'the built-in baseline ('+(D.META.populationLabel||'')+')';
     var dateStr=new Date().toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric'});
 
     var cover=document.createElement('section');cover.className='rep-cover';
@@ -895,12 +996,14 @@
       '<p class="rep-meta">Generated '+esc(dateStr)+'</p>'+
       '<p class="rep-meta">Cohort file: '+esc(COHORTCSV.fileName)+' ('+COHORTCSV.rows.length.toLocaleString()+' students)</p>'+
       '<p class="rep-meta">Compared with: '+esc(popName)+' ('+POP.total.toLocaleString()+' students)</p>'+
-      '<p class="rep-meta">Groups in this report: '+keys.map(function(k){return esc(ANALYSIS[k].label);}).join(', ')+'</p>'+
+      (keys.length?'<p class="rep-meta">Groups in this report: '+keys.map(function(k){return esc(ANALYSIS[k].label);}).join(', ')+'</p>':'')+
+      (fkeys.length?'<p class="rep-meta">Funding funnels: '+fkeys.map(function(i){return esc(FUNNELS[i].name);}).join(', ')+'</p>':'')+
       '<div class="rep-box"><h3>How to read this report</h3><ul>'+
         '<li>Each chart compares the share of a group (green dot) with the share of the whole student population (grey dot).</li>'+
         '<li>The ratio is the group share divided by the population share. Above 1 means over-represented, below 1 means under-represented.</li>'+
         '<li>Differences marked * and highlighted are statistically significant at the 95% level (two-proportion z-test).</li>'+
         '<li>Categories with fewer than '+MIN+' students in a group are suppressed and not tested, to protect small numbers.</li>'+
+        (fkeys.length?'<li>In the funding funnels, the application rate is the share of eligible students in a group who applied, and the success rate is the share of applicants who received the fund. Each is compared with every other student at the stage before; ▼ marks a significantly lower rate and ▲ a significantly higher one.</li>':'')+
         (MODE==='join'&&NOTFOUND>0?'<li>'+NOTFOUND.toLocaleString()+' students in the cohort file were not found in the population file by ID and are excluded from the breakdowns.</li>':'')+
         (MODE==='baseline'?'<li>Population figures come from the built-in baseline, so cohort labels had to match its categories exactly. Any unmatched values are excluded.</li>':'')+
       '</ul></div>';
@@ -934,6 +1037,7 @@
         reportChart(sec,'By '+dim,a.blanks?(a.blanks.toLocaleString()+' with no value recorded are excluded.'):'',a.rows,userLabel);
       });
     });
+    fkeys.forEach(function(i){reportFunnel(host,FUNNELS[i]);});
   }
 
   document.getElementById('btnReport').addEventListener('click',function(){
@@ -941,6 +1045,386 @@
     window.print();
   });
   window.addEventListener('afterprint',function(){document.getElementById('report').innerHTML='';});
+
+  // ==========================================================================
+  //  Population filters and funds (setup), kept by column name so a setup can be
+  //  reused with next year's files. Remembered in this browser, and can be saved
+  //  to a small file. Neither holds any student data.
+  // ==========================================================================
+  var SETUP_KEY='cohortComparisonSetup';
+  var SETUP={base:{},funds:[]}, BASE_DESC='';
+  function saveSetupLocal(){try{localStorage.setItem(SETUP_KEY,JSON.stringify(SETUP));}catch(e){}}
+  function popColIndex(name){return POPCSV?POPCSV.headers.indexOf(name):-1;}
+  function cohortColIndex(name){return COHORTCSV?COHORTCSV.headers.indexOf(name):-1;}
+  // Columns that can be filtered on: those marked as a demographic or a filter
+  function filterCols(){
+    var roles=readRoles('popMapBody'),out=[];
+    Object.keys(roles).forEach(function(k){if(roles[k]==='dim'||roles[k]==='filter')out.push(POPCSV.headers[parseInt(k,10)]);});
+    return out;
+  }
+  var VALCACHE={};
+  function valueCounts(name){
+    if(VALCACHE[name])return VALCACHE[name];
+    var i=popColIndex(name),t={},order=[];
+    POPCSV.rows.forEach(function(r){var v=(r[i]!=null?String(r[i]):'').trim();if(!t.hasOwnProperty(v)){t[v]=0;order.push(v);}t[v]++;});
+    order.sort(function(a,b){return a===''?1:b===''?-1:t[b]-t[a];});
+    return (VALCACHE[name]=order.map(function(v){return {v:v,n:t[v]};}));
+  }
+  function rowPasses(r,filters){
+    for(var name in filters){
+      var i=popColIndex(name);if(i<0)continue;
+      var v=(r[i]!=null?String(r[i]):'').trim();
+      if(filters[name].indexOf(v)<0)return false;
+    }
+    return true;
+  }
+  function filterRows(filters){return POPCSV.rows.filter(function(r){return rowPasses(r,filters);});}
+  // A fund's filters replace the population filters for the same column
+  function fundFilters(f){return Object.assign({},SETUP.base,f.filters||{});}
+  function describeFilters(filters){
+    return Object.keys(filters).map(function(name){
+      var all=valueCounts(name).map(function(x){return x.v;});
+      var vals=filters[name];if(vals.length===all.length)return null;
+      return name+': '+vals.map(function(v){return v||'(blank)';}).join(', ');
+    }).filter(Boolean).join('; ');
+  }
+  // Starting filters for the student number download: the latest year, enrolled
+  // students and no apprentices, as in the EDI report's base filters
+  function defaultBase(){
+    var b={};if(!POPCSV.mis)return b;
+    if(popColIndex('Academic year')>-1)b['Academic year']=[POPCSV.mis.latest];
+    var es=valueCounts('Enrolment status').map(function(x){return x.v;});
+    if(es.indexOf('Enrolled (ES)')>-1)b['Enrolment status']=['Enrolled (ES)'];
+    var ap=valueCounts('Apprenticeship').map(function(x){return x.v;});
+    if(ap.indexOf('Apprentice')>-1)b['Apprenticeship']=ap.filter(function(v){return v!=='Apprentice';});
+    return b;
+  }
+  function cleanFilters(filters){
+    var out={};Object.keys(filters||{}).forEach(function(name){if(popColIndex(name)>-1)out[name]=filters[name].slice();});return out;
+  }
+  function initSetup(){
+    VALCACHE={};
+    var saved=null;try{saved=JSON.parse(localStorage.getItem(SETUP_KEY)||'null');}catch(e){}
+    SETUP={base:{},funds:[]};
+    if(saved&&saved.base){SETUP.base=cleanFilters(saved.base);}
+    if(!Object.keys(SETUP.base).length)SETUP.base=defaultBase();
+    if(saved&&Array.isArray(saved.funds))SETUP.funds=saved.funds.map(tidyFund).filter(function(f){return f.applied.length||f.received.length;});
+    if(!SETUP.funds.length)SETUP.funds=suggestFunds();
+  }
+  function tidyFund(f){
+    return {name:String(f.name||'Fund'),applied:(f.applied||[]).filter(function(c){return cohortColIndex(c)>-1;}),
+      received:(f.received||[]).filter(function(c){return cohortColIndex(c)>-1;}),filters:cleanFilters(f.filters)};
+  }
+  // Pairs up columns named "<fund> applied" and "<fund> received" (or paid/awarded)
+  function suggestFunds(){
+    var funds={},order=[];
+    COHORTCSV.headers.forEach(function(h){
+      var m=/^(.*?)\s+(applied|applications?|received|paid|awarded|recipients?)\b/i.exec(h);if(!m)return;
+      var name=m[1].trim(),stage=/^appl/i.test(m[2])?'applied':'received';
+      if(!funds[name]){funds[name]={name:name,applied:[],received:[],filters:{}};order.push(name);}
+      funds[name][stage].push(h);
+    });
+    return order.map(function(n){return funds[n];});
+  }
+
+  // ---- filter builder -------------------------------------------------------
+  function renderFilterBuilder(host,filters,onChange,addLabel){
+    host.textContent='';
+    var cols=filterCols();
+    Object.keys(filters).forEach(function(name){
+      var row=document.createElement('div');row.className='frow';
+      var head=document.createElement('div');head.className='frow-head';
+      var sel=document.createElement('select');
+      cols.forEach(function(c){if(c===name||!filters.hasOwnProperty(c))sel.appendChild(opt(c,c));});
+      if(cols.indexOf(name)<0)sel.appendChild(opt(name,name+' (not in use)'));
+      sel.value=name;
+      sel.addEventListener('change',function(){delete filters[name];filters[sel.value]=valueCounts(sel.value).map(function(x){return x.v;});onChange(true);});
+      var x=document.createElement('button');x.className='xbtn';x.type='button';x.title='Remove this filter';x.setAttribute('aria-label','Remove this filter');x.textContent='×';
+      x.addEventListener('click',function(){delete filters[name];onChange(true);});
+      head.appendChild(sel);
+      var all=document.createElement('button');all.type='button';all.className='btn-ghost';all.style.padding='3px 10px';all.style.fontSize='12px';all.textContent='All';
+      all.addEventListener('click',function(){filters[name]=valueCounts(name).map(function(x){return x.v;});onChange(true);});
+      head.appendChild(all);head.appendChild(x);row.appendChild(head);
+      var vals=document.createElement('div');vals.className='fvals';
+      valueCounts(name).forEach(function(o){
+        var lab=document.createElement('label'),cb=document.createElement('input');cb.type='checkbox';cb.checked=filters[name].indexOf(o.v)>-1;
+        cb.addEventListener('change',function(){
+          var set=filters[name].filter(function(v){return v!==o.v;});if(cb.checked)set.push(o.v);filters[name]=set;onChange(false);});
+        lab.appendChild(cb);lab.appendChild(document.createTextNode(o.v||'(blank)'));
+        var sm=document.createElement('small');sm.textContent=o.n.toLocaleString();lab.appendChild(sm);vals.appendChild(lab);
+      });
+      row.appendChild(vals);host.appendChild(row);
+    });
+    var free=cols.filter(function(c){return !filters.hasOwnProperty(c);});
+    if(free.length){
+      var add=document.createElement('button');add.type='button';add.className='addbtn';add.textContent=addLabel||'+ Add a filter';
+      add.addEventListener('click',function(){var c=free[0];filters[c]=valueCounts(c).map(function(x){return x.v;});onChange(true);});
+      host.appendChild(add);
+    }
+  }
+  function countText(rows){
+    var pid=firstRole(readRoles('popMapBody'),'id'),ids={};
+    if(pid>-1)rows.forEach(function(r){ids[normId(r[pid])]=1;});
+    var u=Object.keys(ids).length;
+    return {n:rows.length,dup:pid>-1&&u<rows.length};
+  }
+  function renderSetup(){
+    if(!POPCSV)return;
+    renderFilterBuilder(document.getElementById('baseFilters'),SETUP.base,function(full){saveSetupLocal();if(full)renderSetup();else{updateBaseCount();renderFunds();}},'+ Add a population filter');
+    updateBaseCount();renderFunds();
+  }
+  function updateBaseCount(){
+    var c=countText(filterRows(SETUP.base));
+    document.getElementById('baseCount').innerHTML='Population: <b>'+c.n.toLocaleString()+'</b> students'+
+      (c.dup?'<span class="warn">Some students appear more than once, usually because more than one academic year is included. Filter Academic year to a single year.</span>':'');
+  }
+
+  // ---- fund editor ------------------------------------------------------------
+  function cohortChoiceCols(){
+    var roles=readRoles('cohortMapBody'),out=[];
+    Object.keys(roles).forEach(function(k){if(roles[k]==='flag')out.push(COHORTCSV.headers[parseInt(k,10)]);});
+    return out;
+  }
+  function chipList(fund,stage){
+    var wrap=document.createElement('div');wrap.className='chips';
+    var cols=cohortChoiceCols();
+    fund[stage].forEach(function(c){if(cols.indexOf(c)<0)cols.push(c);});
+    if(!cols.length){wrap.innerHTML='<span class="mapnote">Mark the columns as "students with Y value here" in the cohort file first.</span>';return wrap;}
+    cols.forEach(function(c){
+      var lab=document.createElement('label'),cb=document.createElement('input');cb.type='checkbox';cb.checked=fund[stage].indexOf(c)>-1;
+      lab.className=cb.checked?'on':'';
+      cb.addEventListener('change',function(){fund[stage]=fund[stage].filter(function(x){return x!==c;});if(cb.checked)fund[stage].push(c);lab.className=cb.checked?'on':'';saveSetupLocal();updateFundCounts();});
+      lab.appendChild(cb);lab.appendChild(document.createTextNode(c));wrap.appendChild(lab);
+    });
+    return wrap;
+  }
+  var OPENFUND=null;   // the fund being edited; the others show a one-line summary
+  function renderFunds(){
+    var host=document.getElementById('fundList');if(!host||!POPCSV)return;host.textContent='';
+    SETUP.funds.forEach(function(f,fi){
+      var box=document.createElement('div');box.className='fund';
+      var head=document.createElement('div');head.className='fund-head';
+      var x=document.createElement('button');x.className='xbtn';x.type='button';x.textContent='×';x.title='Remove this fund';x.setAttribute('aria-label','Remove this fund');
+      x.addEventListener('click',function(){SETUP.funds.splice(fi,1);if(OPENFUND===f)OPENFUND=null;saveSetupLocal();renderFunds();});
+      if(OPENFUND!==f){
+        var t=document.createElement('strong');t.style.flex='1';t.textContent=f.name;
+        var ed=document.createElement('button');ed.type='button';ed.className='btn-ghost';ed.style.padding='4px 12px';ed.textContent='Edit';
+        ed.addEventListener('click',function(){OPENFUND=f;renderFunds();});
+        head.appendChild(t);head.appendChild(ed);head.appendChild(x);box.appendChild(head);
+        var sum=document.createElement('p');sum.className='mapnote';
+        var fd=describeFilters(f.filters||{});
+        sum.textContent='Applied: '+(f.applied.join(', ')||'none')+'. Received: '+(f.received.join(', ')||'none')+'. Eligible: '+(fd||'the whole population')+'.';
+        box.appendChild(sum);
+        var cl0=document.createElement('p');cl0.className='countline';cl0.dataset.fund=fi;box.appendChild(cl0);
+        host.appendChild(box);return;
+      }
+      var name=document.createElement('input');name.type='text';name.value=f.name;name.setAttribute('aria-label','Fund name');
+      name.addEventListener('input',function(){f.name=name.value;saveSetupLocal();});
+      var done=document.createElement('button');done.type='button';done.className='btn-ghost';done.style.padding='4px 12px';done.textContent='Done';
+      done.addEventListener('click',function(){OPENFUND=null;renderFunds();});
+      head.appendChild(name);head.appendChild(done);head.appendChild(x);box.appendChild(head);
+      var h1=document.createElement('h4');h1.textContent='Applied (any of these)';box.appendChild(h1);box.appendChild(chipList(f,'applied'));
+      var h2=document.createElement('h4');h2.textContent='Received (any of these)';box.appendChild(h2);box.appendChild(chipList(f,'received'));
+      var h3=document.createElement('h4');h3.textContent='Eligible students (filters on top of the population)';box.appendChild(h3);
+      var fb=document.createElement('div');fb.className='fbuild';box.appendChild(fb);
+      renderFilterBuilder(fb,f.filters,function(full){saveSetupLocal();if(full)renderFunds();else updateFundCounts();},'+ Add an eligibility filter');
+      var cl=document.createElement('p');cl.className='countline';cl.dataset.fund=fi;box.appendChild(cl);
+      host.appendChild(box);
+    });
+    updateFundCounts();
+  }
+  function idSetFor(cols){
+    var cid=firstRole(readRoles('cohortMapBody'),'id'),set={};if(cid<0)return set;
+    var idx=cols.map(cohortColIndex).filter(function(i){return i>-1;});
+    COHORTCSV.rows.forEach(function(r){if(idx.some(function(i){return truthy(r[i]);}))set[normId(r[cid])]=1;});
+    return set;
+  }
+  function updateFundCounts(){
+    var pid=firstRole(readRoles('popMapBody'),'id');
+    Array.prototype.forEach.call(document.querySelectorAll('#fundList .countline'),function(cl){
+      var f=SETUP.funds[parseInt(cl.dataset.fund,10)];if(!f)return;
+      var el=filterRows(fundFilters(f)),c=countText(el);
+      var ids={};if(pid>-1)el.forEach(function(r){ids[normId(r[pid])]=1;});
+      var rec=idSetFor(f.received),app=Object.assign({},idSetFor(f.applied),rec);
+      var n=function(set){var k=0;for(var id in set)if(ids[id])k++;return k;};
+      cl.innerHTML='Eligible: <b>'+c.n.toLocaleString()+'</b> · applied: <b>'+n(app).toLocaleString()+'</b> of '+Object.keys(app).length.toLocaleString()+
+        ' · received: <b>'+n(rec).toLocaleString()+'</b> of '+Object.keys(rec).length.toLocaleString()+
+        (c.dup?'<span class="warn">Some eligible students appear more than once. Filter Academic year to a single year.</span>':'')+
+        (!f.applied.length&&f.received.length?'<span class="mapnote" style="display:block">No applied column, so applied shows the recipients only.</span>':'');
+    });
+  }
+  document.getElementById('btnAddFund').addEventListener('click',function(){
+    var f={name:'New fund',applied:[],received:[],filters:{}};SETUP.funds.push(f);OPENFUND=f;saveSetupLocal();renderFunds();});
+  document.getElementById('btnSuggestFunds').addEventListener('click',function(){
+    var have={};SETUP.funds.forEach(function(f){have[f.name.toLowerCase()]=1;});
+    suggestFunds().forEach(function(f){if(!have[f.name.toLowerCase()])SETUP.funds.push(f);});saveSetupLocal();renderFunds();});
+  document.getElementById('btnSaveSetup').addEventListener('click',function(){
+    var blob=new Blob([JSON.stringify({setup:'Student cohort comparison',version:1,base:SETUP.base,funds:SETUP.funds},null,1)],{type:'application/json'});
+    var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='cohort_comparison_setup.json';document.body.appendChild(a);a.click();a.remove();
+    setTimeout(function(){URL.revokeObjectURL(a.href);},1000);});
+  document.getElementById('fileSetup').addEventListener('change',function(e){
+    var f=e.target.files[0];e.target.value='';if(!f)return;var rd=new FileReader();
+    rd.onload=function(){try{var v=JSON.parse(rd.result);if(!v.base&&!v.funds)throw 0;
+        SETUP={base:cleanFilters(v.base),funds:(v.funds||[]).map(tidyFund)};OPENFUND=null;saveSetupLocal();renderSetup();document.getElementById('errBox').innerHTML='';
+      }catch(err){showError('That file is not a saved setup for this page.');}};
+    rd.readAsText(f);});
+
+  // ==========================================================================
+  //  Funnels: population, eligible, applied, received, by each demographic
+  // ==========================================================================
+  var FUNNELS=[], fstate={fund:0,dim:null,view:'rep'};
+  var STAGES=['Population','Eligible','Applied','Received'];
+  function buildFunnels(popRoles){
+    FUNNELS=[];if(MODE!=='join')return;
+    var pid=firstRole(popRoles,'id'),base=filterRows(SETUP.base);
+    SETUP.funds.forEach(function(f){
+      if(!f.applied.length&&!f.received.length)return;
+      var filters=fundFilters(f),elig=filterRows(filters),byId={};
+      elig.forEach(function(r){var id=normId(r[pid]);if(!byId[id])byId[id]=r;});
+      var recIds=idSetFor(f.received),appIds=Object.assign({},idSetFor(f.applied),recIds);
+      var pick=function(set){var out=[],outside=0;for(var id in set){if(byId[id])out.push(byId[id]);else outside++;}return {rows:out,outside:outside};};
+      var app=pick(appIds),rec=pick(recIds);
+      var stageRows=[base,Object.keys(byId).map(function(k){return byId[k];}),app.rows,rec.rows];
+      var dims={};
+      DIMS.forEach(function(dim){dims[dim]=funnelDim(stageRows,POP.demoCols[dim]);});
+      FUNNELS.push({name:f.name||'Fund',fund:f,filters:filters,counts:stageRows.map(function(r){return r.length;}),
+        outsideApp:app.outside,outsideRec:rec.outside,noApplied:!f.applied.length,dims:dims,
+        eligDesc:describeFilters(f.filters||{}),gaps:null});
+    });
+    FUNNELS.forEach(function(F){F.gaps=funnelGaps(F);});
+  }
+  function funnelDim(stageRows,col){
+    var tallies=stageRows.map(function(rows){
+      var t={},present=0;rows.forEach(function(r){var v=(r[col]!=null?String(r[col]):'').trim();if(v==='')return;present++;t[v]=(t[v]||0)+1;});
+      return {t:t,present:present};});
+    var cats=Object.keys(tallies[0].t);
+    Object.keys(tallies[1].t).forEach(function(c){if(cats.indexOf(c)<0)cats.push(c);});
+    cats.sort(function(a,b){return (tallies[0].t[b]||0)-(tallies[0].t[a]||0);});
+    var E=tallies[1].present,A=tallies[2].present,R=tallies[3].present;
+    var rows=cats.map(function(c){
+      var n=tallies.map(function(t){return t.t[c]||0;});
+      var row={category:c,n:n,share:n.map(function(x,i){return tallies[i].present?100*x/tallies[i].present:null;})};
+      // Rate of moving to the next stage, compared with every other student at the stage before
+      row.appRate=n[1]?100*n[2]/n[1]:null;row.recRate=n[2]?100*n[3]/n[2]:null;
+      row.appRest=(E-n[1])?100*(A-n[2])/(E-n[1]):null;row.recRest=(A-n[2])?100*(R-n[3])/(A-n[2]):null;
+      row.appSig=n[1]>=MIN&&E-n[1]>=MIN&&zTestSig(n[2],n[1],A-n[2],E-n[1]).sig;
+      row.recSig=n[2]>=MIN&&A-n[2]>=MIN&&zTestSig(n[3],n[2],R-n[3],A-n[2]).sig;
+      return row;
+    });
+    return {rows:rows,present:tallies.map(function(t){return t.present;}),
+      appRate:E?100*A/E:null,recRate:A?100*R/A:null};
+  }
+  function funnelGaps(F){
+    var out=[];
+    fnDims(F).forEach(function(dim){
+      var rows=F.dims[dim].rows.filter(function(r){return r.n[1]>0;});
+      // With only two groups, one is the mirror of the other, so keep the smaller group
+      if(rows.length===2)rows=[rows[0].n[1]<=rows[1].n[1]?rows[0]:rows[1]];
+      rows.forEach(function(r){
+      if(r.appSig)out.push({dim:dim,r:r,stage:'Applying',rate:r.appRate,rest:r.appRest});
+      if(r.recSig)out.push({dim:dim,r:r,stage:'Receiving',rate:r.recRate,rest:r.recRest});});});
+    out.sort(function(a,b){return Math.abs(b.rate-b.rest)-Math.abs(a.rate-a.rest);});
+    return out;
+  }
+  var pct1=function(v){return v==null?'–':(Math.round(v*10)/10)+'%';};
+  function stageCell(n,share,present){
+    if(n===0)return '<td class="share">0</td>';
+    if(n<MIN)return '<td class="share"><span class="sup">fewer than '+MIN+'</span></td>';
+    return '<td class="share">'+pct1(share)+'<small>'+n.toLocaleString()+'</small><div class="bar"><i style="width:'+Math.min(100,share)+'%"></i></div></td>';
+  }
+  function rateCell(rate,rest,sig,den){
+    if(rate==null||den<MIN)return '<td class="rate"><span class="sup">–</span></td>';
+    var lo=rate<rest;
+    return '<td class="rate'+(sig?(lo?' sig-lo':' sig-hi'):'')+'">'+pct1(rate)+(sig?' <span class="'+(lo?'arrow-lo':'arrow-hi')+'">'+(lo?'▼':'▲')+'</span>':'')+
+      '<small>others '+pct1(rest)+'</small></td>';
+  }
+  function funnelTableHTML(F,dim){
+    var d=F.dims[dim];if(!d)return '<p class="note">No breakdown for this characteristic.</p>';
+    var h='<table class="funnel"><thead><tr><th>Group</th>'+STAGES.map(function(s){return '<th>'+s+'<br><span style="text-transform:none;letter-spacing:0">share</span></th>';}).join('')+
+      '<th class="grp-rate">Application rate<br><span style="text-transform:none;letter-spacing:0">applied ÷ eligible</span></th><th>Success rate<br><span style="text-transform:none;letter-spacing:0">received ÷ applied</span></th></tr></thead><tbody>';
+    h+='<tr class="all-row"><td>All with a recorded value</td>'+d.present.map(function(n){return '<td class="share">'+n.toLocaleString()+'</td>';}).join('')+
+      '<td class="rate">'+pct1(d.appRate)+'</td><td class="rate">'+pct1(d.recRate)+'</td></tr>';
+    d.rows.forEach(function(r){
+      h+='<tr><td>'+esc(r.category)+'</td>'+r.n.map(function(n,i){return stageCell(n,r.share[i],d.present[i]);}).join('')+
+        rateCell(r.appRate,r.appRest,r.appSig,r.n[1])+rateCell(r.recRate,r.recRest,r.recSig,r.n[2])+'</tr>';
+    });
+    return h+'</tbody></table>';
+  }
+  function gapsTableHTML(F){
+    if(!F.gaps.length)return '<p class="note">No group applies for, or receives, this fund at a significantly different rate from other students at the stage before. With small numbers, only large differences can show up as significant.</p>';
+    return '<table class="funnel"><thead><tr><th>Group</th><th>Characteristic</th><th>Stage</th><th class="grp-rate">This group</th><th>Other students</th></tr></thead><tbody>'+
+      F.gaps.map(function(g){var lo=g.rate<g.rest;
+        return '<tr><td>'+esc(g.r.category)+'</td><td>'+esc(g.dim)+'</td><td>'+g.stage+'</td><td class="rate '+(lo?'sig-lo':'sig-hi')+'">'+pct1(g.rate)+' <span class="'+(lo?'arrow-lo':'arrow-hi')+'">'+(lo?'▼':'▲')+'</span></td><td>'+pct1(g.rest)+'</td></tr>';}).join('')+'</tbody></table>';
+  }
+  function stagesHTML(F){
+    var c=F.counts,max=Math.max(1,c[0]);
+    var sub=['students in the population',
+      (F.eligDesc?'eligible ('+esc(F.eligDesc)+')':'eligible (the whole population)'),
+      F.noApplied?'recipients (no applications data)':'applied',
+      'received'];
+    return STAGES.map(function(s,i){
+      var pct=i===0?'':(c[i-1]?Math.round(1000*c[i]/c[i-1])/10+'% of the stage before':'');
+      return '<div class="stage"><div><strong>'+s+'</strong></div><div class="stage-bar"><i style="width:'+(100*c[i]/max)+'%"></i></div>'+
+        '<div class="stage-txt"><b>'+c[i].toLocaleString()+'</b> '+sub[i]+(pct?'<br>'+pct:'')+'</div></div>';
+    }).join('');
+  }
+  // Characteristics with at least two groups among eligible students
+  function fnDims(F){return DIMS.filter(function(dim){return F.dims[dim]&&F.dims[dim].rows.filter(function(r){return r.n[1]>0;}).length>1;});}
+  function fnDimList(){var F=FUNNELS[fstate.fund];return ['Biggest differences'].concat(F?fnDims(F):DIMS);}
+  function buildFunnelUI(){
+    document.getElementById('viewTabs').classList.toggle('hidden',!FUNNELS.length);
+    var host=document.getElementById('fundTabs');host.textContent='';
+    FUNNELS.forEach(function(F,i){var b=document.createElement('button');b.className='tab';b.setAttribute('role','tab');b.dataset.i=i;
+      b.textContent=F.name+' ('+F.counts[3].toLocaleString()+')';b.addEventListener('click',function(){fstate.fund=i;renderFunnel();});host.appendChild(b);});
+    renderFnDimTabs();
+    fstate.fund=Math.min(fstate.fund,Math.max(0,FUNNELS.length-1));if(!fstate.dim)fstate.dim='Biggest differences';
+  }
+  function renderFnDimTabs(){
+    var dh=document.getElementById('fnDimTabs');dh.textContent='';
+    fnDimList().forEach(function(d){var b=document.createElement('button');b.className='tab';b.setAttribute('role','tab');b.dataset.dim=d;b.textContent=d;
+      b.addEventListener('click',function(){fstate.dim=d;renderFunnel();});dh.appendChild(b);});
+  }
+  function setMainView(v){
+    fstate.view=FUNNELS.length?v:'rep';
+    Array.prototype.forEach.call(document.querySelectorAll('#viewTabs .tab'),function(b){b.setAttribute('aria-selected',b.dataset.v===fstate.view);});
+    document.getElementById('repView').classList.toggle('hidden',fstate.view!=='rep');
+    document.getElementById('funnelView').classList.toggle('hidden',fstate.view!=='funnel');
+    if(fstate.view==='funnel')renderFunnel();
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('#viewTabs .tab'),function(b){b.addEventListener('click',function(){setMainView(b.dataset.v);});});
+  function renderFunnel(){
+    var F=FUNNELS[fstate.fund];if(!F)return;
+    renderFnDimTabs();
+    if(fnDimList().indexOf(fstate.dim)<0)fstate.dim='Biggest differences';
+    Array.prototype.forEach.call(document.getElementById('fundTabs').children,function(b){b.setAttribute('aria-selected',+b.dataset.i===fstate.fund);});
+    Array.prototype.forEach.call(document.getElementById('fnDimTabs').children,function(b){b.setAttribute('aria-selected',b.dataset.dim===fstate.dim);});
+    document.getElementById('fnTitle').textContent=F.name+': funnel';
+    document.getElementById('fnNote').textContent='Each stage is a subset of the one before. Applied and received count only students who are in the eligible population.';
+    document.getElementById('fnStages').innerHTML=stagesHTML(F);
+    var big=fstate.dim==='Biggest differences';
+    document.getElementById('fnDimTitle').textContent=big?F.name+': biggest differences':F.name+': funnel by '+fstate.dim;
+    document.getElementById('fnDimNote').textContent=big?
+      'Groups that applied, or were awarded the fund, at a significantly different rate from other students at the stage before, across every characteristic. Largest difference first.':
+      'The share columns show how each group makes up each stage. The rate columns show where a group drops out or gets through: the application rate is the share of eligible students who applied, and the success rate is the share of applicants who received the fund. Each rate is compared with every other student at the stage before. Eligibility follows the fund\'s rules, so differences between the population and eligible columns are by design.';
+    document.getElementById('fnTable').innerHTML=big?gapsTableHTML(F):funnelTableHTML(F,fstate.dim);
+    var notes=[];
+    if(F.outsideApp)notes.push(F.outsideApp.toLocaleString()+' student'+(F.outsideApp>1?'s':'')+' who applied (or received the fund) '+(F.outsideApp>1?'are':'is')+' not in the eligible population, for example because they are outside its filters or not in the population file, so '+(F.outsideApp>1?'they are':'it is')+' left out of this funnel.');
+    if(F.outsideRec)notes.push('Of those, '+F.outsideRec.toLocaleString()+' received the fund.');
+    if(F.noApplied)notes.push('There is no applications column for this fund, so the applied stage shows the recipients only, and the success rate is 100%.');
+    notes.push('Groups with fewer than '+MIN+' students at a stage are not shown, and rates are only tested where both the group and everyone else have at least '+MIN+' students.');
+    document.getElementById('fnNotesCard').classList.remove('hidden');
+    document.getElementById('fnNotes').innerHTML=notes.map(esc).join('<br>');
+  }
+  function reportFunnel(host,F){
+    var sec=document.createElement('section');sec.className='rep-group';
+    sec.innerHTML='<h2>'+esc(F.name)+': funding funnel</h2>'+
+      '<div class="rep-stats">'+STAGES.map(function(s,i){return '<div><b>'+F.counts[i].toLocaleString()+'</b>'+s.toLowerCase()+'</div>';}).join('')+'</div>'+
+      (F.eligDesc?'<p class="rep-meta">Eligible: '+esc(F.eligDesc)+'</p>':'')+
+      '<div class="rep-box"><h3>Biggest differences</h3>'+gapsTableHTML(F)+'</div>';
+    fnDims(F).forEach(function(dim){var box=document.createElement('div');box.className='rep-chart';
+      box.innerHTML='<h4>By '+esc(dim)+'</h4>'+funnelTableHTML(F,dim);sec.appendChild(box);});
+    host.appendChild(sec);
+  }
 
   // ---- events --------------------------------------------------------------
   document.getElementById('btnChart').addEventListener('click',function(){setView('chart');});
@@ -970,12 +1454,10 @@
     var headers=rows[0].map(function(h){return String(h).trim();}),body=rows.slice(1);
     if(!window.MISPreset||!MISPreset.detect(headers)) return makeCsv(headers,body,fileName);
     var ys=MISPreset.years(headers,body);
-    var mis={headers:headers,rows:body,years:ys,year:ys[ys.length-1]};
-    return misYear(mis,fileName);
-  }
-  function misYear(mis,fileName){
-    var t=MISPreset.transform(mis.headers,mis.rows,mis.year);
-    var csv=makeCsv(t.headers,t.rows,fileName);mis.defaults=t.defaults;csv.mis=mis;return csv;
+    var t=MISPreset.transform(headers,body,null);
+    var csv=makeCsv(t.headers,t.rows,fileName);
+    csv.mis={years:ys,latest:MISPreset.yearLabel(ys[ys.length-1]),defaults:t.defaults};
+    return csv;
   }
   function readFile(file,cb,which){
     function done(rows){
@@ -1004,7 +1486,7 @@
     function take(file){ if(!file)return; if(!isCsv(file)){showError('Please choose a .csv or .xlsx file. Got "'+file.name+'".');return;}
       document.getElementById(which==='pop'?'popLoaded':'cohortLoaded').textContent='Reading '+file.name+'…';
       readFile(file,function(csv){
-        if(which==='pop'){POPCSV=csv;document.getElementById('popLoaded').textContent='✓ '+csv.fileName+' ('+csv.rows.length.toLocaleString()+' rows'+(csv.mis?' in '+MISPreset.yearLabel(csv.mis.year)+', student number download recognised':'')+')';document.getElementById('dropPop').classList.add('loaded');}
+        if(which==='pop'){POPCSV=csv;document.getElementById('popLoaded').textContent='✓ '+csv.fileName+' ('+csv.rows.length.toLocaleString()+' rows'+(csv.mis?', student number download recognised':'')+')';document.getElementById('dropPop').classList.add('loaded');}
         else{COHORTCSV=csv;document.getElementById('cohortLoaded').textContent='✓ '+csv.fileName+' ('+csv.rows.length.toLocaleString()+' rows)';document.getElementById('dropCohort').classList.add('loaded');}
         document.getElementById('errBox').innerHTML='';refreshContinue();
       },which);
@@ -1017,8 +1499,6 @@
     drop.addEventListener('drop',function(e){take(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]);});
   }
   wireDrop('dropPop','filePop','pop');
-  document.getElementById('popYear').addEventListener('change',function(e){
-    if(!POPCSV||!POPCSV.mis)return;POPCSV.mis.year=e.target.value;POPCSV=misYear(POPCSV.mis,POPCSV.fileName);showMapping();});
   wireDrop('dropCohort','fileCohort','cohort');
 
   // ---- init ----------------------------------------------------------------

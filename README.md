@@ -88,8 +88,10 @@ When its headers are recognised, the dashboard:
 
 - fills down the Student Id, which the download leaves blank on a student's second
   year;
-- asks which academic year to compare against (the latest by default), since the
-  download holds two years;
+- keeps both academic years, with an Academic year column, and starts the
+  population on the latest year and enrolled students (ES), with apprentices
+  left out where the download has the apprenticeship flag. These are ordinary
+  population filters (see below), so any of them can be changed;
 - groups each characteristic as the EDI report does, so totals match that report
   exactly (2025/26: 14,023 students, 10,293 BAME, 5,903 under 21, 2,341 with a
   reported disability). Sex is Female, Male or Other (blank counts as Other). Age
@@ -98,8 +100,10 @@ When its headers are recognised, the dashboard:
 - adds the wider characteristics in the download: faculty, level and mode of
   study, residency, first generation in HE, care leaver, IMD quintile (from the
   home postcode decile), and prior qualifications from the A-level and BTEC flags.
-  Department, detailed ethnicity, religion, parental HE, entry route and
-  apprenticeship are available too and can be switched on in the column mapping.
+  Department, detailed ethnicity, religion, parental HE and entry route are
+  available too and can be switched on in the column mapping. Enrolment status,
+  joint programme and apprenticeship are set up as filters only, as are new or
+  continuing, intake and programme type when the download includes them.
 
 Values shown as `*` in the download are treated as not known and left out of the
 comparison for that characteristic. Student numbers match with or without the
@@ -111,6 +115,39 @@ To refresh the built-in baseline from a new download:
 ```bash
 node analysis/build_dashboard_baseline.js "path/to/Student_number_data.xlsx"
 ```
+
+### Population filters
+
+Any population column can be marked as a demographic (compared on) or a filter
+only (used to choose who counts). Under **Population: who counts?**, tick the
+values to keep for each filter, for example 2025/26 and enrolled students. The
+page shows the population count as you go, and warns if a student appears more
+than once, which usually means more than one academic year is included.
+
+### Funding funnels
+
+Under **Funds and funnel stages**, each fund groups cohort columns into two
+stages: who applied and who received it. Ticking several columns for a stage
+combines them, which is how small donor funds can be grouped into one. Each fund
+can have eligibility filters on top of the population filters, and a fund filter
+replaces the population filter for the same column (for example, a different
+academic year for a scheme awarded to last year's entrants). Columns named
+"<fund> applied" and "<fund> received" (or paid) are paired up automatically.
+
+The **Funding funnel** view then shows, for each fund, four stages: the
+population, the eligible students, those who applied and those who received the
+fund. For each characteristic it shows each group's share at each stage, its
+application rate (applied ÷ eligible) and its success rate (received ÷ applied).
+Each rate is compared with every other student at the stage before, using a
+two-proportion z-test at the 95% level, so the table shows where a group drops
+out or gets through. **Biggest differences** lists the significant ones across
+every characteristic. Only students in the eligible population count as applying
+or receiving; anyone outside it is reported in the notes. The PDF report includes
+the funnels.
+
+The population filters and funds are remembered in the browser. **Save setup**
+writes them to a small file of column names and filter choices, with no student
+data, so the same setup can be opened next year or on another computer.
 
 ### Two ways to use it
 
