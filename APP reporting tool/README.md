@@ -22,7 +22,7 @@ Chrome remembers the folder, so later visits need one click at most. Each time t
 ### The process, in order
 
 1. **Agree a plan for each intervention.** On **Interventions**, open the intervention. Record each deliverable with an owner and a date, and the data the evaluation needs: what, why, who provides it, in what format and when. Save the plan as a Word file, send it to the team, and record it as agreed once they confirm.
-2. **Two weeks before each paper deadline,** send each strand lead their summary from **Progress**, **Strand lead summaries**.
+2. **Two weeks before each paper deadline (the reminder banner shows on Progress from four weeks out),** send each strand lead their summary from **Progress**, **Strand lead summaries**.
 3. **When updates come in,** paste them on **Updates**, or edit the intervention's page directly. Moving an agreed date later asks for the reason.
 4. **Keep project documents and the timeline in step.** Changes to project documents go on the **Theory of Change audit** checklist, and **Progress**, **Timeline spreadsheet** updates the Gantt once a document's dates change.
 5. **At the deadline,** follow the checklist under **Progress**, **Committee reporting**, then create the draft paper.
@@ -34,7 +34,7 @@ Chrome remembers the folder, so later visits need one click at most. Each time t
   - **Committee reporting:** committee dates (editable), the countdown and checklist, the termly ESE paper and annual report, and Outlook reminders: an all-day entry, shown as free, on each paper deadline and two weeks before it.
   - **Timeline spreadsheet:** checks the APP timeline and status spreadsheet and updates it (see below). The import sits here too.
 - **Updates:** paste a structured update from a meeting or a strand lead, check the preview, and save. See `meeting-update-format.md`.
-- **Interventions:** every intervention, with its status, progress group, plan and next due date. Each opens a page with everything about it: status, deliverables and actions (all editable), data requirements (all editable), the plan's agreement, notes, project document changes, and a link to its project document. Recording a plan as agreed fixes each deliverable's agreed date, so later changes show as slippage. With the SharePoint address of APP Projects saved, the document link opens it in Word; otherwise the page offers a copy.
+- **Interventions:** every intervention, with its status, progress group, plan and next due date. Each opens a page with everything about it: status, deliverables and actions, and data requirements, each shown as a table with an Edit button on each row, and Copy buttons that put the tables on the clipboard ready to paste into an email, the plan's agreement, notes, project document changes, and a link to its project document. Recording a plan as agreed fixes each deliverable's agreed date, so later changes show as slippage. With the SharePoint address of APP Projects saved, the document link opens it in Word; otherwise the page offers a copy.
 - **Theory of Change audit:** counts of complete, partly written and missing theories of change for non-BAU interventions in strands 1 to 6 (strand 7 is listed separately), with the missing sections for each, related notes, and the checklist of project document changes.
 - **How it works:** the question mark in the banner opens a diagram of how the data flows and the reporting cycle.
 

@@ -26,6 +26,7 @@
     sub: 'summary',    // Progress sub-page: summary, strands, reporting or timeline
     cat: null,         // Progress summary filter: { cat, strand }
     ivPage: null,      // intervention shown on its own page
+    editing: null,     // the deliverable or data row open for editing, as "ivId|itemId"
     strand: 'all',
     nonBauOnly: true,
     message: null,
@@ -264,6 +265,37 @@
     } catch (e) {
       flash('error', `Couldn't save: ${e.message}`);
     }
+  }
+
+  // Tables for pasting into an email: HTML for Outlook, with plain text as a fallback.
+  function copyTables(iv, which) {
+    const cellCss = 'border:1px solid #bfbfbf;padding:4px 8px;text-align:left;vertical-align:top;font-family:Arial,sans-serif;font-size:10pt';
+    const table = (head, rows) => `<table style="border-collapse:collapse">
+      <tr>${head.map((h) => `<th style="${cellCss};background:#2e2654;color:#ffffff">${esc(h)}</th>`).join('')}</tr>
+      ${rows.map((r) => `<tr>${r.map((c) => `<td style="${cellCss}">${esc(c)}</td>`).join('')}</tr>`).join('')}</table>`;
+    const text = (head, rows) => [head, ...rows].map((r) => r.join('\t')).join('\n');
+    const items = (iv.deliverables || []).filter((d) => d.status !== 'Done')
+      .sort((a, b) => (a.kind === 'action') - (b.kind === 'action') || (a.due || '9999').localeCompare(b.due || '9999'));
+    const dHead = ['Type', 'Deliverable or action', 'Owner', 'Due', 'Status'];
+    const dRows = items.map((d) => [d.kind === 'action' ? 'Action' : 'Deliverable', d.title, d.owner || 'To confirm',
+      d.due ? fmtDate(d.due) + (plans.slip(d) ? ` (agreed ${fmtDate(d.agreedDue)})` : '') : 'To confirm', d.status]);
+    const xHead = ['Data needed', 'Why it is needed', 'Who provides it', 'Format', 'When', 'Next due', 'Status'];
+    const xRows = (iv.dataNeeds || []).map((x) => [x.what, x.purpose || '', x.owner || 'To confirm', x.format || 'To confirm', x.when || 'To confirm', x.due ? fmtDate(x.due) : '', x.status]);
+    const title = (t) => `<p style="font-family:Arial,sans-serif;font-size:11pt;font-weight:bold;margin:12px 0 4px">${esc(t)}</p>`;
+    let html = '', plain = '';
+    if (which !== 'data') {
+      html += (which === 'all' ? title(`${iv.id} ${iv.name}: deliverables and actions`) : '') + (dRows.length ? table(dHead, dRows) : '<p>None recorded yet.</p>');
+      plain += (which === 'all' ? `${iv.id} ${iv.name}: deliverables and actions\n` : '') + (dRows.length ? text(dHead, dRows) : 'None recorded yet.');
+    }
+    if (which !== 'deliv') {
+      html += (which === 'all' ? title('Data needed for the evaluation') : '') + (xRows.length ? table(xHead, xRows) : '<p>None recorded yet.</p>');
+      plain += (which === 'all' ? '\n\nData needed for the evaluation\n' : '') + (xRows.length ? text(xHead, xRows) : 'None recorded yet.');
+    }
+    const done = () => flash('ok', 'Copied. Paste it into an email.');
+    const fail = (e) => flash('error', `Couldn't copy: ${e.message}`);
+    if (window.ClipboardItem) {
+      navigator.clipboard.write([new ClipboardItem({ 'text/html': new Blob([html], { type: 'text/html' }), 'text/plain': new Blob([plain], { type: 'text/plain' }) })]).then(done, fail);
+    } else navigator.clipboard.writeText(plain).then(done, fail);
   }
 
   function addNote(ivId) {
@@ -666,27 +698,50 @@ Status: At risk`;
     return `<span class="small">${esc(name)}</span> <button class="quiet small-btn" data-opendoc="${esc(iv.id)}">Open a copy</button>`;
   }
 
-  function editRow(iv, d) {
+  function viewRow(iv, d) {
     const key = `${esc(iv.id)}|${esc(d.id)}`;
     return `<tr class="${d.status === 'Done' ? 'is-done' : ''}">
+      <td><span class="chip">${d.kind === 'action' ? 'Action' : 'Deliverable'}</span></td>
+      <td>${esc(d.title)}${historyText(d)}</td>
+      <td>${d.owner ? esc(d.owner) : '<span class="hot small">No owner</span>'}</td>
+      <td class="nowrap">${d.agreedDue ? fmtDate(d.agreedDue) : '<span class="muted small">Not agreed</span>'}</td>
+      <td class="nowrap"><span class="${dueClass(d)}">${d.due ? fmtDate(d.due) : '<span class="muted">No date</span>'}</span>${slipText(d)}${d.status !== 'Done' && d.due && d.due < TODAY ? '<div class="small hot">Overdue</div>' : ''}</td>
+      <td><span class="pill ${{ Done: 'ok', Blocked: 'risk', 'In progress': 'map' }[d.status] || 'bau'}">${esc(d.status)}</span></td>
+      <td class="nowrap"><button class="quiet small-btn" data-edit="${key}">Edit</button></td></tr>`;
+  }
+
+  function editRow(iv, d) {
+    if (state.editing !== `${iv.id}|${d.id}`) return viewRow(iv, d);
+    const key = `${esc(iv.id)}|${esc(d.id)}`;
+    return `<tr class="editing" class="${d.status === 'Done' ? 'is-done' : ''}">
       <td><select data-dedit="${key}|kind" aria-label="Type"><option value="deliverable" ${d.kind !== 'action' ? 'selected' : ''}>Deliverable</option><option value="action" ${d.kind === 'action' ? 'selected' : ''}>Action</option></select></td>
       <td class="grow"><input type="text" value="${esc(d.title)}" data-dedit="${key}|title" aria-label="Title">${historyText(d)}</td>
       <td><input type="text" size="10" value="${esc(d.owner || '')}" data-dedit="${key}|owner" aria-label="Owner"></td>
       <td class="nowrap">${d.agreedDue ? fmtDate(d.agreedDue) : '<span class="muted small">Not agreed</span>'}</td>
       <td class="nowrap"><input type="date" value="${esc(d.due || '')}" data-due="${key}" aria-label="Due date">${slipText(d)}${d.status !== 'Done' && d.due && d.due < TODAY ? '<div class="small hot">Overdue</div>' : ''}</td>
       <td><select data-deliv="${key}" aria-label="Status">${model.DELIVERABLE_STATUSES.map((s) => `<option ${s === d.status ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
-      <td><button class="link small" data-ddel="${key}" aria-label="Delete">Delete</button></td></tr>`;
+      <td class="nowrap"><button class="primary small-btn" data-edit-done="1">Done</button> <button class="link small" data-ddel="${key}">Delete</button></td></tr>`;
   }
 
   function dataRow(iv, x) {
     const key = `${esc(iv.id)}|${esc(x.id)}`;
+    const late = x.status !== 'Received' && x.due && x.due < TODAY;
+    if (state.editing !== `${iv.id}|${x.id}`) {
+      const tc = (v) => (v ? esc(v) : '<span class="hot small">To confirm</span>');
+      return `<tr>
+        <td><strong>${esc(x.what)}</strong>${x.purpose ? `<div class="small muted">${esc(x.purpose)}</div>` : ''}</td>
+        <td>${tc(x.owner)}</td><td>${tc(x.format)}</td><td>${tc(x.when)}</td>
+        <td class="nowrap">${x.due ? `<span class="${late ? 'hot' : ''}">${fmtDate(x.due)}</span>${late ? '<div class="small hot">Late</div>' : ''}` : '<span class="muted small">None</span>'}</td>
+        <td><span class="pill ${{ Received: 'ok', Agreed: 'map' }[x.status] || 'warn'}">${esc(x.status)}</span></td>
+        <td class="nowrap"><button class="quiet small-btn" data-edit="${key}">Edit</button></td></tr>`;
+    }
     const f = (field, size, label) => `<input type="text" ${size ? `size="${size}"` : ''} value="${esc(x[field] || '')}" data-xedit="${key}|${field}" aria-label="${label}" placeholder="To confirm">`;
     return `<tr>
       <td class="grow">${f('what', 0, 'Data')}<div class="small" style="margin-top:4px">${f('purpose', 0, 'Why it is needed')}</div></td>
       <td>${f('owner', 10, 'Who provides it')}</td><td>${f('format', 12, 'Format')}</td><td>${f('when', 12, 'When')}</td>
       <td class="nowrap"><input type="date" value="${esc(x.due || '')}" data-xedit="${key}|due" aria-label="Next due">${x.status !== 'Received' && x.due && x.due < TODAY ? '<div class="small hot">Late</div>' : ''}</td>
       <td><select data-datastatus="${key}" aria-label="Status">${plans.DATA_STATUSES.map((s) => `<option ${s === x.status ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
-      <td><button class="link small" data-deldata="${key}">Delete</button></td></tr>`;
+      <td class="nowrap"><button class="primary small-btn" data-edit-done="1">Done</button> <button class="link small" data-deldata="${key}">Delete</button></td></tr>`;
   }
 
   function renderInterventionPage(iv) {
@@ -719,7 +774,8 @@ Status: At risk`;
         </div>
         ${templateUpdatesBlock(iv)}
 
-        <h3 class="section">Deliverables and actions</h3>
+        <div class="section-head"><h3 class="section">Deliverables and actions</h3>
+          <span class="row-actions"><button class="quiet small-btn" data-copy="deliv|${esc(iv.id)}">Copy table</button><button class="quiet small-btn" data-copy="all|${esc(iv.id)}">Copy both for an email</button></span></div>
         <div class="table-wrap"><table class="grid edit">
           <thead><tr><th>Type</th><th>Title</th><th>Owner</th><th>Agreed date</th><th>Due</th><th>Status</th><th></th></tr></thead>
           <tbody>${items.map((d) => editRow(iv, d)).join('') || '<tr><td colspan="7" class="muted small">None yet. Add each deliverable with an owner and a date.</td></tr>'}</tbody></table></div>
@@ -733,7 +789,8 @@ Status: At risk`;
           <button class="quiet" data-add="${esc(iv.id)}">Add</button>
         </div>
 
-        <h3 class="section">Data for the evaluation</h3>
+        <div class="section-head"><h3 class="section">Data for the evaluation</h3>
+          <span class="row-actions"><button class="quiet small-btn" data-copy="data|${esc(iv.id)}">Copy table</button></span></div>
         <div class="table-wrap"><table class="grid edit">
           <thead><tr><th>Data, and why it's needed</th><th>Who provides it</th><th>Format</th><th>When</th><th>Next due</th><th>Status</th><th></th></tr></thead>
           <tbody>${c.data.map((x) => dataRow(iv, x)).join('') || '<tr><td colspan="7" class="muted small">None yet. What data will show whether this intervention is working?</td></tr>'}</tbody></table></div>
@@ -800,7 +857,7 @@ Status: At risk`;
   function nudgeBanner() {
     if (!state.tracker) return '';
     const cyc = reporting.cycle(state.tracker, TODAY);
-    if (!cyc.nudge || (state.tab === 'progress' && state.sub === 'reporting')) return '';
+    if (!cyc.nudge || state.tab !== 'progress' || state.sub === 'reporting') return '';
     const n = cyc.next;
     return `<div class="msg nudge" role="status"><strong>${esc(n.name || 'ESE Committee')} paper due in ${cyc.daysLeft} day${cyc.daysLeft === 1 ? '' : 's'}</strong> (${fmtDate(n.deadline || n.meeting)}).
       <button class="link" data-tab="reporting">Check what's still needed</button></div>`;
@@ -1338,6 +1395,9 @@ Status: At risk`;
       persist('Deleted.');
     }
     else if (t.dataset.addnote) addNote(t.dataset.addnote);
+    else if (t.dataset.edit) { state.editing = t.dataset.edit; render(); }
+    else if (t.dataset.editDone) { state.editing = null; render(); }
+    else if (t.dataset.copy) { const [which, id] = t.dataset.copy.split('|'); copyTables(findIv(id), which); }
     else if (t.dataset.savePlan) savePlans(t.dataset.savePlan);
     else if (t.dataset.opendoc) openDocCopy(t.dataset.opendoc);
     else if (t.id === 'save-docs-url') {
