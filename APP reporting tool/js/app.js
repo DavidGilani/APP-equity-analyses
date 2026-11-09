@@ -14,6 +14,7 @@
     audit: null,
     pendingImport: null,
     pendingUpdate: null,
+    pasteOpen: false,  // Updates: the paste box is open
     meetingText: '',
     showDone: false,
     yourName: 'David',
@@ -111,7 +112,17 @@
       try { state.lastSnapshot = await folder.latestSnapshot(state.conn.projects); } catch { state.lastSnapshot = null; }
     }
     render();
-    if (state.tracker) runAudit({ quiet: true });
+    if (state.tracker) {
+      const removed = plans.mergeDuplicateData(state.tracker);
+      if (removed) {
+        try {
+          await folder.saveTracker(state.conn.projects, state.tracker, { backup: true });
+          state.message = { kind: 'ok', text: `Merged ${removed} duplicate data requirement${removed === 1 ? '' : 's'}. The previous tracker is in the backups folder.` };
+          render();
+        } catch (e) { state.message = { kind: 'error', text: `Couldn't save after merging duplicates: ${e.message}` }; }
+      }
+      runAudit({ quiet: true });
+    }
   }
 
   // ---------- import ----------
@@ -382,24 +393,55 @@ Status: At risk`;
       </section>`;
     }
     return `<h2>Updates</h2>
-      <p class="muted">Paste a structured update from a meeting or a strand lead, check the preview, then save. It can add notes, deliverables and actions, data requirements, project document changes and status changes. Each line goes to the intervention heading above it.</p>
-      <details class="panel help"><summary><strong>Format</strong></summary>
+      <p class="muted intro">Add an update from a meeting or a strand lead. It can add notes, deliverables and actions, data requirements, project document changes and status changes. You'll see a preview before anything is saved.</p>
+      <div class="update-options">
+        <div class="drop-zone" id="drop-zone" tabindex="0" role="button" aria-label="Drop an update file here">
+          <span class="opt-num">1</span><strong>Drag a file in here</strong><span class="muted small">A .txt file in the update format</span></div>
+        <label class="opt-card"><span class="opt-num">2</span><strong>Choose a file</strong><span class="muted small">Browse to a .txt file</span>
+          <input type="file" id="update-file" accept=".txt,.md" hidden><span class="quiet opt-btn">Choose file</span></label>
+        <button class="opt-card ${state.pasteOpen ? 'on' : ''}" id="open-paste"><span class="opt-num">3</span><strong>Copy in text</strong><span class="muted small">Paste the update into a box</span></button>
+      </div>
+      ${state.pasteOpen ? `<textarea id="meeting-text" rows="14" spellcheck="true" placeholder="Paste the update here">${esc(state.meetingText)}</textarea>
+      <div class="bar start"><button id="preview-update" class="primary">Preview</button></div>` : ''}
+      ${preview}
+      <details class="panel help"><summary><strong>The update format</strong></summary>
         <ul class="small">
           <li><code>Meeting:</code> and <code>Date:</code> at the top.</li>
-          <li>An intervention heading in square brackets, like <code>[6.2]</code>.</li>
+          <li>An intervention heading in square brackets, like <code>[6.2]</code>. Each line goes to the heading above it.</li>
           <li><code>Update:</code>, <code>Risk:</code>, <code>Decision:</code>, <code>Scope change:</code> or <code>Question:</code> for notes.</li>
           <li><code>Action:</code> or <code>Deliverable:</code>, followed by <code>| owner: Name | due: dd/mm/yyyy</code>.</li>
-          <li><code>Data:</code> followed by <code>| from: Name | format: Excel | when: end of each term | due: dd/mm/yyyy | for: why it's needed</code>.</li>
+          <li><code>Data:</code> followed by <code>| from: Name | format: Excel | when: end of each term | due: dd/mm/yyyy | for: why it's needed</code>. A data line with the same description as an existing one updates it.</li>
           <li><code>Template: Section | what needs changing</code>, where the section is ${model.TEMPLATE_SECTIONS.map((s) => `<code>${s}</code>`).join(', ')}.</li>
           <li><code>Status:</code> to change the live status, using ${model.STATUSES.map((s) => `<code>${s}</code>`).join(', ')}.</li>
         </ul>
         <pre class="example">${esc(EXAMPLE)}</pre>
-      </details>
-      <textarea id="meeting-text" rows="16" spellcheck="true" placeholder="Paste the update here">${esc(state.meetingText)}</textarea>
-      <div class="bar"><button id="preview-update" class="primary">Preview</button>
-        <label class="file small"><input type="file" id="update-file" accept=".txt,.md"> or open a text file</label></div>
-      ${preview}`;
+      </details>`;
   }
+
+  function loadUpdateFile(file) {
+    if (!/\.(txt|md)$/i.test(file.name)) { flash('error', 'Use a .txt file in the update format.'); return; }
+    file.text().then((txt) => { state.meetingText = txt; state.pasteOpen = true; previewUpdate(); });
+  }
+
+  // Drag and drop onto the drop zone on Updates.
+  document.addEventListener('dragover', (e) => {
+    const z = e.target.closest && e.target.closest('#drop-zone');
+    if (!z) return;
+    e.preventDefault();
+    z.classList.add('over');
+  });
+  document.addEventListener('dragleave', (e) => {
+    const z = e.target.closest && e.target.closest('#drop-zone');
+    if (z) z.classList.remove('over');
+  });
+  document.addEventListener('drop', (e) => {
+    const z = e.target.closest && e.target.closest('#drop-zone');
+    if (!z) return;
+    e.preventDefault();
+    z.classList.remove('over');
+    const f = e.dataTransfer.files[0];
+    if (f) loadUpdateFile(f);
+  });
 
   function previewUpdate() {
     state.pendingUpdate = meetingUpdate.parseUpdate(state.meetingText, state.tracker);
@@ -1329,6 +1371,7 @@ Status: At risk`;
     else if (t.dataset.received) { recordContact(t.dataset.received, 'responseReceived'); persist(`Strand ${t.dataset.received} response recorded as received.`); }
     else if (t.dataset.response) {
       state.meetingText = responseTemplate(t.dataset.response);
+      state.pasteOpen = true;
       recordContact(t.dataset.response, 'responseReceived');
       state.tab = 'meeting';
       persist('Fill in the response under each intervention, then preview and save.');
@@ -1348,6 +1391,7 @@ Status: At risk`;
       persist('Success saved.');
     }
     else if (t.id === 'preview-update') previewUpdate();
+    else if (t.id === 'open-paste') { state.pasteOpen = !state.pasteOpen; render(); if (state.pasteOpen) $('#meeting-text').focus(); }
     else if (t.id === 'save-update') saveUpdate();
     else if (t.dataset.add) addEntry(t.dataset.add);
     else if (t.id === 'save-plans') savePlans();
@@ -1416,9 +1460,7 @@ Status: At risk`;
       state.tracker.settings = { ...(state.tracker.settings || {}), yourName: state.yourName };
       persist();
     }
-    if (e.target.id === 'update-file' && e.target.files[0]) {
-      e.target.files[0].text().then((txt) => { state.meetingText = txt; previewUpdate(); });
-    }
+    if (e.target.id === 'update-file' && e.target.files[0]) loadUpdateFile(e.target.files[0]);
     const d = e.target.dataset || {};
     if (d.statusFor) {
       const iv = findIv(d.statusFor);

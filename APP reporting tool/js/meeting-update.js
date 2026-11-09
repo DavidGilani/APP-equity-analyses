@@ -115,7 +115,7 @@
       iv.dataNeeds = iv.dataNeeds || [];
       for (const x of g.dataNeeds || []) {
         // The same data, described the same way, updates the existing requirement.
-        const same = iv.dataNeeds.find((y) => y.what.trim().toLowerCase() === x.what.trim().toLowerCase());
+        const same = iv.dataNeeds.find((y) => APP.plans.sameText(y.what) === APP.plans.sameText(x.what));
         if (same) {
           for (const k of ['owner', 'format', 'when', 'due', 'purpose']) if (x[k]) same[k] = x[k];
           same.updatedOn = date;

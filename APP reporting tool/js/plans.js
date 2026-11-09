@@ -95,5 +95,27 @@
     return d.toBlob();
   }
 
-  APP.plans = { DATA_STATUSES, slip, needsPlan, planCheck, agreePlan, moveDue, planDoc, weeksBetween };
+  const sameText = (t) => String(t || '').toLowerCase().replace(/\s+/g, ' ').replace(/[.\s]+$/, '').trim();
+
+  // Merge data requirements with the same description, keeping the first one's
+  // place and the latest details. Returns how many duplicates were removed.
+  function mergeDuplicateData(tracker) {
+    let removed = 0;
+    const rank = { 'To agree': 0, Agreed: 1, Received: 2 };
+    for (const iv of tracker.interventions) {
+      const list = iv.dataNeeds || [];
+      const keep = [];
+      for (const x of list) {
+        const first = keep.find((y) => sameText(y.what) === sameText(x.what));
+        if (!first) { keep.push(x); continue; }
+        for (const k of ['owner', 'format', 'when', 'due', 'purpose']) if (x[k]) first[k] = x[k];
+        if ((rank[x.status] || 0) > (rank[first.status] || 0)) first.status = x.status;
+        removed++;
+      }
+      if (keep.length !== list.length) iv.dataNeeds = keep;
+    }
+    return removed;
+  }
+
+  APP.plans = { sameText, mergeDuplicateData, DATA_STATUSES, slip, needsPlan, planCheck, agreePlan, moveDue, planDoc, weeksBetween };
 })(typeof window !== 'undefined' ? window : globalThis);
