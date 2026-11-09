@@ -275,11 +275,11 @@
       ${rows.map((r) => `<tr>${r.map((c) => `<td style="${cellCss}">${esc(c)}</td>`).join('')}</tr>`).join('')}</table>`;
     const text = (head, rows) => [head, ...rows].map((r) => r.join('\t')).join('\n');
     const items = (iv.deliverables || []).filter((d) => d.status !== 'Done')
-      .sort((a, b) => (a.kind === 'action') - (b.kind === 'action') || (a.due || '9999').localeCompare(b.due || '9999'));
+      .sort((a, b) => (b.kind === 'action') - (a.kind === 'action') || (a.due || '9999').localeCompare(b.due || '9999'));
     const dHead = ['Type', 'Deliverable or action', 'Owner', 'Due', 'Status'];
     const dRows = items.map((d) => [d.kind === 'action' ? 'Action' : 'Deliverable', d.title, d.owner || 'To confirm',
-      d.due ? fmtDate(d.due) + (plans.slip(d) ? ` (agreed ${fmtDate(d.agreedDue)})` : '') : 'To confirm', d.status]);
-    const xHead = ['Data needed', 'Why it is needed', 'Who provides it', 'Format', 'When', 'Next due', 'Status'];
+      d.due ? fmtDate(d.due) : 'To confirm', d.status]);
+    const xHead = ['Data needed', 'Why it is needed', 'Who provides it', 'Format', 'Data shared frequency', 'Next due', 'Status'];
     const xRows = (iv.dataNeeds || []).map((x) => [x.what, x.purpose || '', x.owner || 'To confirm', x.format || 'To confirm', x.when || 'To confirm', x.due ? fmtDate(x.due) : '', x.status]);
     const title = (t) => `<p style="font-family:Arial,sans-serif;font-size:11pt;font-weight:bold;margin:12px 0 4px">${esc(t)}</p>`;
     let html = '', plain = '';
@@ -704,9 +704,8 @@ Status: At risk`;
       <td><span class="chip">${d.kind === 'action' ? 'Action' : 'Deliverable'}</span></td>
       <td>${esc(d.title)}${historyText(d)}</td>
       <td>${d.owner ? esc(d.owner) : '<span class="hot small">No owner</span>'}</td>
-      <td class="nowrap">${d.agreedDue ? fmtDate(d.agreedDue) : '<span class="muted small">Not agreed</span>'}</td>
       <td class="nowrap"><span class="${dueClass(d)}">${d.due ? fmtDate(d.due) : '<span class="muted">No date</span>'}</span>${slipText(d)}${d.status !== 'Done' && d.due && d.due < TODAY ? '<div class="small hot">Overdue</div>' : ''}</td>
-      <td><span class="pill ${{ Done: 'ok', Blocked: 'risk', 'In progress': 'map' }[d.status] || 'bau'}">${esc(d.status)}</span></td>
+      <td><select class="status-select st-${esc(d.status.replace(/\s+/g, '-').toLowerCase())}" data-deliv="${key}" aria-label="Status">${model.DELIVERABLE_STATUSES.map((s) => `<option ${s === d.status ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
       <td class="nowrap"><button class="quiet small-btn" data-edit="${key}">Edit</button></td></tr>`;
   }
 
@@ -717,7 +716,6 @@ Status: At risk`;
       <td><select data-dedit="${key}|kind" aria-label="Type"><option value="deliverable" ${d.kind !== 'action' ? 'selected' : ''}>Deliverable</option><option value="action" ${d.kind === 'action' ? 'selected' : ''}>Action</option></select></td>
       <td class="grow"><input type="text" value="${esc(d.title)}" data-dedit="${key}|title" aria-label="Title">${historyText(d)}</td>
       <td><input type="text" size="10" value="${esc(d.owner || '')}" data-dedit="${key}|owner" aria-label="Owner"></td>
-      <td class="nowrap">${d.agreedDue ? fmtDate(d.agreedDue) : '<span class="muted small">Not agreed</span>'}</td>
       <td class="nowrap"><input type="date" value="${esc(d.due || '')}" data-due="${key}" aria-label="Due date">${slipText(d)}${d.status !== 'Done' && d.due && d.due < TODAY ? '<div class="small hot">Overdue</div>' : ''}</td>
       <td><select data-deliv="${key}" aria-label="Status">${model.DELIVERABLE_STATUSES.map((s) => `<option ${s === d.status ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
       <td class="nowrap"><button class="primary small-btn" data-edit-done="1">Done</button> <button class="link small" data-ddel="${key}">Delete</button></td></tr>`;
@@ -732,7 +730,7 @@ Status: At risk`;
         <td><strong>${esc(x.what)}</strong>${x.purpose ? `<div class="small muted">${esc(x.purpose)}</div>` : ''}</td>
         <td>${tc(x.owner)}</td><td>${tc(x.format)}</td><td>${tc(x.when)}</td>
         <td class="nowrap">${x.due ? `<span class="${late ? 'hot' : ''}">${fmtDate(x.due)}</span>${late ? '<div class="small hot">Late</div>' : ''}` : '<span class="muted small">None</span>'}</td>
-        <td><span class="pill ${{ Received: 'ok', Agreed: 'map' }[x.status] || 'warn'}">${esc(x.status)}</span></td>
+        <td><select class="status-select" data-datastatus="${key}" aria-label="Status">${plans.DATA_STATUSES.map((s) => `<option ${s === x.status ? 'selected' : ''}>${s}</option>`).join('')}</select></td>
         <td class="nowrap"><button class="quiet small-btn" data-edit="${key}">Edit</button></td></tr>`;
     }
     const f = (field, size, label) => `<input type="text" ${size ? `size="${size}"` : ''} value="${esc(x[field] || '')}" data-xedit="${key}|${field}" aria-label="${label}" placeholder="To confirm">`;
@@ -750,7 +748,7 @@ Status: At risk`;
     const cat = model.progressCategory(iv, TODAY);
     const why = model.progressReason(iv, TODAY);
     const items = (iv.deliverables || []).filter((d) => state.showDone || d.status !== 'Done')
-      .sort((a, b) => (a.kind === 'action') - (b.kind === 'action') || (a.due || '9999').localeCompare(b.due || '9999'));
+      .sort((a, b) => (b.kind === 'action') - (a.kind === 'action') || (a.due || '9999').localeCompare(b.due || '9999'));
     const hidden = (iv.deliverables || []).filter((d) => d.status === 'Done').length;
     const agreedLine = !plans.needsPlan(iv) ? '' : c.agreed
       ? `<span class="pill ok">Plan agreed ${fmtDate(iv.plan.agreedOn)}${iv.plan.agreedWith ? ` with ${esc(iv.plan.agreedWith)}` : ''}</span>${c.changedSinceAgreed ? ' <span class="pill warn">Changed since agreed</span>' : ''}`
@@ -777,8 +775,8 @@ Status: At risk`;
         <div class="section-head"><h3 class="section">Deliverables and actions</h3>
           <span class="row-actions"><button class="quiet small-btn" data-copy="deliv|${esc(iv.id)}">Copy table</button><button class="quiet small-btn" data-copy="all|${esc(iv.id)}">Copy both for an email</button></span></div>
         <div class="table-wrap"><table class="grid edit">
-          <thead><tr><th>Type</th><th>Title</th><th>Owner</th><th>Agreed date</th><th>Due</th><th>Status</th><th></th></tr></thead>
-          <tbody>${items.map((d) => editRow(iv, d)).join('') || '<tr><td colspan="7" class="muted small">None yet. Add each deliverable with an owner and a date.</td></tr>'}</tbody></table></div>
+          <thead><tr><th>Type</th><th>Title</th><th>Owner</th><th>Due</th><th>Status</th><th></th></tr></thead>
+          <tbody>${items.map((d) => editRow(iv, d)).join('') || '<tr><td colspan="6" class="muted small">None yet. Add each deliverable with an owner and a date.</td></tr>'}</tbody></table></div>
         <label class="small"><input type="checkbox" id="showdone" ${state.showDone ? 'checked' : ''}> Show finished${hidden && !state.showDone ? ` (${hidden} hidden)` : ''}</label>
         <div class="record-form" data-form="${esc(iv.id)}">
           <label>Type <select name="type"><option value="deliverable">Deliverable</option><option value="action">Action</option></select></label>
@@ -792,14 +790,14 @@ Status: At risk`;
         <div class="section-head"><h3 class="section">Data for the evaluation</h3>
           <span class="row-actions"><button class="quiet small-btn" data-copy="data|${esc(iv.id)}">Copy table</button></span></div>
         <div class="table-wrap"><table class="grid edit">
-          <thead><tr><th>Data, and why it's needed</th><th>Who provides it</th><th>Format</th><th>When</th><th>Next due</th><th>Status</th><th></th></tr></thead>
+          <thead><tr><th>Data, and why it's needed</th><th>Who provides it</th><th>Format</th><th>Data shared frequency</th><th>Next due</th><th>Status</th><th></th></tr></thead>
           <tbody>${c.data.map((x) => dataRow(iv, x)).join('') || '<tr><td colspan="7" class="muted small">None yet. What data will show whether this intervention is working?</td></tr>'}</tbody></table></div>
         <div class="record-form" data-dataform="${esc(iv.id)}">
           <label class="grow">Data <input name="what" type="text" placeholder="e.g. Attendance at each session, by student ID" autocomplete="off"></label>
           <label class="grow">Why it's needed <input name="purpose" type="text" autocomplete="off"></label>
           <label>Who provides it <input name="owner" type="text" size="10" autocomplete="off"></label>
           <label>Format <input name="format" type="text" size="10" autocomplete="off"></label>
-          <label>When <input name="when" type="text" size="12" autocomplete="off"></label>
+          <label>Shared how often <input name="when" type="text" size="12" autocomplete="off"></label>
           <label>Next due <input name="due" type="date"></label>
           <button class="quiet" data-adddata="${esc(iv.id)}">Add</button>
         </div>

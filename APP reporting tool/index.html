@@ -138,6 +138,9 @@
   select, input[type="text"], input[type="date"], textarea { font: inherit; color: var(--fg); background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; }
   textarea { width: 100%; margin: 8px 0; font-family: ui-monospace, Consolas, monospace; font-size: .88rem; }
   .status-select { font-size: .8rem; font-weight: 600; padding: 1px 6px; border-radius: 999px; }
+  .status-select.st-done { background: var(--ok-bg); color: var(--ok-fg); }
+  .status-select.st-blocked { background: var(--risk-bg); color: var(--risk-fg); }
+  .status-select.st-in-progress { background: var(--map-bg); color: var(--map-fg); }
   .facts.two { grid-template-columns: 1.4fr 1fr; margin-top: 14px; }
   .deliv, .notes, .tu { list-style: none; margin: 0; padding: 0; font-size: .9rem; }
   .deliv li { display: grid; grid-template-columns: auto 1fr auto auto auto; gap: 4px 10px; align-items: center; padding: 5px 0; border-top: 1px solid var(--line); }

@@ -113,7 +113,14 @@
       for (const n of g.notes) t.notes.push({ id: model.newId('n'), interventionId: g.id, ...n, ...source });
       for (const d of g.deliverables) iv.deliverables.push({ id: model.newId('d'), ...d, agreedDue: iv.plan && iv.plan.agreedOn && d.kind === 'deliverable' ? d.due : null, addedOn: date, ...source });
       iv.dataNeeds = iv.dataNeeds || [];
-      for (const x of g.dataNeeds || []) iv.dataNeeds.push({ id: model.newId('data'), ...x, addedOn: date, ...source });
+      for (const x of g.dataNeeds || []) {
+        // The same data, described the same way, updates the existing requirement.
+        const same = iv.dataNeeds.find((y) => y.what.trim().toLowerCase() === x.what.trim().toLowerCase());
+        if (same) {
+          for (const k of ['owner', 'format', 'when', 'due', 'purpose']) if (x[k]) same[k] = x[k];
+          same.updatedOn = date;
+        } else iv.dataNeeds.push({ id: model.newId('data'), ...x, addedOn: date, ...source });
+      }
       for (const u of g.templateUpdates) t.templateUpdates.push({ id: model.newId('t'), interventionId: g.id, section: u.section, text: u.text, raisedOn: date, meetingId, done: false });
       if (g.status && g.status !== iv.status) {
         t.notes.push({ id: model.newId('n'), interventionId: g.id, type: 'Status change', text: `${iv.status || 'No status'} to ${g.status}`, ...source });
