@@ -130,8 +130,13 @@ node analysis/build_dashboard_baseline.js "path/to/Student_number_data.xlsx"
 Any population column can be marked as a demographic (compared on) or a filter
 only (used to choose who counts). Under **Population: who counts?**, tick the
 values to keep for each filter, for example 2025/26 and enrolled students. The
-page shows the population count as you go, and warns if a student appears more
-than once, which usually means more than one academic year is included.
+page shows the population count as you go. If more than one academic year is
+selected, each student is counted once, using their latest year.
+
+Cohort students take their characteristics from anywhere in the population file,
+even if they are outside the population filters (for example, from another year
+or not recorded as enrolled), so as many as possible are included. The population
+they are compared with is still the filtered one.
 
 ### Funding funnels
 
@@ -143,15 +148,28 @@ replaces the population filter for the same column (for example, a different
 academic year for a scheme awarded to last year's entrants). Columns named
 "<fund> applied" and "<fund> received" (or paid) are paired up automatically.
 
-The **Funding funnel** view then shows, for each fund, four stages: the
-population, the eligible students, those who applied and those who received the
-fund. For each characteristic it shows each group's share at each stage, its
-application rate (applied ÷ eligible) and its success rate (received ÷ applied).
-Each rate is compared with every other student at the stage before, using a
-two-proportion z-test at the 95% level, so the table shows where a group drops
-out or gets through. **Biggest differences** lists the significant ones across
-every characteristic. Only students in the eligible population count as applying
-or receiving; anyone outside it is reported in the notes. The PDF report includes
+The **Funding funnel** view then shows, for each fund, the population, the
+eligible students, those who applied and those who received the fund. It looks at
+three comparisons:
+
+- **Whole journey:** of the eligible students in each group, the share who
+  received the fund, against every other eligible student. This is where to start.
+- **Applying:** the share of eligible students who applied.
+- **Being awarded:** the share of applicants who received the fund.
+
+**Where the gaps are** lists the significant gaps for the chosen comparison,
+largest first (eight at a time), each with its 95% range. For the whole journey it
+also shows whether each gap comes from applying, being awarded or both. Selecting a
+characteristic shows a flow chart of each group's share at each stage, with ▲ or ▼
+where a group's rate is significantly higher or lower than other students', and a
+table of the figures. **All three stages** shows eligible, applied and received
+side by side. Gaps are tested with a two-proportion z-test at the 95% level, and
+groups under 10 students are combined or not shown.
+
+Applicants count if they meet the fund's own eligibility filters, wherever they
+are in the population file; the notes report anyone left out and why. If everyone
+counted as applying also received the fund, the page says so, since that usually
+means unsuccessful applications had no student number. The PDF report includes
 the funnels.
 
 The population filters and funds are remembered in the browser. **Save setup**
