@@ -207,7 +207,17 @@
   td.rate.sig-hi{background:var(--users-soft);box-shadow:inset 3px 0 0 var(--users)}
   .arrow-lo{color:var(--sig);font-weight:700} .arrow-hi{color:var(--users);font-weight:700}
   .sup{color:#9aa4b0;font-style:italic}
-  @media print{ table.funnel{font-size:10.5px} table.funnel tr{break-inside:avoid} }
+  /* flow chart: validated categorical palette, slots in fixed order */
+  #app,#report{--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;--s6:#008300;--s7:#6250d6;--s8:#e34948}
+  .flow-col-h{fill:var(--ink);font-size:12.5px;font-weight:600}
+  .flow-col-s{fill:var(--ink-soft);font-size:11.5px}
+  .flow-lab{fill:var(--ink);font-size:12.5px}
+  .flow-val{fill:var(--ink-soft);font-size:12px;font-variant-numeric:tabular-nums}
+  .flow-seg,.flow-band{cursor:default}
+  .flow-band{opacity:.28} .flow-band:hover{opacity:.5}
+  .mark-lo{fill:var(--sig);font-weight:700} .mark-hi{fill:var(--users);font-weight:700}
+  .showall{margin-top:8px}
+  @media print{ table.funnel{font-size:10.5px} table.funnel tr{break-inside:avoid} .rep-flow svg{max-height:120mm} }
 
   :focus-visible{outline:2px solid var(--focus);outline-offset:2px}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -327,12 +337,17 @@
       <div class="card">
         <h2 id="fnDimTitle">By characteristic</h2>
         <p class="note" id="fnDimNote"></p>
-        <div class="tabrow" id="fnDimTabs" role="tablist" style="margin:10px 0 4px"></div>
-        <div style="overflow-x:auto" id="fnTable"></div>
-        <div class="legend">
-          <span><i class="sw-sig" style="display:inline-block"></i>Significantly lower rate than other students in the stage before (95%)</span>
-          <span><i style="display:inline-block;width:16px;height:10px;border-radius:2px;background:var(--users-soft);border:1px solid var(--users)"></i>Significantly higher</span>
+        <p class="eyebrow" style="margin:12px 0 6px">Stage</p>
+        <div class="toggle" role="group" aria-label="Stage of the funnel" id="fnModes">
+          <button data-m="journey" title="Eligible students compared with those who received the fund">Whole journey</button>
+          <button data-m="app" title="Eligible students compared with those who applied">Applying</button>
+          <button data-m="award" title="Applicants compared with those who received the fund">Being awarded</button>
+          <button data-m="all" title="Eligible, applied and received side by side">All three stages</button>
         </div>
+        <div class="tabrow" id="fnDimTabs" role="tablist" style="margin:14px 0 4px"></div>
+        <div class="chart-scroll" id="fnChart"></div>
+        <div style="overflow-x:auto" id="fnTable"></div>
+        <p class="note" id="fnKey" style="font-size:12px"></p>
       </div>
       <div class="card hidden" id="fnNotesCard"><h2>Notes on the data</h2><p class="note" id="fnNotes"></p></div>
     </div>
@@ -785,11 +800,15 @@
       if(!hasPopDim){showError('In the population file, mark at least one Demographic column to compare on.');return;}
       var cid=firstRole(cohortRoles,'id');
       if(cid<0){showError('In the cohort file, mark which column is the Student ID so it can be joined to the population file.');return;}
-      var baseRows=filterRows(SETUP.base);
+      var baseRows=dedupe(filterRows(SETUP.base),pid).rows;
       if(!baseRows.length){showError('No students in the population match the filters under "Population: who counts?". Tick at least one value for each filter.');return;}
-      var ids={};baseRows.forEach(function(r){ids[normId(r[pid])]=1;});
-      if(Object.keys(ids).length<baseRows.length){showError('Some students appear more than once in the population, usually because it covers more than one academic year. Under "Population: who counts?", filter Academic year to a single year.');return;}
       MODE='join'; buildPopFromCSV(popRoles,baseRows); COHORT_ID_COL=cid; BASE_DESC=describeFilters(SETUP.base);
+      // Cohort students take their characteristics from anywhere in the whole file:
+      // their row in the population if they are in it, otherwise their latest row
+      var inBase={};baseRows.forEach(function(r){inBase[normId(r[pid])]=r;});
+      ROWS_BY_ID=ROWS_BY_ID_LIVE(pid);LOOKUP={};
+      Object.keys(ROWS_BY_ID).forEach(function(id){LOOKUP[id]=inBase[id]||latestRow(ROWS_BY_ID[id]);});
+      OUTSIDE_BASE=COHORTCSV.rows.filter(function(r){var id=normId(r[cid]);return LOOKUP[id]&&!inBase[id];}).length;
     } else {
       BASELINE_COHORT_COLS={};
       Object.keys(cohortRoles).forEach(function(k){
@@ -941,6 +960,8 @@
     var notes=[];
     if(MODE==='join'&&NOTFOUND>0)
       notes.push(NOTFOUND.toLocaleString()+' student'+(NOTFOUND>1?'s':'')+' in the cohort file '+(NOTFOUND>1?'were':'was')+' not found in the population file by ID, so '+(NOTFOUND>1?'they have':'it has')+' no demographics and '+(NOTFOUND>1?'are':'is')+' excluded from the breakdowns (still counted in the cohort total).');
+    if(MODE==='join'&&OUTSIDE_BASE>0)
+      notes.push(OUTSIDE_BASE.toLocaleString()+' student'+(OUTSIDE_BASE>1?'s':'')+' in the cohort file '+(OUTSIDE_BASE>1?'are':'is')+' in the population file but outside its filters (for example, another year or not recorded as enrolled). Their characteristics are taken from the file, so they are included.');
     UNMATCHED_NOTES.forEach(function(n){notes.push(n);});
     var card=document.getElementById('notesCard');
     if(notes.length){card.classList.remove('hidden');
@@ -1097,6 +1118,16 @@
     return true;
   }
   function filterRows(filters){return POPCSV.rows.filter(function(r){return rowPasses(r,filters);});}
+  // With more than one academic year selected, each student counts once, using
+  // their latest year
+  function yearOf(r){var i=popColIndex('Academic year');return i>-1?String(r[i]||''):'';}
+  function dedupe(rows,pid){
+    if(pid<0)return {rows:rows,dups:0};
+    var by={},order=[];
+    rows.forEach(function(r){var id=normId(r[pid]);if(!id)return;
+      if(!by[id]){by[id]=r;order.push(id);}else if(yearOf(r)>=yearOf(by[id]))by[id]=r;});
+    return {rows:order.map(function(id){return by[id];}),dups:rows.length-order.length};
+  }
   // A fund's filters replace the population filters for the same column
   function fundFilters(f){return Object.assign({},SETUP.base,f.filters||{});}
   function describeFilters(filters){
@@ -1181,11 +1212,10 @@
     }
   }
   function countText(rows){
-    var pid=firstRole(readRoles('popMapBody'),'id'),ids={};
-    if(pid>-1)rows.forEach(function(r){ids[normId(r[pid])]=1;});
-    var u=Object.keys(ids).length;
-    return {n:rows.length,dup:pid>-1&&u<rows.length};
+    var d=dedupe(rows,firstRole(readRoles('popMapBody'),'id'));
+    return {n:d.rows.length,dup:d.dups};
   }
+  function dupNote(c){return c.dup?'<span class="mapnote" style="display:block">'+c.dup.toLocaleString()+' students are in more than one of the selected years. Each is counted once, using their latest year.</span>':'';}
   function renderSetup(){
     if(!POPCSV)return;
     renderFilterBuilder(document.getElementById('baseFilters'),SETUP.base,function(full){saveSetupLocal();if(full)renderSetup();else{updateBaseCount();renderFunds();}},'+ Add a population filter');
@@ -1193,8 +1223,7 @@
   }
   function updateBaseCount(){
     var c=countText(filterRows(SETUP.base));
-    document.getElementById('baseCount').innerHTML='Population: <b>'+c.n.toLocaleString()+'</b> students'+
-      (c.dup?'<span class="warn">Some students appear more than once, usually because more than one academic year is included. Filter Academic year to a single year.</span>':'');
+    document.getElementById('baseCount').innerHTML='Population: <b>'+c.n.toLocaleString()+'</b> students'+dupNote(c);
   }
 
   // ---- fund editor ------------------------------------------------------------
@@ -1257,17 +1286,25 @@
     COHORTCSV.rows.forEach(function(r){if(idx.some(function(i){return truthy(r[i]);}))set[normId(r[cid])]=1;});
     return set;
   }
+  var RBI_CACHE=null;
+  function ROWS_BY_ID_LIVE(pid){
+    if(RBI_CACHE&&RBI_CACHE.pid===pid&&RBI_CACHE.csv===POPCSV)return RBI_CACHE.map;
+    var m={};POPCSV.rows.forEach(function(r){var id=normId(r[pid]);if(id)(m[id]=m[id]||[]).push(r);});
+    RBI_CACHE={pid:pid,csv:POPCSV,map:m};return m;
+  }
   function updateFundCounts(){
     var pid=firstRole(readRoles('popMapBody'),'id');
     Array.prototype.forEach.call(document.querySelectorAll('#fundList .countline'),function(cl){
       var f=SETUP.funds[parseInt(cl.dataset.fund,10)];if(!f)return;
       var el=filterRows(fundFilters(f)),c=countText(el);
       var ids={};if(pid>-1)el.forEach(function(r){ids[normId(r[pid])]=1;});
+      // applicants outside these filters still count if any of their rows meet the fund's own rules
+      var meets=function(id){if(ids[id])return true;var rs=ROWS_BY_ID_LIVE(pid)[id];return !!(rs&&rs.some(function(r){return rowPasses(r,f.filters||{});}));};
       var rec=idSetFor(f.received),app=Object.assign({},idSetFor(f.applied),rec);
-      var n=function(set){var k=0;for(var id in set)if(ids[id])k++;return k;};
+      var n=function(set){var k=0;for(var id in set)if(meets(id))k++;return k;};
       cl.innerHTML='Eligible: <b>'+c.n.toLocaleString()+'</b> · applied: <b>'+n(app).toLocaleString()+'</b> of '+Object.keys(app).length.toLocaleString()+
         ' · received: <b>'+n(rec).toLocaleString()+'</b> of '+Object.keys(rec).length.toLocaleString()+
-        (c.dup?'<span class="warn">Some eligible students appear more than once. Filter Academic year to a single year.</span>':'')+
+        dupNote(c)+
         (!f.applied.length&&f.received.length?'<span class="mapnote" style="display:block">No applied column, so applied shows the recipients only.</span>':'');
     });
   }
@@ -1288,96 +1325,204 @@
     rd.readAsText(f);});
 
   // ==========================================================================
-  //  Funnels: population, eligible, applied, received, by each demographic
+  //  Funnels: eligible, applied and received, by each demographic
   // ==========================================================================
-  var FUNNELS=[], fstate={fund:0,dim:null,view:'rep'};
+  // Applicants and recipients take their demographics from anywhere in the whole
+  // population file. A fund's own eligibility filters still apply to them; the
+  // population filters (such as one year, or enrolled students only) do not, so a
+  // cohort student is only left out if they are outside the fund's rules or
+  // missing from the file. Applicants found outside the population filters are
+  // added to the eligible stage, so each stage stays a subset of the one before.
+  var ROWS_BY_ID={},OUTSIDE_BASE=0;
+  var FUNNELS=[], fstate={fund:0,dim:null,view:'rep',mode:'journey',all:false};
   var STAGES=['Population','Eligible','Applied','Received'];
+  var MODES={
+    journey:{label:'Whole journey',stages:[0,2],comp:'journey',rate:'Received the fund, of eligible students'},
+    app:{label:'Applying',stages:[0,1],comp:'app',rate:'Applied, of eligible students'},
+    award:{label:'Being awarded',stages:[1,2],comp:'award',rate:'Received the fund, of applicants'},
+    all:{label:'All three stages',stages:[0,1,2],comp:'journey',rate:''}};
+  var STAGE3=['Eligible','Applied','Received'];
+  var COMPS={app:'Applied (of eligible)',award:'Received (of applicants)',journey:'Received (of eligible)'};
+  function latestRow(rows){var b=null;rows.forEach(function(r){if(!b||yearOf(r)>=yearOf(b))b=r;});return b;}
+  function wilson(x,n){if(!n)return null;var z=1.96,p=x/n,d=1+z*z/n,c=(p+z*z/(2*n))/d,h=z*Math.sqrt(p*(1-p)/n+z*z/(4*n*n))/d;return [100*Math.max(0,c-h),100*Math.min(1,c+h)];}
+  function compare(x,n,X,N){
+    // x of n in the group, X of N overall; the group against everyone else
+    var o={rate:n?100*x/n:null,rest:(N-n)?100*(X-x)/(N-n):null,ci:wilson(x,n),ok:n>=MIN&&N-n>=MIN};
+    o.sig=o.ok&&zTestSig(x,n,X-x,N-n).sig;return o;
+  }
   function buildFunnels(popRoles){
     FUNNELS=[];if(MODE!=='join')return;
-    var pid=firstRole(popRoles,'id'),base=filterRows(SETUP.base);
+    var pid=firstRole(popRoles,'id'),base=dedupe(filterRows(SETUP.base),pid).rows;
     SETUP.funds.forEach(function(f){
       if(!f.applied.length&&!f.received.length)return;
-      var filters=fundFilters(f),elig=filterRows(filters),byId={};
-      elig.forEach(function(r){var id=normId(r[pid]);if(!byId[id])byId[id]=r;});
+      var eligById={};
+      dedupe(filterRows(fundFilters(f)),pid).rows.forEach(function(r){eligById[normId(r[pid])]=r;});
       var recIds=idSetFor(f.received),appIds=Object.assign({},idSetFor(f.applied),recIds);
-      var pick=function(set){var out=[],outside=0;for(var id in set){if(byId[id])out.push(byId[id]);else outside++;}return {rows:out,outside:outside};};
-      var app=pick(appIds),rec=pick(recIds);
-      var stageRows=[base,Object.keys(byId).map(function(k){return byId[k];}),app.rows,rec.rows];
+      var appRow={},notFound=0,ineligible=0,added=0;
+      Object.keys(appIds).forEach(function(id){
+        var row=eligById[id];
+        if(!row){
+          var all=ROWS_BY_ID[id];if(!all){notFound++;return;}
+          var ok=all.filter(function(r){return rowPasses(r,f.filters||{});});
+          if(!ok.length){ineligible++;return;}
+          row=latestRow(ok);eligById[id]=row;added++;
+        }
+        appRow[id]=row;
+      });
+      var E=Object.keys(eligById).map(function(k){return eligById[k];});
+      var A=Object.keys(appRow).map(function(k){return appRow[k];});
+      var R=Object.keys(recIds).filter(function(id){return appRow[id];}).map(function(id){return appRow[id];});
+      var recLeft=Object.keys(recIds).length-R.length;
       var dims={};
-      DIMS.forEach(function(dim){dims[dim]=funnelDim(stageRows,POP.demoCols[dim]);});
-      FUNNELS.push({name:f.name||'Fund',fund:f,filters:filters,counts:stageRows.map(function(r){return r.length;}),
-        outsideApp:app.outside,outsideRec:rec.outside,noApplied:!f.applied.length,dims:dims,
-        eligDesc:describeFilters(f.filters||{}),gaps:null});
+      DIMS.forEach(function(dim){dims[dim]=funnelDim([E,A,R],POP.demoCols[dim]);});
+      var F={name:f.name||'Fund',counts:[base.length,E.length,A.length,R.length],added:added,notFound:notFound,ineligible:ineligible,recLeft:recLeft,
+        noApplied:!f.applied.length,sameAR:!!f.applied.length&&A.length>0&&A.length===R.length,dims:dims,eligDesc:describeFilters(f.filters||{})};
+      FUNNELS.push(F);
     });
-    FUNNELS.forEach(function(F){F.gaps=funnelGaps(F);});
   }
   function funnelDim(stageRows,col){
     var tallies=stageRows.map(function(rows){
       var t={},present=0;rows.forEach(function(r){var v=(r[col]!=null?String(r[col]):'').trim();if(v==='')return;present++;t[v]=(t[v]||0)+1;});
       return {t:t,present:present};});
-    var cats=Object.keys(tallies[0].t);
-    Object.keys(tallies[1].t).forEach(function(c){if(cats.indexOf(c)<0)cats.push(c);});
-    cats.sort(function(a,b){return (tallies[0].t[b]||0)-(tallies[0].t[a]||0);});
-    var E=tallies[1].present,A=tallies[2].present,R=tallies[3].present;
+    var P=tallies.map(function(t){return t.present;});
+    var cats=Object.keys(tallies[0].t).sort(function(a,b){return tallies[0].t[b]-tallies[0].t[a];});
     var rows=cats.map(function(c){
       var n=tallies.map(function(t){return t.t[c]||0;});
-      var row={category:c,n:n,share:n.map(function(x,i){return tallies[i].present?100*x/tallies[i].present:null;})};
-      // Rate of moving to the next stage, compared with every other student at the stage before
-      row.appRate=n[1]?100*n[2]/n[1]:null;row.recRate=n[2]?100*n[3]/n[2]:null;
-      row.appRest=(E-n[1])?100*(A-n[2])/(E-n[1]):null;row.recRest=(A-n[2])?100*(R-n[3])/(A-n[2]):null;
-      row.appSig=n[1]>=MIN&&E-n[1]>=MIN&&zTestSig(n[2],n[1],A-n[2],E-n[1]).sig;
-      row.recSig=n[2]>=MIN&&A-n[2]>=MIN&&zTestSig(n[3],n[2],R-n[3],A-n[2]).sig;
-      return row;
+      return {category:c,n:n,share:n.map(function(x,i){return P[i]?100*x/P[i]:null;}),
+        app:compare(n[1],n[0],P[1],P[0]),award:compare(n[2],n[1],P[2],P[1]),journey:compare(n[2],n[0],P[2],P[0])};
     });
-    return {rows:rows,present:tallies.map(function(t){return t.present;}),
-      appRate:E?100*A/E:null,recRate:A?100*R/A:null};
+    return {rows:rows,present:P,app:P[0]?100*P[1]/P[0]:null,award:P[1]?100*P[2]/P[1]:null,journey:P[0]?100*P[2]/P[0]:null};
   }
-  function funnelGaps(F){
-    var out=[];
+  // Characteristics with at least two groups among eligible students
+  function fnDims(F){return DIMS.filter(function(dim){return F.dims[dim]&&F.dims[dim].rows.length>1;});}
+  // Significant gaps for one comparison, largest first. With two groups one is the
+  // mirror of the other, so only the smaller is kept; a group repeated under two
+  // groupings (such as White in both ethnicity groupings) is kept once.
+  function funnelGaps(F,comp){
+    var out=[],seen={};
     fnDims(F).forEach(function(dim){
-      var rows=F.dims[dim].rows.filter(function(r){return r.n[1]>0;});
-      // With only two groups, one is the mirror of the other, so keep the smaller group
-      if(rows.length===2)rows=[rows[0].n[1]<=rows[1].n[1]?rows[0]:rows[1]];
+      var rows=F.dims[dim].rows;
+      if(rows.length===2)rows=[rows[0].n[0]<=rows[1].n[0]?rows[0]:rows[1]];
       rows.forEach(function(r){
-      if(r.appSig)out.push({dim:dim,r:r,stage:'Applying',rate:r.appRate,rest:r.appRest});
-      if(r.recSig)out.push({dim:dim,r:r,stage:'Receiving',rate:r.recRate,rest:r.recRest});});});
-    out.sort(function(a,b){return Math.abs(b.rate-b.rest)-Math.abs(a.rate-a.rest);});
+        var c=r[comp];if(!c.sig)return;
+        var key=r.category+'|'+pct1(c.rate);if(seen[key])return;seen[key]=1;
+        out.push({dim:dim,r:r,c:c});
+      });
+    });
+    out.sort(function(a,b){return Math.abs(b.c.rate-b.c.rest)-Math.abs(a.c.rate-a.c.rest);});
     return out;
   }
   var pct1=function(v){return v==null?'–':(Math.round(v*10)/10)+'%';};
-  function stageCell(n,share,present){
+  var mark=function(c){return !c.sig?'':c.rate<c.rest?' <span class="arrow-lo">▼</span>':' <span class="arrow-hi">▲</span>';};
+  function rateCell(c){
+    if(c.rate==null||!c.ok)return '<td class="rate"><span class="sup">too few to test</span></td>';
+    return '<td class="rate'+(c.sig?(c.rate<c.rest?' sig-lo':' sig-hi'):'')+'">'+pct1(c.rate)+mark(c)+
+      '<small>95% range '+pct1(c.ci[0])+' to '+pct1(c.ci[1])+' · others '+pct1(c.rest)+'</small></td>';
+  }
+  function shareCell(n,share){
     if(n===0)return '<td class="share">0</td>';
     if(n<MIN)return '<td class="share"><span class="sup">fewer than '+MIN+'</span></td>';
-    return '<td class="share">'+pct1(share)+'<small>'+n.toLocaleString()+'</small><div class="bar"><i style="width:'+Math.min(100,share)+'%"></i></div></td>';
+    return '<td class="share">'+pct1(share)+'<small>'+n.toLocaleString()+' students</small></td>';
   }
-  function rateCell(rate,rest,sig,den){
-    if(rate==null||den<MIN)return '<td class="rate"><span class="sup">–</span></td>';
-    var lo=rate<rest;
-    return '<td class="rate'+(sig?(lo?' sig-lo':' sig-hi'):'')+'">'+pct1(rate)+(sig?' <span class="'+(lo?'arrow-lo':'arrow-hi')+'">'+(lo?'▼':'▲')+'</span>':'')+
-      '<small>others '+pct1(rest)+'</small></td>';
-  }
-  function funnelTableHTML(F,dim){
-    var d=F.dims[dim];if(!d)return '<p class="note">No breakdown for this characteristic.</p>';
-    var h='<table class="funnel"><thead><tr><th>Group</th>'+STAGES.map(function(s){return '<th>'+s+'<br><span style="text-transform:none;letter-spacing:0">share</span></th>';}).join('')+
-      '<th class="grp-rate">Application rate<br><span style="text-transform:none;letter-spacing:0">applied ÷ eligible</span></th><th>Success rate<br><span style="text-transform:none;letter-spacing:0">received ÷ applied</span></th></tr></thead><tbody>';
-    h+='<tr class="all-row"><td>All with a recorded value</td>'+d.present.map(function(n){return '<td class="share">'+n.toLocaleString()+'</td>';}).join('')+
-      '<td class="rate">'+pct1(d.appRate)+'</td><td class="rate">'+pct1(d.recRate)+'</td></tr>';
+  function dimTableHTML(F,dim,mode){
+    var d=F.dims[dim],M=MODES[mode],comps=mode==='all'?['app','award','journey']:[M.comp];
+    var h='<table class="funnel"><thead><tr><th>Group</th>'+M.stages.map(function(s){return '<th>'+STAGE3[s]+'<br><span style="text-transform:none;letter-spacing:0">share</span></th>';}).join('')+
+      comps.map(function(c,i){return '<th'+(i?'':' class="grp-rate"')+'>'+COMPS[c]+'</th>';}).join('')+'</tr></thead><tbody>';
+    h+='<tr class="all-row"><td>Everyone with a recorded value</td>'+M.stages.map(function(s){return '<td class="share">'+d.present[s].toLocaleString()+'</td>';}).join('')+
+      comps.map(function(c){return '<td class="rate">'+pct1(d[c])+'</td>';}).join('')+'</tr>';
     d.rows.forEach(function(r){
-      h+='<tr><td>'+esc(r.category)+'</td>'+r.n.map(function(n,i){return stageCell(n,r.share[i],d.present[i]);}).join('')+
-        rateCell(r.appRate,r.appRest,r.appSig,r.n[1])+rateCell(r.recRate,r.recRest,r.recSig,r.n[2])+'</tr>';
+      h+='<tr><td>'+esc(r.category)+'</td>'+M.stages.map(function(s){return shareCell(r.n[s],r.share[s]);}).join('')+comps.map(function(c){return rateCell(r[c]);}).join('')+'</tr>';
     });
     return h+'</tbody></table>';
   }
-  function gapsTableHTML(F){
-    if(!F.gaps.length)return '<p class="note">No group applies for, or receives, this fund at a significantly different rate from other students at the stage before. With small numbers, only large differences can show up as significant.</p>';
-    return '<table class="funnel"><thead><tr><th>Group</th><th>Characteristic</th><th>Stage</th><th class="grp-rate">This group</th><th>Other students</th></tr></thead><tbody>'+
-      F.gaps.map(function(g){var lo=g.rate<g.rest;
-        return '<tr><td>'+esc(g.r.category)+'</td><td>'+esc(g.dim)+'</td><td>'+g.stage+'</td><td class="rate '+(lo?'sig-lo':'sig-hi')+'">'+pct1(g.rate)+' <span class="'+(lo?'arrow-lo':'arrow-hi')+'">'+(lo?'▼':'▲')+'</span></td><td>'+pct1(g.rest)+'</td></tr>';}).join('')+'</tbody></table>';
+  function gapsHTML(F,mode,limit){
+    var comp=MODES[mode].comp,g=funnelGaps(F,comp),both=comp==='journey';
+    if(!g.length)return {html:'<p class="note">No group '+(comp==='app'?'applied':'received the fund')+' at a significantly different rate from other students at this stage. With small numbers, only large differences show up as significant.</p>',n:0};
+    var shown=limit?g.slice(0,limit):g;
+    var where=function(c){return !c.ok?'<span class="sup">too few</span>':c.sig?(c.rate<c.rest?'<span class="arrow-lo">▼ lower</span>':'<span class="arrow-hi">▲ higher</span>'):'<span class="sup">no clear gap</span>';};
+    var h='<table class="funnel"><thead><tr><th>Group</th><th>Characteristic</th><th class="grp-rate">'+COMPS[comp]+'</th><th>Other students</th>'+
+      (both?'<th class="grp-rate">At applying</th><th>At being awarded</th>':'')+'</tr></thead><tbody>'+
+      shown.map(function(x){var lo=x.c.rate<x.c.rest;
+        return '<tr><td>'+esc(x.r.category)+'</td><td>'+esc(x.dim)+'</td><td class="rate '+(lo?'sig-lo':'sig-hi')+'">'+pct1(x.c.rate)+mark(x.c)+
+          '<small>95% range '+pct1(x.c.ci[0])+' to '+pct1(x.c.ci[1])+'</small></td><td>'+pct1(x.c.rest)+'</td>'+
+          (both?'<td class="rate">'+where(x.r.app)+'</td><td>'+where(x.r.award)+'</td>':'')+'</tr>';}).join('')+'</tbody></table>';
+    return {html:h,n:g.length};
   }
+
+  // ---- flow chart: stacked shares at each stage, joined by bands ---------------
+  var SLOTS=['var(--s1)','var(--s2)','var(--s3)','var(--s4)','var(--s5)','var(--s6)','var(--s7)'],OTHER_COL='#a8b0bb';
+  function flowGroups(d,stages){
+    // Named groups need at least MIN students at every stage shown; the rest are
+    // combined, as are any beyond the seventh, so no small group is shown alone
+    var named=[],other={category:'Other groups combined',n:[0,0,0],other:true};
+    d.rows.forEach(function(r){
+      var big=stages.every(function(s){return r.n[s]>=MIN;});
+      if(big&&named.length<SLOTS.length)named.push(r);
+      else r.n.forEach(function(v,i){other.n[i]+=v;});
+    });
+    named.forEach(function(r,i){r.col=SLOTS[i];});
+    other.col=OTHER_COL;
+    var groups=named.slice();if(stages.some(function(s){return other.n[s]>0;}))groups.push(other);
+    return {groups:groups,named:named.length};
+  }
+  function renderFlow(F,dim,mode){
+    var d=F.dims[dim],M=MODES[mode],st=M.stages,fg=flowGroups(d,st),G=fg.groups;
+    var svg=svgEl('svg',{role:'img','aria-label':'Shares of each group at each stage, '+dim});
+    if(fg.named<2){svg.setAttribute('viewBox','0 0 860 60');pinChartWidth(svg,860);
+      var t=svgEl('text',{x:10,y:34,'class':'value-label'});t.textContent='Too few students at '+(st.length>2?'each stage':'these stages')+' to show the groups for '+dim+' (each group needs at least '+MIN+').';svg.appendChild(t);return svg;}
+    var W=880,top=52,H=320,colW=46,left=230,right=150;
+    var xs=st.map(function(_,i){return left+i*(W-left-right-colW)/(st.length-1);});
+    var y={};
+    st.forEach(function(s,ci){
+      var tot=d.present[s],gaps=2*(G.length-1),y0=top,avail=H-gaps;
+      G.forEach(function(g){var h=tot?avail*g.n[s]/tot:0;(y[g.category]=y[g.category]||[])[ci]={t:y0,b:y0+h,h:h};y0+=h+2;});
+    });
+    svg.setAttribute('viewBox','0 0 '+W+' '+(top+H+24));pinChartWidth(svg,W);
+    var tip=function(el,txt){el.addEventListener('pointermove',function(e){showTooltip(e,txt);});el.addEventListener('pointerleave',hideTooltip);};
+    // bands first, so the bars sit on top
+    G.forEach(function(g){
+      for(var ci=0;ci<st.length-1;ci++){
+        var a=y[g.category][ci],b=y[g.category][ci+1],x1=xs[ci]+colW,x2=xs[ci+1],xm=(x1+x2)/2;
+        var path=svgEl('path',{d:'M'+x1+' '+a.t+'C'+xm+' '+a.t+' '+xm+' '+b.t+' '+x2+' '+b.t+'L'+x2+' '+b.b+'C'+xm+' '+b.b+' '+xm+' '+a.b+' '+x1+' '+a.b+'Z','class':'flow-band',fill:g.col});
+        var from=st[ci],to=st[ci+1],cmp=g.other?null:(from===0&&to===1?g.app:from===1&&to===2?g.award:g.journey);
+        tip(path,g.category+': '+pct1(100*g.n[from]/d.present[from])+' of '+STAGE3[from].toLowerCase()+' students, '+pct1(100*g.n[to]/d.present[to])+' of '+(to===1?'applicants':'recipients')+
+          (cmp&&cmp.ok?'. '+pct1(cmp.rate)+' '+(to===1?'applied':'received it')+', against '+pct1(cmp.rest)+' of other students'+(cmp.sig?' (a significant gap)':' (not a significant gap)'):''));
+        svg.appendChild(path);
+      }
+    });
+    st.forEach(function(s,ci){
+      var h1=svgEl('text',{x:xs[ci]+colW/2,y:top-24,'text-anchor':'middle','class':'flow-col-h'});h1.textContent=STAGE3[s];svg.appendChild(h1);
+      var h2=svgEl('text',{x:xs[ci]+colW/2,y:top-10,'text-anchor':'middle','class':'flow-col-s'});h2.textContent=d.present[s].toLocaleString()+' students';svg.appendChild(h2);
+      G.forEach(function(g){var p=y[g.category][ci];if(p.h<=0)return;
+        var r=svgEl('rect',{x:xs[ci],y:p.t,width:colW,height:Math.max(1,p.h),rx:Math.min(4,p.h/2),fill:g.col,'class':'flow-seg'});
+        tip(r,g.category+' · '+STAGE3[s]+': '+(g.n[s]<MIN?'fewer than '+MIN+' students':pct1(100*g.n[s]/d.present[s])+' ('+g.n[s].toLocaleString()+' students)'));
+        svg.appendChild(r);});
+    });
+    // direct labels, nudged apart so they do not overlap
+    function labels(ci,side){
+      var items=G.map(function(g){var p=y[g.category][ci];return {g:g,want:(p.t+p.b)/2,y:(p.t+p.b)/2};});
+      for(var i=1;i<items.length;i++)if(items[i].y-items[i-1].y<15)items[i].y=items[i-1].y+15;
+      var over=items.length?items[items.length-1].y-(top+H):0;if(over>0)items.forEach(function(it){it.y-=over;});
+      items.forEach(function(it){
+        var s=st[ci],g=it.g,val=g.n[s]<MIN?'<'+MIN:pct1(100*g.n[s]/d.present[s]);
+        var x=side==='l'?xs[ci]-8:xs[ci]+colW+8,anchor=side==='l'?'end':'start';
+        if(Math.abs(it.y-it.want)>3)svg.appendChild(svgEl('line',{x1:side==='l'?xs[ci]-3:xs[ci]+colW+3,y1:it.want,x2:side==='l'?xs[ci]-6:xs[ci]+colW+6,y2:it.y-4,stroke:'#c4ccd6'}));
+        var t=svgEl('text',{x:x,y:it.y+4,'text-anchor':anchor});
+        if(side==='l'){var n=svgEl('tspan',{'class':'flow-lab'});n.textContent=(g.category.length>30?g.category.slice(0,29)+'…':g.category)+'  ';t.appendChild(n);}
+        var v=svgEl('tspan',{'class':'flow-val'});v.textContent=val;t.appendChild(v);
+        var c=g.other?null:g[M.comp];
+        if(side==='r'&&c&&c.sig){var m=svgEl('tspan',{'class':c.rate<c.rest?'mark-lo':'mark-hi'});m.textContent=c.rate<c.rest?' ▼':' ▲';t.appendChild(m);}
+        svg.appendChild(t);
+      });
+    }
+    labels(0,'l');labels(st.length-1,'r');
+    return svg;
+  }
+
   function stagesHTML(F){
-    var c=F.counts,max=Math.max(1,c[0]);
+    var c=F.counts,max=Math.max(1,c[0],c[1]);
     var sub=['students in the population',
-      (F.eligDesc?'eligible ('+esc(F.eligDesc)+')':'eligible (the whole population)'),
+      'eligible'+(F.eligDesc?' ('+esc(F.eligDesc)+')':' (the whole population)')+(F.added?', including '+F.added.toLocaleString()+' applicant'+(F.added>1?'s':'')+' from outside the population filters':''),
       F.noApplied?'recipients (no applications data)':'applied',
       'received'];
     return STAGES.map(function(s,i){
@@ -1386,22 +1531,21 @@
         '<div class="stage-txt"><b>'+c[i].toLocaleString()+'</b> '+sub[i]+(pct?'<br>'+pct:'')+'</div></div>';
     }).join('');
   }
-  // Characteristics with at least two groups among eligible students
-  function fnDims(F){return DIMS.filter(function(dim){return F.dims[dim]&&F.dims[dim].rows.filter(function(r){return r.n[1]>0;}).length>1;});}
-  function fnDimList(){var F=FUNNELS[fstate.fund];return ['Biggest differences'].concat(F?fnDims(F):DIMS);}
+  function fnDimList(){var F=FUNNELS[fstate.fund];return ['Where the gaps are'].concat(F?fnDims(F):DIMS);}
   function buildFunnelUI(){
     document.getElementById('viewTabs').classList.toggle('hidden',!FUNNELS.length);
     var host=document.getElementById('fundTabs');host.textContent='';
     FUNNELS.forEach(function(F,i){var b=document.createElement('button');b.className='tab';b.setAttribute('role','tab');b.dataset.i=i;
-      b.textContent=F.name+' ('+F.counts[3].toLocaleString()+')';b.addEventListener('click',function(){fstate.fund=i;renderFunnel();});host.appendChild(b);});
-    renderFnDimTabs();
-    fstate.fund=Math.min(fstate.fund,Math.max(0,FUNNELS.length-1));if(!fstate.dim)fstate.dim='Biggest differences';
+      b.textContent=F.name+' ('+F.counts[3].toLocaleString()+')';b.addEventListener('click',function(){fstate.fund=i;fstate.all=false;renderFunnel();});host.appendChild(b);});
+    fstate.fund=Math.min(fstate.fund,Math.max(0,FUNNELS.length-1));if(!fstate.dim)fstate.dim='Where the gaps are';
   }
   function renderFnDimTabs(){
     var dh=document.getElementById('fnDimTabs');dh.textContent='';
     fnDimList().forEach(function(d){var b=document.createElement('button');b.className='tab';b.setAttribute('role','tab');b.dataset.dim=d;b.textContent=d;
-      b.addEventListener('click',function(){fstate.dim=d;renderFunnel();});dh.appendChild(b);});
+      b.setAttribute('aria-selected',d===fstate.dim);
+      b.addEventListener('click',function(){fstate.dim=d;fstate.all=false;renderFunnel();});dh.appendChild(b);});
   }
+  Array.prototype.forEach.call(document.querySelectorAll('#fnModes button'),function(b){b.addEventListener('click',function(){fstate.mode=b.dataset.m;fstate.all=false;renderFunnel();});});
   function setMainView(v){
     fstate.view=FUNNELS.length?v:'rep';
     Array.prototype.forEach.call(document.querySelectorAll('#viewTabs .tab'),function(b){b.setAttribute('aria-selected',b.dataset.v===fstate.view);});
@@ -1410,37 +1554,59 @@
     if(fstate.view==='funnel')renderFunnel();
   }
   Array.prototype.forEach.call(document.querySelectorAll('#viewTabs .tab'),function(b){b.addEventListener('click',function(){setMainView(b.dataset.v);});});
+  var MODE_NOTE={
+    journey:'Of the eligible students in each group, the share who received the fund, compared with every other eligible student. Start here: a gap here is a gap over the whole journey. The last two columns show which stage it comes from.',
+    app:'Of the eligible students in each group, the share who applied, compared with every other eligible student.',
+    award:'Of the applicants in each group, the share who received the fund, compared with every other applicant.',
+    all:'Each group\'s share of eligible students, applicants and recipients side by side, with all three rates in the table.'};
+  function funnelNotes(F){
+    var notes=[];
+    if(F.added)notes.push(F.added.toLocaleString()+' applicant'+(F.added>1?'s are':' is')+' outside the population filters (for example, from another year or not recorded as enrolled) but meet the fund\'s own rules, so '+(F.added>1?'they are':'they are')+' included, with '+(F.added>1?'their':'their')+' characteristics taken from the population file.');
+    if(F.ineligible)notes.push(F.ineligible.toLocaleString()+' applicant'+(F.ineligible>1?'s do':' does')+' not meet the fund\'s eligibility filters ('+esc(F.eligDesc)+') and '+(F.ineligible>1?'are':'is')+' left out.');
+    if(F.notFound)notes.push(F.notFound.toLocaleString()+' applicant'+(F.notFound>1?'s are':' is')+' not in the population file at all, so '+(F.notFound>1?'they are':'it is')+' left out.');
+    if(F.recLeft)notes.push('Of the students left out, '+F.recLeft.toLocaleString()+' received the fund.');
+    if(F.noApplied)notes.push('There is no applications column for this fund, so the applied stage shows the recipients only.');
+    else if(F.sameAR)notes.push('Everyone counted as applying also received the fund. This usually means unsuccessful applications have no student number, so the applying and being awarded stages cannot be told apart. Treat this fund\'s figures as recipients only.');
+    notes.push('Groups with fewer than '+MIN+' students at a stage are combined or not shown. A gap is significant when the group\'s rate differs from other students\' at the 95% level (two-proportion z-test); the 95% range is the interval the group\'s true rate is likely to sit in.');
+    return notes;
+  }
   function renderFunnel(){
     var F=FUNNELS[fstate.fund];if(!F)return;
     renderFnDimTabs();
-    if(fnDimList().indexOf(fstate.dim)<0)fstate.dim='Biggest differences';
+    if(fnDimList().indexOf(fstate.dim)<0){fstate.dim='Where the gaps are';renderFnDimTabs();}
     Array.prototype.forEach.call(document.getElementById('fundTabs').children,function(b){b.setAttribute('aria-selected',+b.dataset.i===fstate.fund);});
-    Array.prototype.forEach.call(document.getElementById('fnDimTabs').children,function(b){b.setAttribute('aria-selected',b.dataset.dim===fstate.dim);});
+    Array.prototype.forEach.call(document.querySelectorAll('#fnModes button'),function(b){b.setAttribute('aria-pressed',b.dataset.m===fstate.mode);});
     document.getElementById('fnTitle').textContent=F.name+': funnel';
-    document.getElementById('fnNote').textContent='Each stage is a subset of the one before. Applied and received count only students who are in the eligible population.';
+    document.getElementById('fnNote').textContent='Each stage is a subset of the one before.';
     document.getElementById('fnStages').innerHTML=stagesHTML(F);
-    var big=fstate.dim==='Biggest differences';
-    document.getElementById('fnDimTitle').textContent=big?F.name+': biggest differences':F.name+': funnel by '+fstate.dim;
-    document.getElementById('fnDimNote').textContent=big?
-      'Groups that applied, or were awarded the fund, at a significantly different rate from other students at the stage before, across every characteristic. Largest difference first.':
-      'The share columns show how each group makes up each stage. The rate columns show where a group drops out or gets through: the application rate is the share of eligible students who applied, and the success rate is the share of applicants who received the fund. Each rate is compared with every other student at the stage before. Eligibility follows the fund\'s rules, so differences between the population and eligible columns are by design.';
-    document.getElementById('fnTable').innerHTML=big?gapsTableHTML(F):funnelTableHTML(F,fstate.dim);
-    var notes=[];
-    if(F.outsideApp)notes.push(F.outsideApp.toLocaleString()+' student'+(F.outsideApp>1?'s':'')+' who applied (or received the fund) '+(F.outsideApp>1?'are':'is')+' not in the eligible population, for example because they are outside its filters or not in the population file, so '+(F.outsideApp>1?'they are':'it is')+' left out of this funnel.');
-    if(F.outsideRec)notes.push('Of those, '+F.outsideRec.toLocaleString()+' received the fund.');
-    if(F.noApplied)notes.push('There is no applications column for this fund, so the applied stage shows the recipients only, and the success rate is 100%.');
-    notes.push('Groups with fewer than '+MIN+' students at a stage are not shown, and rates are only tested where both the group and everyone else have at least '+MIN+' students.');
+    var big=fstate.dim==='Where the gaps are',chart=document.getElementById('fnChart'),table=document.getElementById('fnTable');chart.textContent='';
+    var mode=big&&fstate.mode==='all'?'journey':fstate.mode;
+    document.getElementById('fnDimTitle').textContent=big?F.name+': where the gaps are ('+MODES[mode].label.toLowerCase()+')':F.name+': '+fstate.dim;
+    document.getElementById('fnDimNote').textContent=MODE_NOTE[big?mode:fstate.mode];
+    if(big){
+      var g=gapsHTML(F,mode,fstate.all?0:8);table.innerHTML=g.html;
+      if(g.n>8){var more=document.createElement('button');more.className='btn-ghost showall';more.textContent=fstate.all?'Show the largest 8':'Show all '+g.n;
+        more.addEventListener('click',function(){fstate.all=!fstate.all;renderFunnel();});table.appendChild(more);}
+      document.getElementById('fnKey').innerHTML='Largest gap first. Groups with only two values show the smaller group. Select a characteristic above to see its chart.';
+    } else {
+      chart.appendChild(renderFlow(F,fstate.dim,fstate.mode));
+      table.innerHTML=dimTableHTML(F,fstate.dim,fstate.mode);
+      document.getElementById('fnKey').innerHTML='Bars show each group\'s share at each stage; the bands show how that share changes. ▼ and ▲ mark a group whose rate is significantly lower or higher than other students\'. Hover over the chart for figures.';
+    }
     document.getElementById('fnNotesCard').classList.remove('hidden');
-    document.getElementById('fnNotes').innerHTML=notes.map(esc).join('<br>');
+    document.getElementById('fnNotes').innerHTML=funnelNotes(F).join('<br>');
   }
   function reportFunnel(host,F){
     var sec=document.createElement('section');sec.className='rep-group';
     sec.innerHTML='<h2>'+esc(F.name)+': funding funnel</h2>'+
       '<div class="rep-stats">'+STAGES.map(function(s,i){return '<div><b>'+F.counts[i].toLocaleString()+'</b>'+s.toLowerCase()+'</div>';}).join('')+'</div>'+
       (F.eligDesc?'<p class="rep-meta">Eligible: '+esc(F.eligDesc)+'</p>':'')+
-      '<div class="rep-box"><h3>Biggest differences</h3>'+gapsTableHTML(F)+'</div>';
-    fnDims(F).forEach(function(dim){var box=document.createElement('div');box.className='rep-chart';
-      box.innerHTML='<h4>By '+esc(dim)+'</h4>'+funnelTableHTML(F,dim);sec.appendChild(box);});
+      '<div class="rep-box"><h3>Where the gaps are (whole journey)</h3>'+gapsHTML(F,'journey',0).html+'</div>'+
+      '<div class="rep-box"><h3>Notes</h3><ul>'+funnelNotes(F).map(function(n){return '<li>'+n+'</li>';}).join('')+'</ul></div>';
+    fnDims(F).forEach(function(dim){
+      var box=document.createElement('div');box.className='rep-chart rep-flow';
+      box.innerHTML='<h4>By '+esc(dim)+'</h4>';box.appendChild(renderFlow(F,dim,'all'));
+      var t=document.createElement('div');t.innerHTML=dimTableHTML(F,dim,'all');box.appendChild(t);sec.appendChild(box);});
     host.appendChild(sec);
   }
 
