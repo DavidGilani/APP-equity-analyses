@@ -229,14 +229,15 @@
   <h1>Student cohort comparison</h1>
   <p class="sub">Compare a group of students against the overall student population, overall and by sub-group.</p>
   <p class="meta-line" id="metaLine"></p>
+  <p class="meta-line" id="updatedLine"></p>
 
   <!-- upload zone -->
   <div id="uploadZone">
     <div class="droprow">
       <div class="drop" id="dropPop" tabindex="0" role="button" aria-label="Upload the population file">
-        <span class="tag">Optional</span>
-        <h2>Population file (everyone)</h2>
-        <p>The student number download (Excel or CSV), or any file with one row per student: a student ID column plus demographic columns.</p>
+        <span class="tag req">Required</span>
+        <h2>Student demographics file (everyone)</h2>
+        <p>The Student EDI data download (Excel, CSV or text), or any file with one row per student: a student ID column plus demographic columns.</p>
         <p>Provides the demographics, looked up by ID, so labels always match.</p>
         <span class="btn">Choose population file</span>
         <input type="file" id="filePop" accept=".csv,.tsv,.txt,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
@@ -246,7 +247,6 @@
         <span class="tag req">Required</span>
         <h2>Cohort / service file</h2>
         <p>The students you want to compare: a student ID column, plus optional service or sub-group columns.</p>
-        <p>If you skip the population file, include demographic columns here instead.</p>
         <span class="btn">Choose cohort file</span>
         <input type="file" id="fileCohort" accept=".csv,.tsv,.txt,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
         <div class="loadedname" id="cohortLoaded"></div>
@@ -661,9 +661,6 @@
     sel.appendChild(opt('id','Student ID (for the join)'));
     sel.appendChild(opt('flag','Sub-group: students with "Y" value here'));
     sel.appendChild(opt('category','Sub-group: split by each value'));
-    var og=document.createElement('optgroup');og.label='Demographic, if no population file…';
-    DIMENSIONS.forEach(function(dim){og.appendChild(opt('dim:'+dim,dim));});
-    sel.appendChild(og);
   }
   function readRoles(tbodyId){
     var roles={};
@@ -1685,12 +1682,12 @@
     document.getElementById('results').classList.add('hidden');
     document.getElementById('mapZone').classList.remove('hidden');window.scrollTo(0,0);});
   document.getElementById('btnBuild').addEventListener('click',buildAnalysis);
-  document.getElementById('btnToMap').addEventListener('click',function(){ if(COHORTCSV) showMapping(); });
+  document.getElementById('btnToMap').addEventListener('click',function(){ if(COHORTCSV&&POPCSV) showMapping(); });
   document.getElementById('btnStartOver').addEventListener('click',resetAll);
   document.getElementById('btnNewComparison').addEventListener('click',resetAll);
 
   function showError(msg){document.getElementById('errBox').innerHTML='<div class="err">'+esc(msg)+'</div>';window.scrollTo(0,0);}
-  function refreshContinue(){document.getElementById('btnToMap').disabled=!COHORTCSV;}
+  function refreshContinue(){document.getElementById('btnToMap').disabled=!(COHORTCSV&&POPCSV);}
   function resetAll(){
     POPCSV=COHORTCSV=null;LOOKUP=null;
     document.getElementById('filePop').value='';document.getElementById('fileCohort').value='';
@@ -1754,13 +1751,14 @@
   wireDrop('dropCohort','fileCohort','cohort');
 
   // ---- init ----------------------------------------------------------------
-  document.getElementById('metaLine').textContent=
-    'Upload a population file (everyone) and a cohort/service file, or use the built-in '+
-    BASELINE_TOTAL.toLocaleString()+'-student baseline if you skip the population file. Groups under '+MIN+' students are suppressed.';
-  document.getElementById('templateNote').innerHTML=
-    'Best results: upload both files and join them on Student ID, so the cohort and population share the exact same demographic labels. '+
-    'Demographics auto-detected for the baseline fallback: '+DIMENSIONS.map(function(d){return '<code>'+esc(d)+'</code>';}).join(', ')+'.';
-  document.getElementById('footer').textContent=D.META.disclosure||'';
+  document.getElementById('metaLine').textContent='Upload both files: the student demographics file and the cohort file are joined on student ID.';
+  document.getElementById('templateNote').textContent='Both files are needed. The Continue button becomes available once both are loaded.';
+  // When this page was last changed. Update SITE_UPDATED (UTC) with every change to
+  // the page, so the live site shows whether the latest version is there.
+  var SITE_UPDATED='2026-11-10T15:44:03Z';
+  document.getElementById('updatedLine').textContent='Site last updated: '+new Date(SITE_UPDATED).toLocaleString('en-GB',
+    {timeZone:'Europe/London',day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'})+' (UK time)';
+  document.getElementById('footer').textContent='Files are read in your browser and never uploaded.';
 })();
 </script>
 </body>

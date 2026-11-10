@@ -183,22 +183,19 @@ The population filters and funds are remembered in the browser. **Save setup**
 writes them to a small file of column names and filter choices, with no student
 data, so the same setup can be opened next year or on another computer.
 
-### Two ways to use it
+### How to use it
 
-**1. Two files, joined by student ID (recommended).**
-Upload a **population file** (one row per student: an ID column plus demographic
-columns for everyone) and a **cohort/service file** (the students of interest:
-an ID column, plus optional service or sub-group columns). The dashboard joins
-them on ID, pulls demographics from the population file, and compares. Because
-both sides come from the same file, category labels always match, there is no
-label-mismatch problem. Students in the cohort file not found in the population
-file are reported and excluded from the breakdowns.
+Upload a **student demographics file** (the population: one row per student, an ID
+column plus demographic columns for everyone) and a **cohort file** (the students
+of interest: an ID column, plus service, sub-group or funding columns). Both are
+required. The dashboard joins them on ID, takes demographics from the demographics
+file, and compares. Because both sides come from the same file, category labels
+always match. Students in the cohort file not found in the demographics file are
+reported and left out of the breakdowns.
 
-**2. One cohort file against the built-in baseline (quick mode).**
-Skip the population file and upload only a cohort file that already carries
-demographic columns. It is compared against the baked-in baseline. Here the
-cohort's labels must match the baseline labels (for example `United Kingdom`,
-not `UK`); mismatches are listed under "Notes on the data".
+The page shows when it was last updated (UK time) under its title, so you can
+check that the live copy has the latest changes. Each change to the page updates
+`SITE_UPDATED` near the end of `student_dashboard.html`.
 
 ### Column mapping and sub-groups
 
@@ -206,8 +203,9 @@ After upload, every column is shown with sample values and a role you confirm or
 change:
 
 - **Student ID** — used to join the two files.
-- **Demographic** — a dimension to compare on (in the population file, or in the
-  cohort file for quick mode).
+- **Demographic** — a characteristic to compare on (in the demographics file).
+- **Filter only** — used to choose who is in the population (in the demographics
+  file).
 - **Sub-group: any value here** — a *flag* column (e.g. a service name). Any
   student with a value counts as a member.
 - **Sub-group: split by each value** — a *category* column (e.g. year). Each
@@ -233,8 +231,9 @@ graphics and the report is built entirely in the browser, like everything else.
 ### Refreshing the built-in baseline
 
 Run `analysis/build_dashboard_baseline.js` on the latest student number download
-(see above). This only affects quick mode; the two-file mode uses the uploaded
-population file instead.
+(see above). The page no longer compares against the built-in baseline, since a
+demographics file is now required; `student_dashboard_data.js` still supplies its
+settings, such as the 10-student threshold.
 
 ### Hosting on the APP LibGuides pages
 
@@ -267,7 +266,11 @@ node analysis/build_libguides_snippet.js libguides_cohort_tool.html
 ```
 
 The block holds the page, the built-in baseline (counts only) and the Excel preset.
-It is compressed to fit the 65,535-character limit on embed code.
+It is compressed to fit the 65,535-character limit on embed code. The update time
+shown on the page comes from the copy the block was built from, so rebuild and
+re-paste the block after each change. Inside the block, the browser cannot store
+a setup or save it to a file, so use **Open setup** with a saved setup file when
+needed.
 
 The browser itself keeps uploaded files on the person's device. The tool runs in a
 sandboxed frame with a Content Security Policy that blocks every network request,
