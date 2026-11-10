@@ -157,12 +157,19 @@ three comparisons:
 - **Applying:** the share of eligible students who applied.
 - **Being awarded:** the share of applicants who received the fund.
 
+An **All financial support** funnel comes first when there is more than one
+fund: a student counts as eligible, applying or receiving if they are for any
+fund. Funds called Living Costs Fund (or hardship) default to UK students, and the
+excellence scholarship to new UK undergraduates in the previous year; any of
+these can be changed.
+
 **Where the gaps are** lists the significant gaps for the chosen comparison,
 largest first (eight at a time), each with its 95% range. For the whole journey it
-also shows whether each gap comes from applying, being awarded or both. Selecting a
-characteristic shows a flow chart of each group's share at each stage, with ▲ or ▼
-where a group's rate is significantly higher or lower than other students', and a
-table of the figures. **All three stages** shows eligible, applied and received
+also shows whether each gap comes from applying, being awarded or both. A chart shows each
+gap's rate and range beside the rate for everyone else. Selecting a characteristic
+shows a flow chart of each group's share at each stage, with * where an applied or
+received share differs significantly from the group's share of eligible students,
+and a table of the figures. **All three stages** shows eligible, applied and received
 side by side. Gaps are tested with a two-proportion z-test at the 95% level, and
 groups under 10 students are combined or not shown.
 
