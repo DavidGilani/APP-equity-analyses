@@ -105,10 +105,13 @@
   // choose who is in the population, such as enrolment status).
   // get('Header Name') returns the cleaned value of that column for the row.
   var DERIVED = [
-    ['Faculty', true, function (g) { var f = g('Programme Faculty'); return f ? (FACULTY[f] || f) : 'No faculty'; }],
+    ['Faculty', true, function (g, has) { if (!has('Programme Faculty')) return ''; var f = g('Programme Faculty'); return f ? (FACULTY[f] || f) : 'No faculty'; }],
     ['Department', false, function (g) { return g('Programme Department Desc'); }],
     ['Level of study', true, function (g) {
-      return { UG: 'Undergraduate', PG: 'Postgraduate taught', RE: 'Postgraduate research' }[g('Student Level')] || (g('Student Level') ? 'Other' : '');
+      // Student Level holds codes; the EDI download has Programme Level Description instead
+      var c = g('Student Level'), d = g('Programme Level Description');
+      if (c) return { UG: 'Undergraduate', PG: 'Postgraduate taught', RE: 'Postgraduate research' }[c] || 'Other';
+      return d ? ({ Undergraduate: 'Undergraduate', Postgraduate: 'Postgraduate taught', Research: 'Postgraduate research', Foundation: 'Foundation' }[d] || 'Other') : '';
     }],
     ['Mode of study', true, function (g) {
       var m = g('Mode Of Study'); return /^(FT|TK|TN)$/.test(m) ? 'Full time' : /^(PT|DE)$/.test(m) ? 'Part time' : '';
@@ -120,17 +123,19 @@
       if (r === 'European Union') return 'EU';
       return r ? 'Other or not resolved' : '';
     }],
-    ['Sex', true, function (g) { var s = g('SEX'); return s === 'F' ? 'Female' : s === 'M' ? 'Male' : 'Other'; }],
+    ['Sex', true, function (g, has) { if (!has('SEX')) return ''; var s = g('SEX'); return s === 'F' ? 'Female' : s === 'M' ? 'Male' : 'Other'; }],
     ['Age on entry', true, function (g) {
       // As in the EDI report: every grouping other than 16-20 (including "No Age") counts as 21 and over.
       var a = g('Start Age Grouping'); return a === '16-20' ? 'Under 21' : a ? '21 and over' : '';
     }],
     ['Age group', false, function (g) { var a = g('Start Age Grouping'); return a === 'No Age' ? '' : a; }],
-    ['Ethnicity (BAME grouping)', true, function (g) {
+    ['Ethnicity (BAME grouping)', true, function (g, has) {
       // As in the EDI report: Gypsy or Traveller counts as BAME here (but White in the broad grouping).
+      if (!has('Ethnicity Description')) return '';
       var e = g('Ethnicity Description'); return NOT_KNOWN_ETH[e] ? 'Unknown' : (WHITE[e] && e !== 'Gypsy or Traveller') ? 'White' : 'BAME';
     }],
-    ['Ethnicity (broad)', true, function (g) {
+    ['Ethnicity (broad)', true, function (g, has) {
+      if (!has('Ethnicity Description')) return '';
       var e = g('Ethnicity Description');
       if (NOT_KNOWN_ETH[e]) return 'Not known';
       if (WHITE[e]) return 'White';
@@ -139,7 +144,7 @@
       if (/^Mixed|Other Mixed/.test(e)) return 'Mixed';
       return 'Other';
     }],
-    ['Ethnicity (detailed)', false, function (g) { return g('Ethnicity Description') || 'Not known'; }],
+    ['Ethnicity (detailed)', false, function (g, has) { return has('Ethnicity Description') ? (g('Ethnicity Description') || 'Not known') : ''; }],
     ['Disability', true, function (g) {
       var d = g('Disability Flag'); return d === 'Y' ? 'Reported disability' : d === 'N' ? 'No reported disability' : '';
     }],
@@ -149,6 +154,7 @@
       var c = g('Care Leaver Description');
       return c === 'In care for more than 3 months' ? 'Care leaver' : c === 'Not a care leaver' ? c : '';
     }],
+    ['Deprived area (IMD flag)', true, function (g) { var v = g('Imd Wp Flag'); return v === 'Yes' || v === 'No' ? v : ''; }],
     ['IMD quintile', true, function (g) {
       var d = parseInt(g('Postcode Home Imd Decile'), 10);
       return d >= 1 && d <= 10 ? 'Quintile ' + Math.ceil(d / 2) + (d <= 2 ? ' (most deprived)' : d >= 9 ? ' (least deprived)' : '') : '';
@@ -159,7 +165,8 @@
       if (!a || !b) return '';
       return a === 'Y' && b === 'Y' ? 'A-levels and BTEC' : a === 'Y' ? 'A-levels' : b === 'Y' ? 'BTEC' : 'Neither';
     }],
-    ['Entry route', false, function (g) {
+    ['Entry route', false, function (g, has) {
+      if (!has('Ucas Application Type')) return '';
       var u = g('Ucas Application Type');
       return u === 'UCAS MAIN CYCLE' ? 'UCAS main cycle' : u === 'UCAS CLEARING' ? 'UCAS Clearing' : 'Not through UCAS';
     }],
@@ -167,9 +174,9 @@
     ['Enrolment status', 'filter', function (g) {
       var e = g('Enrolment Term Status'); return e === 'ES' ? 'Enrolled (ES)' : e === 'IN' ? 'Interrupted (IN)' : e ? e : 'No status';
     }],
-    ['Joint programme', 'filter', function (g) { return g('Programme Collab Type') ? 'Joint programme' : 'Not a joint programme'; }],
+    ['Joint programme', 'filter', function (g, has) { return !has('Programme Collab Type') ? '' : g('Programme Collab Type') ? 'Joint programme' : 'Not a joint programme'; }],
     // Only filled in when the download includes these fields
-    ['New or continuing', 'filter', function (g) { return g('Newness'); }],
+    ['New or continuing', 'filter', function (g) { return g('Newness') || g('Student New Or Returning'); }],
     ['Intake', 'filter', function (g) { return g('Intake'); }],
     ['Programme type', 'filter', function (g) { return g('Programme Type'); }],
     ['Religion', false, function (g) { return g('Religion Description'); }],
@@ -185,12 +192,15 @@
   function roleOf(d) { return d[1] === true ? 'dim' : d[1] === 'filter' ? 'filter' : 'ignore'; }
 
   // Returns {headers, rows, defaults}: a Student ID column and the derived columns.
+  // Derived columns with fewer than two different values (for example faculty, when
+  // the download has no faculty field) are left out, as they cannot be compared on.
   // With a year, only that academic year's rows. With no year, every year, plus an
   // Academic year column, so the page can filter by year (one row per student per
   // year). Student IDs left blank on a student's second year are filled down from
   // the row above, as in the download.
   function transform(headers, rows, year) {
     var hn = headers.map(norm), all = year == null;
+    var has = function (name) { return hn.indexOf(norm(name)) > -1; };
     var idCol = hn.indexOf('student id'), yCol = hn.indexOf('academic year enrolment term');
     var outH = ['Student ID'].concat(all ? ['Academic year'] : [], DERIVED.map(function (d) { return d[0]; }));
     var defaults = { 'Student ID': 'id' };
@@ -203,9 +213,17 @@
       var y = clean(r[yCol]);
       if (!all && y !== String(year)) return;
       var get = function (name) { var i = hn.indexOf(norm(name)); return i < 0 ? '' : clean(r[i]); };
-      out.push([id].concat(all ? [yearLabel(y)] : [], DERIVED.map(function (d) { return d[2](get); })));
+      out.push([id].concat(all ? [yearLabel(y)] : [], DERIVED.map(function (d) { return d[2](get, has); })));
     });
-    return { headers: outH, rows: out, defaults: defaults };
+    var first = all ? 2 : 1, keep = outH.map(function (h, i) {
+      if (i < first) return true;
+      var seen = {}, n = 0;
+      for (var r = 0; r < out.length && n < 2; r++) { var v = out[r][i]; if (v && !seen[v]) { seen[v] = 1; n++; } }
+      return n >= 2;
+    });
+    var pick = function (row) { return row.filter(function (_, i) { return keep[i]; }); };
+    outH.forEach(function (h, i) { if (!keep[i]) delete defaults[h]; });
+    return { headers: pick(outH), rows: out.map(pick), defaults: defaults };
   }
 
   root.MISPreset = { readXlsx: readXlsx, detect: detect, years: years, yearLabel: yearLabel, transform: transform, DERIVED: DERIVED, roleOf: roleOf };

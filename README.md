@@ -82,7 +82,13 @@ The recommended population file is the student number download from
 `MDX_STUDENT_NUMBERS_SV`, filtered as in the planning team's EDI report
 (EnrolmentStatus ES, IN or NA; Hendon campus; collaboration type blank or Joint;
 StudentStatus AS; DegreeStatus SO, FN or PF). It can be uploaded as the Excel file
-straight from the download, or as a CSV.
+straight from the download, or saved as text: comma or tab separated, in UTF-8 or
+UTF-16 (Excel's "Unicode Text"), whatever the file extension.
+
+The fullest version is the "Student EDI data" download, which adds programme level
+(`Programme Level Description`), new or returning (`Student New Or Returning`) and
+the apprenticeship flag. With its base filters (2025/26, enrolled, not joint, no
+apprentices) it gives 11,042 students, matching the EDI dashboard.
 
 When its headers are recognised, the dashboard:
 
@@ -100,8 +106,11 @@ When its headers are recognised, the dashboard:
 - adds the wider characteristics in the download: faculty, level and mode of
   study, residency, first generation in HE, care leaver, IMD quintile (from the
   home postcode decile), and prior qualifications from the A-level and BTEC flags.
-  Department, detailed ethnicity, religion, parental HE and entry route are
-  available too and can be switched on in the column mapping. Enrolment status,
+  It also adds the IMD widening participation flag (deprived area, yes or no) where
+  the download has no postcode decile. Department, detailed ethnicity, religion,
+  parental HE and entry route are available too and can be switched on in the
+  column mapping. Characteristics the download does not hold (for example faculty,
+  when there is no faculty field) are left out automatically. Enrolment status,
   joint programme and apprenticeship are set up as filters only, as are new or
   continuing, intake and programme type when the download includes them.
 
