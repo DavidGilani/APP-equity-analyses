@@ -367,7 +367,7 @@ table.fixed.narrow{min-width:560px}
   <div class="about" role="dialog" aria-labelledby="aboutH">
     <button class="close" id="aboutClose">Close</button>
     <h2 id="aboutH">About this dashboard</h2>
-    <p>Results come from <code>equity_gaps_all_levels_long.csv</code>, produced by <code>app_equity_gaps.R</code> from the OfS individualised student data. The population is full-time, UK-domiciled first degree students registered at Middlesex. Only the four academic faculties are shown.</p>
+    <p>Results come from <code>equity_gaps_all_levels_long.csv</code>, produced by <code>app_equity_gaps.R</code> from the OfS individualised student data. The population is full-time, UK-domiciled first degree students registered at Middlesex. The four academic faculties are shown, and students taught with or by partners appear as partner provision (joint, franchised and validated), as recorded in the OfS file's faculty field. Validated students are only included where Middlesex is their registering provider.</p>
     <h3>Reading the trend line</h3>
     <div id="trendGuide"></div>
     <h3>Equity gap</h3>
@@ -455,7 +455,12 @@ const FACDEF={
  'Business and Law':{code:'BAL',name:'Business and Law',color:'#3A66B0'},
  'Health,Social Care & Education':{code:'HSCE',name:'Health, Social Care and Education',color:'#C25F3C'},
  'Health, Social Care and Education':{code:'HSCE',name:'Health, Social Care and Education',color:'#C25F3C'},
- 'Science and Technology':{code:'S&T',name:'Science and Technology',color:'#C29A2E'}};
+ 'Science and Technology':{code:'S&T',name:'Science and Technology',color:'#C29A2E'},
+ // Partner provision: students registered at Middlesex and taught with or by a partner.
+ // The OfS file puts them under these facultyv4 values rather than an academic faculty.
+ 'Collab - Joint':{code:'PJ',name:'Partner provision: joint',color:'#3B7E7C',partner:true},
+ 'Collab - Franchised':{code:'PF',name:'Partner provision: franchised',color:'#7270A8',partner:true},
+ 'Collab - Validated funded':{code:'PV',name:'Partner provision: validated',color:'#8A8496',partner:true}};
 const FAC=[...new Map(Object.values(FACDEF).map(f=>[f.code,f])).values()];
 const FACm=Object.fromEntries(FAC.map(f=>[f.code,f]));
 const SKIP=new Set(['Unknown','No Department','0','NA','']);
@@ -526,7 +531,9 @@ function metrics(serIn,baseline,t){
   const agg=judge({val:rT!=null&&rC!=null?rC-rT:null,h:moe(nT,nC,rT,rC),nT,nC,rT,rC,years:t.years[3]+' to '+t.years[6]},baseline,t);
   return {gaps,ci,ser,baseline,v:{latest,agg}};
 }
-const byLevel=l=>Object.values(AREAS).filter(a=>a.level===l).sort((x,y)=>x.name.localeCompare(y.name));
+// Academic faculties first, then partner provision
+const isPartner=a=>!!(a.fac&&FACm[a.fac]&&FACm[a.fac].partner);
+const byLevel=l=>Object.values(AREAS).filter(a=>a.level===l).sort((x,y)=>isPartner(x)-isPartner(y)||x.name.localeCompare(y.name));
 
 /* ---------- Which view: most recent year or 4-year aggregate ---------- */
 const state={page:'overview',fac:null,dept:null,prog:null,target:'PTS_1',level:'Department',rfac:'',hideSmall:true,open:null,sort:{k:'name',d:1},scanArea:'U',scanStage:'all',scanApp:true,ethArea:'U',ethStage:'Continuation',ethMode:'year',ethHide:{Unknown:true},showN:false,fbHide:{},fbHideT:{},fbScale:'log',fbLab:'all',ref:'m',modes:{},summary:{},priSig:false,priOpen:null};
@@ -1639,8 +1646,8 @@ function rbTemplate(k){
   if(RB.blocks.length&&!confirm('Replace the current report sections with this template?'))return;
   const area=(lv,fac)=>{const b=rbNew('area');Object.assign(b.p,{level:lv,fac,mode:'latest'});return b};
   const R=RB.report;R.intro='';
-  if(k==='fac'){R.title='APP equity gaps by faculty';R.subtitle='Progress against Access and Participation Plan targets in each faculty';RB.blocks=FAC.map(f=>area('Faculty',f.code))}
-  if(k==='unifac'){R.title='APP equity gaps report';R.subtitle='University and faculty progress against Access and Participation Plan targets';RB.blocks=[area('University',FAC[0].code),...FAC.map(f=>area('Faculty',f.code))]}
+  if(k==='fac'){R.title='APP equity gaps by faculty';R.subtitle='Progress against Access and Participation Plan targets in each faculty';RB.blocks=FAC.filter(f=>!f.partner).map(f=>area('Faculty',f.code))}
+  if(k==='unifac'){R.title='APP equity gaps report';R.subtitle='University and faculty progress against Access and Participation Plan targets';RB.blocks=[area('University',FAC[0].code),...FAC.filter(f=>!f.partner).map(f=>area('Faculty',f.code))]}
   if(k==='aif'){const t=rbAIF();RB.report=t.report;RB.blocks=t.blocks}
   if(k==='rm'){const t=rbRM();RB.report=t.report;RB.blocks=t.blocks}
   if(k==='pri'){R.title='Reverse mentoring pilot: departments to approach';R.subtitle='Departments with the widest equity gaps in each faculty';RB.blocks=[rbNew('pri')]}
