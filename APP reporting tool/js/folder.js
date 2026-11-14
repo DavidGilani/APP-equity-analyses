@@ -229,5 +229,31 @@
     return readJson(dir, names[0]);
   }
 
-  APP.folder = { dataFileInfo, writeDataFile, snapshotNear, backupFile, writeHandle, committeePapers, writeInDir, remembered, choose, reconnect, hasPermission, loadTracker, saveTracker, findTimelineFile, saveReport, latestSnapshot, saveSnapshot, PROJECTS, DATA, TRACKER };
+  // ---------- the APP Interventions Fund folder ----------
+  // A second folder, remembered separately, holding a "Round N - Month YYYY"
+  // folder for each round of funding.
+  const FUND_KEY = 'fund';
+
+  async function rememberedFund() {
+    try { return (await idb('readonly', (s) => s.get(FUND_KEY))) || null; } catch { return null; }
+  }
+
+  async function checkFund(h) {
+    for await (const [name, x] of h.entries()) if (x.kind === 'directory' && /^round\s*\d+/i.test(name)) return h;
+    throw new Error(`"${h.name}" doesn't contain any "Round" folders. Choose the APP Interventions Fund folder.`);
+  }
+
+  async function chooseFund() {
+    const h = await root.showDirectoryPicker({ id: 'app-fund', mode: 'readwrite' });
+    await checkFund(h);
+    try { await idb('readwrite', (s) => s.put(h, FUND_KEY)); } catch { /* not essential */ }
+    return h;
+  }
+
+  async function reconnectFund(h, ask) {
+    if (!(await hasPermission(h, ask))) throw new Error('Permission to the Fund folder was not granted.');
+    return checkFund(h);
+  }
+
+  APP.folder = { rememberedFund, chooseFund, reconnectFund, dataFileInfo, writeDataFile, snapshotNear, backupFile, writeHandle, committeePapers, writeInDir, remembered, choose, reconnect, hasPermission, loadTracker, saveTracker, findTimelineFile, saveReport, latestSnapshot, saveSnapshot, PROJECTS, DATA, TRACKER };
 })(typeof window !== 'undefined' ? window : globalThis);

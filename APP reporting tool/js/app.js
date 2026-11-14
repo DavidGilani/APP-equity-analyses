@@ -1,6 +1,6 @@
 // Page logic: folder connection, strand view, template audit and tracker import.
 (function () {
-  const { model, folder, templates, trackerImport, meetingUpdate, reports, timelineCheck, docx, xlsxWrite, papers, annualData, reporting, plans } = window.APPTool;
+  const { model, folder, templates, trackerImport, meetingUpdate, reports, timelineCheck, docx, xlsxWrite, papers, annualData, reporting, plans, fund } = window.APPTool;
   const $ = (sel) => document.querySelector(sel);
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -27,6 +27,9 @@
     sub: 'summary',    // Progress sub-page: summary, strands, reporting or timeline
     cat: null,         // Progress summary filter: { cat, strand }
     ivPage: null,      // intervention shown on its own page
+    fundDir: null,     // the APP Interventions Fund folder, once connected
+    fundRemembered: null,
+    fundCheck: null,   // result of the last read of the Fund documents
     editing: null,     // the deliverable or data row open for editing, as "ivId|itemId"
     strand: 'all',
     nonBauOnly: true,
@@ -60,7 +63,9 @@
     render();
   }
 
-  const findIv = (id) => state.tracker.interventions.find((x) => x.id === id);
+  // Interventions and Fund projects share one ID space: Fund project IDs start with F.
+  const findIv = (id) => state.tracker.interventions.find((x) => x.id === id) || (state.tracker.fundProjects || []).find((x) => x.id === id);
+  const isFund = (iv) => !!(iv && iv.round);
 
   const fmtDate = (iso) => {
     if (!iso) return '';
@@ -122,7 +127,83 @@
         } catch (e) { state.message = { kind: 'error', text: `Couldn't save after merging duplicates: ${e.message}` }; }
       }
       runAudit({ quiet: true });
+      connectFund({ quiet: true });
     }
+  }
+
+  // ---------- Interventions Fund ----------
+
+  // quiet: reconnect a remembered folder without asking; otherwise ask to choose one.
+  async function connectFund({ quiet = false, pick = false } = {}) {
+    try {
+      if (pick) state.fundDir = await folder.chooseFund();
+      else {
+        const h = state.fundRemembered || await folder.rememberedFund();
+        if (!h) return;
+        try { state.fundDir = await folder.reconnectFund(h, !quiet); }
+        catch (e) { state.fundRemembered = h; if (!quiet) throw e; render(); return; }
+      }
+      state.fundRemembered = null;
+      await readFund({ quiet });
+    } catch (e) {
+      if (e.name !== 'AbortError') flash('error', e.message);
+    }
+  }
+
+  async function readFund({ quiet = false } = {}) {
+    try {
+      const r = await fund.sync(state.tracker, state.fundDir, new Date().toISOString());
+      state.fundCheck = { ...r, at: TODAY };
+      await folder.saveTracker(state.conn.projects, state.tracker);
+      if (quiet) render();
+      else flash(r.errors.length ? 'error' : 'ok', `Read ${r.read} of ${r.docs} project document${r.docs === 1 ? '' : 's'}${r.added ? `, and added ${r.added} new project${r.added === 1 ? '' : 's'}` : ''}.${r.errors.length ? ` Couldn't read: ${r.errors.join('; ')}` : ''}`);
+    } catch (e) {
+      flash('error', `Couldn't read the Fund folder: ${e.message}`);
+    }
+  }
+
+  function renderFundTab() {
+    if (!state.tracker) return '<p>Import the tracker first.</p>';
+    if (state.ivPage && findIv(state.ivPage)) return renderInterventionPage(findIv(state.ivPage));
+    const list = state.tracker.fundProjects || [];
+    const connect = state.fundDir
+      ? `<p class="small muted">Connected to <strong>${esc(state.fundDir.name)}</strong>${state.fundCheck ? `. ${state.fundCheck.docs} project document${state.fundCheck.docs === 1 ? '' : 's'} found.` : '.'}
+          <button class="quiet small-btn" id="read-fund">Check documents again</button> <button class="link small" id="pick-fund">Change folder</button></p>`
+      : `<section class="panel intro"><h3>Connect the Fund folder</h3>
+          <p class="small">Choose the <strong>APP Interventions Fund</strong> folder in OneDrive (in APP 2025-29 monitoring). The tool reads the project documents in each round's planning folder, such as "Project planning documents" or "Round 2 Project documents - Theories of Change", and adds a project for each one.</p>
+          ${state.fundRemembered ? `<button class="primary" id="reconnect-fund">Reconnect to ${esc(state.fundRemembered.name)}</button> ` : ''}<button class="${state.fundRemembered ? 'quiet' : 'primary'}" id="pick-fund">Choose folder</button></section>`;
+    const rows = fund.rounds(state.tracker).map(({ round, label }) => {
+      const items = list.filter((p) => p.round === round).map((p) => {
+        const cat = model.progressCategory(p, TODAY);
+        const c = plans.planCheck(p, TODAY);
+        const next = (p.deliverables || []).filter((d) => d.status !== 'Done').sort((a, b) => (b.kind === 'action') - (a.kind === 'action') || (a.due || '9999').localeCompare(b.due || '9999'))[0];
+        const { periods } = model.plannedPeriods(p);
+        const span = periods.length ? `${fmtDate(periods[0].start)} to ${fmtDate(periods[periods.length - 1].end)}` : '';
+        return `<tr><td class="nowrap"><span class="id">${esc(p.id)}</span></td>
+          <td><button class="link" data-iv="${esc(p.id)}">${esc(p.name)}</button>${p.lead || (p.template && p.template.lead) ? `<div class="muted small">${esc(p.lead || p.template.lead)}</div>` : ''}</td>
+          <td>${statusPill(p.status)}</td><td>${catPill(cat)}</td>
+          <td class="small">${span || '<span class="muted">No dates</span>'}</td>
+          <td>${c.agreed ? '<span class="small">Agreed</span>' : '<span class="small muted">Not yet agreed</span>'}</td>
+          <td>${next ? `${esc(next.title)}<div class="muted small">${next.due ? `<span class="${dueClass(next)}">${fmtDate(next.due)}</span>` : 'No date'}</div>` : '<span class="muted small">None</span>'}</td></tr>`;
+      }).join('');
+      return `<h3 class="section">${esc(label)}</h3>
+        <div class="table-wrap"><table class="grid">
+          <thead><tr><th>#</th><th>Project and lead</th><th>Status</th><th>Progress</th><th>Timeframe</th><th>Plan</th><th>Next due</th></tr></thead>
+          <tbody>${items}</tbody></table></div>`;
+    }).join('');
+    const roundOpts = [...new Set([...fund.rounds(state.tracker).map((r) => r.round), 1, 2, 3])].sort().map((n) => `<option value="${n}">Round ${n}</option>`).join('');
+    return `<h2>Fund projects</h2>
+      <p class="muted intro">Projects funded through the APP Interventions Fund. Each opens a page like an intervention's: status, timeframes from its project document, deliverables and actions, data requirements and notes.</p>
+      ${connect}
+      ${rows || (state.fundDir ? '<p class="muted">No project documents found yet.</p>' : '')}
+      <details class="record"><summary>Add a project without a document yet</summary>
+        <div class="record-form" id="fund-add">
+          <label>Round <select name="round">${roundOpts}</select></label>
+          <label class="grow">Project <input name="name" type="text" autocomplete="off"></label>
+          <label>Lead <input name="lead" type="text" size="14" autocomplete="off"></label>
+          <button class="quiet" id="add-fund">Add</button>
+        </div>
+        <p class="small muted">If its document is saved later with the same name, the tool links the two.</p></details>`;
   }
 
   // ---------- import ----------
@@ -328,7 +409,8 @@
   async function openDocCopy(ivId) {
     try {
       const iv = findIv(ivId);
-      let dir = state.conn.projects;
+      let dir = isFund(iv) ? state.fundDir : state.conn.projects;
+      if (!dir) throw new Error('Connect the Fund folder first, on the Fund projects tab.');
       const parts = iv.template.file.split('/');
       for (const p of parts.slice(0, -1)) dir = await dir.getDirectoryHandle(p);
       const file = await (await dir.getFileHandle(parts[parts.length - 1])).getFile();
@@ -657,7 +739,7 @@ Status: At risk`;
     const ivs = state.tracker.interventions;
     const catOf = new Map(ivs.map((iv) => [iv.id, model.progressCategory(iv, TODAY)]));
     const count = (list, c) => list.filter((iv) => catOf.get(iv.id) === c).length;
-    const cards = model.PROGRESS_CATEGORIES.map((c) => `<button class="stat ${CAT_CLASS[c]}-edge ${state.cat && state.cat.cat === c && !state.cat.strand ? 'on' : ''}" data-cat="${c}">
+    const cards = model.PROGRESS_CATEGORIES.map((c) => `<button class="stat ${CAT_CLASS[c]}-edge ${state.cat && state.cat.cat === c && !state.cat.strand && !state.cat.round ? 'on' : ''}" data-cat="${c}">
         <span class="big">${count(ivs, c)}</span><span>${esc(model.PROGRESS_LABELS[c])}</span></button>`).join('');
     const rows = state.tracker.strands.map((st) => {
       const list = ivs.filter((iv) => iv.strand === st.number);
@@ -665,19 +747,22 @@ Status: At risk`;
         ${model.PROGRESS_CATEGORIES.map((c) => { const n = count(list, c); return `<td class="num">${n ? `<button class="link" data-cat="${c}" data-cat-strand="${st.number}">${n}</button>` : '<span class="muted">0</span>'}</td>`; }).join('')}
         <td class="num">${list.length}</td></tr>`;
     }).join('');
+    const fps = state.tracker.fundProjects || [];
+    for (const p of fps) catOf.set(p.id, model.progressCategory(p, TODAY));
     let detail = '';
     if (state.cat) {
-      const list = ivs.filter((iv) => catOf.get(iv.id) === state.cat.cat && (!state.cat.strand || iv.strand === Number(state.cat.strand)))
+      const pool = state.cat.round ? fps.filter((p) => state.cat.round === 'all' || p.round === Number(state.cat.round)) : ivs;
+      const list = pool.filter((iv) => catOf.get(iv.id) === state.cat.cat && (!state.cat.strand || iv.strand === Number(state.cat.strand)))
         .sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
-      detail = `<h3 class="section">${esc(model.PROGRESS_LABELS[state.cat.cat])}${state.cat.strand ? `, strand ${esc(state.cat.strand)}` : ''} (${list.length}) <button class="link small" data-cat-clear="1">Show all</button></h3>
+      detail = `<h3 class="section">${state.cat.round ? 'Fund projects: ' : ''}${esc(model.PROGRESS_LABELS[state.cat.cat])}${state.cat.strand ? `, strand ${esc(state.cat.strand)}` : ''}${state.cat.round && state.cat.round !== 'all' ? `, round ${esc(state.cat.round)}` : ''} (${list.length}) <button class="link small" data-cat-clear="1">Show all</button></h3>
         <div class="table-wrap"><table class="grid">
-          <thead><tr><th>#</th><th>Intervention</th><th>Strand</th><th>Status</th><th>Next deliverable or action</th></tr></thead>
+          <thead><tr><th>#</th><th>${state.cat.round ? 'Project' : 'Intervention'}</th><th>${state.cat.round ? 'Round' : 'Strand'}</th><th>Status</th><th>Next deliverable or action</th></tr></thead>
           <tbody>${list.map((iv) => {
             const next = (iv.deliverables || []).filter((d) => d.status !== 'Done').sort((a, b) => (a.due || '9999').localeCompare(b.due || '9999'))[0];
             const why = model.progressReason(iv, TODAY);
             return `<tr><td class="nowrap"><span class="id">${esc(iv.id)}</span></td>
               <td><button class="link" data-iv="${esc(iv.id)}">${esc(iv.name)}</button>${why ? `<div class="small hot">${esc(why)}</div>` : ''}</td>
-              <td>${esc(strandName(iv.strand))}</td><td>${statusPill(iv.status)}</td>
+              <td>${isFund(iv) ? esc(iv.roundLabel || `Round ${iv.round}`) : esc(strandName(iv.strand))}</td><td>${statusPill(iv.status)}</td>
               <td>${next ? `${esc(next.title)}<div class="muted small">${esc(next.owner || 'No owner')}${next.due ? `, <span class="${dueClass(next)}">${fmtDate(next.due)}</span>` : ''}</div>` : '<span class="muted small">None recorded</span>'}</td></tr>`;
           }).join('') || '<tr><td colspan="5" class="muted">None.</td></tr>'}</tbody></table></div>`;
     }
@@ -688,7 +773,16 @@ Status: At risk`;
       <div class="table-wrap"><table class="grid">
         <thead><tr><th>Strand</th>${model.PROGRESS_CATEGORIES.map((c) => `<th class="num">${esc(c === 'Behind' ? 'Behind schedule' : c)}</th>`).join('')}<th class="num">Total</th></tr></thead>
         <tbody>${rows}</tbody></table></div>
-      <p class="muted small">"Behind schedule" covers interventions marked at risk or behind, and any with a deliverable or action overdue or blocked, a deliverable later than its agreed date, or data past its due date.</p>`;
+      ${fps.length ? `<h3 class="section">APP Interventions Fund projects</h3>
+      <div class="table-wrap"><table class="grid">
+        <thead><tr><th>Round</th>${model.PROGRESS_CATEGORIES.map((c) => `<th class="num">${esc(c === 'Behind' ? 'Behind schedule' : c)}</th>`).join('')}<th class="num">Total</th></tr></thead>
+        <tbody>${fund.rounds(state.tracker).map(({ round, label }) => {
+          const list = fps.filter((p) => p.round === round);
+          return `<tr><th scope="row">${esc(label)}</th>${model.PROGRESS_CATEGORIES.map((c) => { const n = count(list, c); return `<td class="num">${n ? `<button class="link" data-cat="${c}" data-cat-round="${round}">${n}</button>` : '<span class="muted">0</span>'}</td>`; }).join('')}<td class="num">${list.length}</td></tr>`;
+        }).join('')}</tbody>
+        <tfoot><tr><th>All rounds</th>${model.PROGRESS_CATEGORIES.map((c) => { const n = count(fps, c); return `<td class="num">${n ? `<button class="link" data-cat="${c}" data-cat-round="all">${n}</button>` : '0'}</td>`; }).join('')}<td class="num">${fps.length}</td></tr></tfoot>
+      </table></div>` : ''}
+      <p class="muted small">"Behind schedule" covers interventions and projects marked at risk or behind, and any with a deliverable or action overdue or blocked, a deliverable later than its agreed date, or data past its due date.</p>`;
   }
 
   function renderProgressTab() {
@@ -732,7 +826,7 @@ Status: At risk`;
   function docLink(iv) {
     const t = iv.template;
     if (!t || !t.file) return state.tracker.templatesCheckedAt ? '<span class="hot small">No project document found</span>' : '<span class="muted small">Not checked yet</span>';
-    const base = state.tracker.settings && state.tracker.settings.docsUrl;
+    const base = state.tracker.settings && state.tracker.settings[isFund(iv) ? 'fundDocsUrl' : 'docsUrl'];
     const name = t.file.split('/').pop();
     if (base) {
       const url = `${base.replace(/\/+$/, '')}/${t.file.split('/').map(encodeURIComponent).join('/')}?web=1`;
@@ -796,11 +890,12 @@ Status: At risk`;
     const agreedLine = !plans.needsPlan(iv) ? '' : c.agreed
       ? `<span class="pill ok">Plan agreed ${fmtDate(iv.plan.agreedOn)}${iv.plan.agreedWith ? ` with ${esc(iv.plan.agreedWith)}` : ''}</span>${c.changedSinceAgreed ? ' <span class="pill warn">Changed since agreed</span>' : ''}`
       : '<span class="pill warn">Plan not yet agreed</span>';
-    const base = (state.tracker.settings && state.tracker.settings.docsUrl) || '';
-    return `<p><button class="link" data-iv-back="1">All interventions</button></p>
+    const urlKey = isFund(iv) ? 'fundDocsUrl' : 'docsUrl';
+    const base = (state.tracker.settings && state.tracker.settings[urlKey]) || '';
+    return `<p><button class="link" data-iv-back="1">${isFund(iv) ? 'All Fund projects' : 'All interventions'}</button></p>
       <article class="ivpage">
         <header class="iv-head">
-          <div><div class="muted">Strand ${esc(iv.strand)}: ${esc(strandName(iv.strand))}</div><h2><span class="id">${esc(iv.id)}</span> ${esc(iv.name)}</h2></div>
+          <div><div class="muted">${isFund(iv) ? `APP Interventions Fund, ${esc(iv.roundLabel || `Round ${iv.round}`)}${iv.lead ? `. Lead: ${esc(iv.lead)}` : ''}` : `Strand ${esc(iv.strand)}: ${esc(strandName(iv.strand))}`}</div><h2><span class="id">${esc(iv.id)}</span> ${esc(iv.name)}</h2></div>
           <div class="pills">
             <label class="small">Status <select class="status-select" data-status-for="${esc(iv.id)}">${model.STATUSES.map((s) => `<option ${s === iv.status ? 'selected' : ''}>${s}</option>`).join('')}</select></label>
             ${catPill(cat)} ${agreedLine}
@@ -864,8 +959,8 @@ Status: At risk`;
         </div>
         <p class="muted small">Section applies to project document changes.</p>
         ${base ? '' : `<details class="record"><summary>Link project documents to SharePoint</summary>
-          <p class="small muted">Paste the web address of the APP Projects folder in SharePoint (open the folder in the browser and copy the address). Project documents then open in Word, and edits save straight to OneDrive.</p>
-          <div class="inline-form"><input type="text" id="docs-url" placeholder="https://mdxac.sharepoint.com/..."><button class="quiet small-btn" id="save-docs-url">Save</button></div></details>`}
+          <p class="small muted">Paste the web address of the ${isFund(iv) ? 'APP Interventions Fund' : 'APP Projects'} folder in SharePoint (open the folder in the browser and copy the address). Project documents then open in Word, and edits save straight to OneDrive.</p>
+          <div class="inline-form"><input type="text" id="docs-url" placeholder="https://mdxac.sharepoint.com/..."><button class="quiet small-btn" id="save-docs-url" data-url-key="${urlKey}">Save</button></div></details>`}
       </article>`;
   }
 
@@ -1061,7 +1156,7 @@ Status: At risk`;
 
   // Download the open deliverables and actions owned by you as calendar entries.
   function saveMyIcs(ivId) {
-    const ivs = ivId === 'all' ? state.tracker.interventions : [findIv(ivId)];
+    const ivs = ivId === 'all' ? state.tracker.interventions.concat(state.tracker.fundProjects || []) : [findIv(ivId)];
     const { text, count } = reporting.myItemsIcs(state.tracker, ivs, state.yourName);
     if (!count) { flash('info', `Nothing open with a due date is owned by ${state.yourName || 'you'}${ivId === 'all' ? '' : ' in this intervention'}.`); return; }
     const a = document.createElement('a');
@@ -1345,9 +1440,9 @@ Status: At risk`;
       return;
     }
 
-    const tabs = [['progress', 'Progress'], ['meeting', 'Updates'], ['interventions', 'Interventions'], ['audit', 'Theory of Change audit']];
+    const tabs = [['progress', 'Progress'], ['meeting', 'Updates'], ['interventions', 'Interventions'], ['fund', 'Fund projects'], ['audit', 'Theory of Change audit']];
     $('#tabs').innerHTML = tabs.map(([k, l]) => `<button role="tab" aria-selected="${state.tab === k}" data-tab="${k}">${l}</button>`).join('');
-    const views = { how: renderHowTab, progress: renderProgressTab, interventions: renderInterventionsTab, reporting: renderReportingTab, audit: renderAuditTab, timeline: renderTimelineTab, meeting: renderMeetingTab, how: renderHowTab };
+    const views = { how: renderHowTab, progress: renderProgressTab, interventions: renderInterventionsTab, fund: renderFundTab, reporting: renderReportingTab, audit: renderAuditTab, timeline: renderTimelineTab, meeting: renderMeetingTab, how: renderHowTab };
     const body = (views[state.tab] || renderProgressTab)();
     main.innerHTML = nudgeBanner() + msg + body;
   }
@@ -1430,18 +1525,18 @@ Status: At risk`;
       // Committee reporting and the timeline spreadsheet now sit under Progress.
       const k = t.dataset.tab;
       if (k === 'reporting' || k === 'timeline') { state.tab = 'progress'; state.sub = k; }
-      else { state.tab = k; if (k === 'interventions') state.ivPage = null; }
+      else { state.tab = k; if (k === 'interventions' || k === 'fund') state.ivPage = null; }
       state.message = null; render(); window.scrollTo(0, 0);
     }
     else if (t.id === 'help') { state.tab = 'how'; state.message = null; render(); }
     else if (t.dataset.sub) { state.sub = t.dataset.sub; state.message = null; render(); }
     else if (t.dataset.cat) {
-      const next = { cat: t.dataset.cat, strand: t.dataset.catStrand || null };
-      state.cat = state.cat && state.cat.cat === next.cat && state.cat.strand === next.strand ? null : next;
+      const next = { cat: t.dataset.cat, strand: t.dataset.catStrand || null, round: t.dataset.catRound || null };
+      state.cat = state.cat && state.cat.cat === next.cat && state.cat.strand === next.strand && state.cat.round === next.round ? null : next;
       render();
     }
     else if (t.dataset.catClear) { state.cat = null; render(); }
-    else if (t.dataset.iv) { state.tab = 'interventions'; state.ivPage = t.dataset.iv; state.message = null; render(); window.scrollTo(0, 0); }
+    else if (t.dataset.iv) { state.tab = isFund(findIv(t.dataset.iv)) ? 'fund' : 'interventions'; state.ivPage = t.dataset.iv; state.message = null; render(); window.scrollTo(0, 0); }
     else if (t.dataset.ivBack) { state.ivPage = null; state.message = null; render(); }
     else if (t.dataset.ddel) {
       const [ivId, dId] = t.dataset.ddel.split('|');
@@ -1455,13 +1550,31 @@ Status: At risk`;
     else if (t.dataset.edit) { state.editing = t.dataset.edit; render(); }
     else if (t.dataset.editDone) { state.editing = null; render(); }
     else if (t.dataset.myics) saveMyIcs(t.dataset.myics);
+    else if (t.id === 'pick-fund') connectFund({ pick: true });
+    else if (t.id === 'reconnect-fund') connectFund();
+    else if (t.id === 'read-fund') readFund();
+    else if (t.id === 'add-fund') {
+      const f = $('#fund-add');
+      const name = f.querySelector('[name=name]').value.trim();
+      if (!name) { flash('error', 'Add the project name first.'); return; }
+      const round = Number(f.querySelector('[name=round]').value);
+      state.tracker.fundProjects = state.tracker.fundProjects || [];
+      const known = fund.rounds(state.tracker).find((r) => r.round === round);
+      const p = { id: fund.nextId(state.tracker.fundProjects, round), round, roundLabel: known ? known.label : `Round ${round}`, name, lead: f.querySelector('[name=lead]').value.trim(),
+        status: 'On track', description: '', deliverables: [], dataNeeds: [], addedOn: TODAY };
+      state.tracker.fundProjects.push(p);
+      persist(`Added ${p.id} ${p.name}.`);
+    }
     else if (t.dataset.copy) { const [which, id] = t.dataset.copy.split('|'); copyTables(findIv(id), which); }
     else if (t.dataset.savePlan) savePlans(t.dataset.savePlan);
     else if (t.dataset.opendoc) openDocCopy(t.dataset.opendoc);
     else if (t.id === 'save-docs-url') {
       const v = $('#docs-url').value.trim();
       if (!/^https:\/\//.test(v)) { flash('error', 'Paste the full web address, starting https://'); return; }
-      state.tracker.settings = { ...(state.tracker.settings || {}), docsUrl: v.split('?')[0] };
+      // A folder copied from SharePoint's address bar carries its real path in ?id=.
+      let base = v.split('?')[0];
+      try { const u = new URL(v); const id = u.searchParams.get('id'); if (id) base = u.origin + id.split('/').map(encodeURIComponent).join('/'); } catch { /* keep as typed */ }
+      state.tracker.settings = { ...(state.tracker.settings || {}), [t.dataset.urlKey || 'docsUrl']: base };
       persist('Project documents now link to SharePoint.');
     }
     else if (t.dataset.strand) setStrand(t.dataset.strand);

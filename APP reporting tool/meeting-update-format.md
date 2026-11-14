@@ -21,7 +21,7 @@ Template: Timeframes | Set planning dates once the approach is decided
 Status: At risk
 ```
 
-- **Headings:** each intervention starts with its number in square brackets, like `[6.2]`. Every line after it belongs to that intervention until the next heading.
+- **Headings:** each intervention starts with its number in square brackets, like `[6.2]`. Fund projects use their F number, like `[F2.1]`. Every line after it belongs to that intervention until the next heading.
 - **Notes:** `Update`, `Risk`, `Decision`, `Scope change` and `Question` are saved to the intervention's notes. `Reason for delay` and `Success` are saved too, and feed the committee paper.
 - **Actions and deliverables:** `Action` is a short-term to-do from the meeting. `Deliverable` is a project milestone. Both take `| owner: Name | due: dd/mm/yyyy`, and can take `| status: In progress`.
 - **Data requirements:** `Data: <what> | from: <who provides it> | format: <e.g. Excel> | when: <e.g. end of each term> | due: <dd/mm/yyyy> | for: <why it's needed>`. These appear on the intervention's page, marked as to agree. A data line with exactly the same description as an existing requirement updates that requirement in place of adding a new one.

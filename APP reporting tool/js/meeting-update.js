@@ -27,7 +27,7 @@
 
   function parseUpdate(text, tracker) {
     const { model } = APP;
-    const ids = new Set(tracker.interventions.map((iv) => iv.id));
+    const ids = new Set(tracker.interventions.concat(tracker.fundProjects || []).map((iv) => iv.id));
     const out = { meeting: '', date: null, groups: [], warnings: [] };
     let group = null;
 
@@ -37,9 +37,9 @@
       if (!line) return;
 
       // Intervention headings: "[6.2]", "APP6.2 Local part-time", "## 6.2 ..."
-      const head = /^(?:#+\s*)?\[?\s*(?:APP\s*)?(\d+)\.(\d+)\b/i.exec(line);
+      const head = /^(?:#+\s*)?\[?\s*(?:APP\s*)?(F)?(\d+)\.(\d+)\b/i.exec(line);
       if (head && /^(\[|APP|#)/i.test(line)) {
-        const id = `${Number(head[1])}.${Number(head[2])}`;
+        const id = `${head[1] ? 'F' : ''}${Number(head[2])}.${Number(head[3])}`;
         if (!ids.has(id)) { out.warnings.push(`${where}: ${id} isn't in the tracker, so its lines are skipped.`); group = null; return; }
         group = out.groups.find((g) => g.id === id) || (out.groups.push({ id, notes: [], deliverables: [], templateUpdates: [], dataNeeds: [], status: null }), out.groups[out.groups.length - 1]);
         return;
@@ -108,7 +108,7 @@
     const source = { meetingId, date };
 
     for (const g of parsed.groups) {
-      const iv = t.interventions.find((x) => x.id === g.id);
+      const iv = t.interventions.find((x) => x.id === g.id) || (t.fundProjects || []).find((x) => x.id === g.id);
       iv.deliverables = iv.deliverables || [];
       for (const n of g.notes) t.notes.push({ id: model.newId('n'), interventionId: g.id, ...n, ...source });
       for (const d of g.deliverables) iv.deliverables.push({ id: model.newId('d'), ...d, agreedDue: iv.plan && iv.plan.agreedOn && d.kind === 'deliverable' ? d.due : null, addedOn: date, ...source });
